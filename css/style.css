@@ -21,8 +21,9 @@ html, body {
 #game {
   background: #000;
   image-rendering: auto;
-  max-width: 100vw;
-  max-height: 100vh;
+  display: block;
+  width: 100vw;
+  height: 100vh;
 }
 
 #ui-overlay {

@@ -18,8 +18,12 @@ const Game = {
   init() {
     this.canvas = document.getElementById('game');
     this.ctx = this.canvas.getContext('2d');
-    Sprites.init();
+    this.resize();
     UI.init();
+    window.addEventListener('resize', () => {
+      clearTimeout(this._resizeTimer);
+      this._resizeTimer = setTimeout(() => this.resize(), 150);
+    });
     for (let i = 0; i < 90; i++) {
       this.stars.push({ x: Math.random(), y: Math.random() * 0.7, r: Math.random() * 1.4 + 0.4, tw: Math.random() * 6 });
     }
@@ -41,6 +45,19 @@ const Game = {
   },
 
   newWorld(seed) { World.init(seed); },
+
+  // Fill the whole window; scale tiles with screen height and re-render textures crisp
+  resize() {
+    const w = Math.max(640, window.innerWidth);
+    const h = Math.max(480, window.innerHeight);
+    C.VIEW_W = w;
+    C.VIEW_H = h;
+    C.TILE = Math.max(36, Math.round(h / 13.3));
+    C.TEX = Math.min(192, C.TILE * 2);
+    this.canvas.width = w;
+    this.canvas.height = h;
+    Sprites.init();
+  },
 
   // --- Input ---
   bindInput() {

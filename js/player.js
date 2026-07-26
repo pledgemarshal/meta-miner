@@ -123,7 +123,7 @@ const Player = {
 
     if (thrustUp && this.fuel > 0) {
       this.vy -= C.THRUST * eng * dt;
-      this.fuel = Math.max(0, this.fuel - (C.FUEL_THRUST_PER_SEC - C.FUEL_IDLE_PER_SEC) * dt);
+      this.fuel = Math.max(0, this.fuel - C.FUEL_THRUST_PER_SEC * dt);
       Particles.spawn({
         x: this.x + (Math.random() - 0.5) * 0.3, y: this.y + this.h / 2,
         vx: (Math.random() - 0.5) * 1.5, vy: 3 + Math.random() * 2,
@@ -136,9 +136,11 @@ const Player = {
     if (input.left)  { this.vx -= C.SIDE_ACCEL * eng * dt; this.facing = -1; }
     if (input.right) { this.vx += C.SIDE_ACCEL * eng * dt; this.facing = 1; }
 
-    // Engine always burns fuel; empty tank = instant explosion (as in the original)
-    this.fuel = Math.max(0, this.fuel - C.FUEL_IDLE_PER_SEC * dt);
-    if (this.fuel <= 0) { this.die('fuel'); return; }
+    // Fuel burns only while maneuvering (no idle drain); an empty tank mid-move still explodes
+    if ((input.left || input.right) && this.fuel > 0) {
+      this.fuel = Math.max(0, this.fuel - C.FUEL_IDLE_PER_SEC * dt);
+    }
+    if (this.fuel <= 0 && (thrustUp || input.left || input.right)) { this.die('fuel'); return; }
 
     this.vy += C.GRAVITY * dt;
     this.vx -= this.vx * C.AIR_DRAG * dt;
