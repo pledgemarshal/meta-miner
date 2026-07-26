@@ -14,6 +14,7 @@ const Game = {
   fuelWarnT: 0,          // "FUEL LOW!" banner timer
   _prevFuelFrac: 1,
   ghost: null,           // at most one spectral visitor at a time
+  ghostStage: 0,         // 0: none yet, 1: met at -500 ft, 2: met at -1,000 ft (random after)
   popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
@@ -144,6 +145,9 @@ const Game = {
       Story.seen = {};
       Boss.reset();
       this.score = 0;
+      this.ghost = null;
+      this.ghostStage = 0;
+      this.popups.length = 0;
     }
     this.state = 'play';
   },
@@ -168,7 +172,17 @@ const Game = {
     const depth = Player.depthFeet();
     if (!this.ghost) {
       if (Player.dead || this.bossActive() || this.inHell()) return;
-      // Spawn chance per second grows with depth (zero at the surface)
+      // Scripted introductions: the first ghost appears at -500 ft, the second
+      // at -1,000 ft. Only after both does the depth-scaled haunting begin.
+      if (this.ghostStage === 0) {
+        if (depth >= 500) { this.spawnGhost(); this.ghostStage = 1; }
+        return;
+      }
+      if (this.ghostStage === 1) {
+        if (depth >= 1000) { this.spawnGhost(); this.ghostStage = 2; }
+        return;
+      }
+      // Spawn chance per second grows with depth
       const p = Math.pow(Math.min(1, depth / 7300), 1.2) * 0.035;
       if (Math.random() < p * dt) this.spawnGhost();
       return;
@@ -273,6 +287,7 @@ const Game = {
     Boss.restore(data.boss);
     this.score = 0;
     this.ghost = null;
+    this.ghostStage = 0;
     this.popups.length = 0;
   },
 
