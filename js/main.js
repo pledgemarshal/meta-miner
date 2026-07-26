@@ -56,6 +56,7 @@ const Game = {
     C.TEX = Math.min(192, C.TILE * 2);
     this.canvas.width = w;
     this.canvas.height = h;
+    this._caveA = this._caveB = null;    // mask canvases must match the viewport
     Sprites.init();
   },
 
@@ -343,6 +344,7 @@ const Game = {
     const T = C.TILE;
     const x0 = Math.floor(this.cam.x), x1 = Math.ceil(this.cam.x + C.VIEW_W / T);
     const y0 = Math.max(0, Math.floor(this.cam.y)), y1 = Math.min(C.WORLD_H - 1, Math.ceil(this.cam.y + C.VIEW_H / T));
+    this._caveTiles = [];
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
@@ -351,10 +353,12 @@ const Game = {
         const sx = (x - this.cam.x) * T;
         const sy = (y - this.cam.y) * T;
         if (id === 0) {
-          // Open tunnel: dark cave backdrop with organic, scalloped walls
           if (y <= C.GROUND_BOTTOM_ROW) {
-            ctx.drawImage(Sprites.cave[band], sx, sy, T + 1, T + 1);
-            this.drawCaveEdges(ctx, x, y, sx, sy, band);
+            // Draw solid dirt here too — the passage is carved out of it later
+            // by the organic blob mask in drawCavePass().
+            const v = World.variant[y * C.WORLD_W + x] % Sprites.VARIANTS;
+            ctx.drawImage(Sprites.dirt[band][v], sx, sy, T + 0.5, T + 0.5);
+            this._caveTiles.push({ x, y });
           } else {
             // Hell atmosphere
             ctx.fillStyle = '#1a0505';
@@ -383,6 +387,7 @@ const Game = {
     }
 
     this.drawSoilClouds(ctx, x0, x1, y0, y1);
+    this.drawCavePass(ctx);
 
     // Surface grass line
     if (this.cam.y < 2) {
@@ -443,87 +448,82 @@ const Game = {
     }
   },
 
-  // Textured dirt lips eroding irregularly into each dug tile, with corner
-  // fillets, depth shadows and floor rubble — tunnels read as carved dirt,
-  // not square cells.
-  drawCaveEdges(ctx, x, y, sx, sy, band) {
+  // Carve the passages out of the soil as one organic shape: every open tile
+  // contributes jittered, rotated ellipse blobs to an offscreen mask, plus
+  // connector blobs toward open neighbors so passages stay continuous. The
+  // union of all blobs is textured and composited over the dirt with a blurred
+  // dark fringe — walls become winding contours with no per-tile repetition.
+  drawCavePass(ctx) {
+    const tiles = this._caveTiles;
+    if (!tiles || !tiles.length) return;
     const T = C.TILE;
-    const soil = Sprites.soil(band);
-    const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-    const r01 = i => ((h >>> ((i * 5) % 27)) & 31) / 31;
-    const up = World.isSolid(x, y - 1) && y > 0;
-    const dn = World.isSolid(x, y + 1);
-    const lf = World.isSolid(x - 1, y);
-    const rt = World.isSolid(x + 1, y);
-    if (!up && !dn && !lf && !rt &&
-        !(y > 0 && (World.isSolid(x - 1, y - 1) || World.isSolid(x + 1, y - 1))) &&
-        !World.isSolid(x - 1, y + 1) && !World.isSolid(x + 1, y + 1)) return;
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    if (!this._caveA || this._caveA.width !== W || this._caveA.height !== H) {
+      this._caveA = document.createElement('canvas');
+      this._caveB = document.createElement('canvas');
+      this._caveA.width = this._caveB.width = W;
+      this._caveA.height = this._caveB.height = H;
+    }
+    const a = this._caveA.getContext('2d');
+    const b = this._caveB.getContext('2d');
+    a.globalCompositeOperation = 'source-over';
+    a.clearRect(0, 0, W, H);
+    b.clearRect(0, 0, W, H);
+    a.fillStyle = '#000';
+    b.fillStyle = '#000';
 
-    // One bumpy contour, filled in passes. Bumps are sized/spaced to always
-    // overlap, so no straight tile edge or sharp corner survives anywhere.
-    const buildPath = (scale) => {
-      ctx.beginPath();
-      for (let i = 0; i < 5; i++) {
-        const t = ((i + 0.5) / 5 + (r01(i) - 0.5) * 0.14) * T;
-        if (up) { const r = T * (0.14 + 0.12 * r01(i + 1)) * scale; ctx.moveTo(sx + t + r, sy); ctx.arc(sx + t, sy, r, 0, Math.PI * 2); }
-        if (dn) { const r = T * (0.14 + 0.12 * r01(i + 2)) * scale; ctx.moveTo(sx + t + r, sy + T); ctx.arc(sx + t, sy + T, r, 0, Math.PI * 2); }
-        if (lf) { const r = T * (0.14 + 0.12 * r01(i + 3)) * scale; ctx.moveTo(sx + r, sy + t); ctx.arc(sx, sy + t, r, 0, Math.PI * 2); }
-        if (rt) { const r = T * (0.14 + 0.12 * r01(i + 4)) * scale; ctx.moveTo(sx + T + r, sy + t); ctx.arc(sx + T, sy + t, r, 0, Math.PI * 2); }
-      }
-      // A corner is rounded whenever ANY soil touches it — this is what kills
-      // the sharp 90° angles where tunnels turn.
-      const corner = (cx, cy, cond, i) => {
-        if (!cond) return;
-        const r = T * (0.16 + 0.14 * r01(i)) * scale;
-        ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      };
-      corner(sx, sy, up || lf || (y > 0 && World.isSolid(x - 1, y - 1)), 5);
-      corner(sx + T, sy, up || rt || (y > 0 && World.isSolid(x + 1, y - 1)), 6);
-      corner(sx, sy + T, dn || lf || World.isSolid(x - 1, y + 1), 7);
-      corner(sx + T, sy + T, dn || rt || World.isSolid(x + 1, y + 1), 8);
+    const blob = (wx, wy, rx, ry, rot, grow) => {
+      const sx = (wx - this.cam.x) * T, sy = (wy - this.cam.y) * T;
+      a.beginPath();
+      a.ellipse(sx, sy, rx * T, ry * T, rot, 0, Math.PI * 2);
+      a.fill();
+      b.beginPath();
+      b.ellipse(sx, sy, (rx + grow) * T, (ry + grow) * T, rot, 0, Math.PI * 2);
+      b.fill();
     };
 
-    // 1) Wide soft shadow halo following the bumpy contour (replaces the old
-    //    straight rectangle gradients that made edges read as sharp lines)
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    buildPath(1.75);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.2)';
-    buildPath(1.35);
-    ctx.fill();
-
-    // 2) Feathered dirt fringe: faint oversized lips, like crumbling loose soil
-    ctx.fillStyle = 'rgba(120,80,55,0.18)';
-    buildPath(1.18);
-    ctx.fill();
-
-    // 3) The lips themselves, wearing the same dirt texture as the walls
-    const pat = Sprites.dirtPattern[band];
-    if (pat && pat.setTransform) {
-      pat.setTransform(new DOMMatrix([T / C.TEX, 0, 0, T / C.TEX, sx, sy]));
-      ctx.fillStyle = pat;
-    } else {
-      ctx.fillStyle = Sprites.shade(soil[1], -0.2);
-    }
-    buildPath(1);
-    ctx.fill();
-    // 4) Shade the lips into the tunnel's gloom
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    buildPath(1);
-    ctx.fill();
-
-    // Loose rubble resting on tunnel floors
-    if (dn) {
-      ctx.fillStyle = Sprites.shade(soil[0], -0.15);
+    for (const t of tiles) {
+      const { x, y } = t;
+      const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+      const r01 = i => ((h >>> ((i * 5) % 27)) & 31) / 31;
+      // Two jittered, rotated ellipses per open tile
       for (let i = 0; i < 2; i++) {
-        if (r01(i + 9) < 0.45) continue;
-        const px = sx + T * (0.12 + 0.75 * r01(i + 10));
-        const pr = T * (0.03 + 0.045 * r01(i + 11));
-        ctx.beginPath();
-        ctx.ellipse(px, sy + T - pr * 0.7, pr * 1.4, pr, 0, 0, Math.PI * 2);
-        ctx.fill();
+        blob(
+          x + 0.5 + (r01(i * 4) - 0.5) * 0.3,
+          y + 0.5 + (r01(i * 4 + 1) - 0.5) * 0.3,
+          0.5 + r01(i * 4 + 2) * 0.2,
+          0.42 + r01(i * 4 + 3) * 0.2,
+          r01(i * 4 + 2) * Math.PI,
+          0.16
+        );
       }
+      // Connectors keep passages continuously open between neighboring dug tiles
+      if (!World.isSolid(x + 1, y)) blob(x + 1, y + 0.5 + (r01(9) - 0.5) * 0.2, 0.5, 0.4 + r01(10) * 0.12, 0, 0.14);
+      if (!World.isSolid(x, y + 1) && y + 1 <= C.GROUND_BOTTOM_ROW) blob(x + 0.5 + (r01(11) - 0.5) * 0.2, y + 1, 0.4 + r01(12) * 0.12, 0.5, 0, 0.14);
+      // Opening to the sky: keep the shaft mouth full width
+      if (y === 0) blob(x + 0.5, 0.12, 0.5, 0.35, 0, 0.1);
     }
+
+    // Texture the cave interior (world-anchored pattern so it doesn't swim)
+    const band = Sprites.bandForRow(Math.max(0, Math.floor(this.cam.y + H / T / 2)));
+    const cavePat = a.createPattern(Sprites.cave[band], 'repeat');
+    if (cavePat && cavePat.setTransform) {
+      const s = T / C.TEX;
+      cavePat.setTransform(new DOMMatrix([s, 0, 0, s, -this.cam.x * T, -this.cam.y * T]));
+    }
+    a.globalCompositeOperation = 'source-in';
+    a.fillStyle = cavePat || '#241009';
+    a.fillRect(0, 0, W, H);
+
+    // Blurred dark fringe first (crumbling shadowed rim), then the textured cave
+    ctx.save();
+    ctx.globalAlpha = 0.6;
+    try { ctx.filter = `blur(${Math.max(2, T * 0.14)}px)`; } catch (e) {}
+    ctx.drawImage(this._caveB, 0, 0);
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.drawImage(this._caveA, 0, 0);
+    ctx.restore();
   },
 
   drawBuildings(ctx) {

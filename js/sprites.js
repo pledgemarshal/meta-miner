@@ -74,19 +74,28 @@ const Sprites = {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, S, S);
     }
-    // Speckled grain
+    // Speckled grain — drawn at all 9 wrap positions so the texture tiles
+    // seamlessly and no speckle gets clipped at a tile boundary
+    const wrap = draw => {
+      for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) draw(dx, dy);
+    };
     for (let i = 0; i < 110; i++) {
       const x = this.rand() * S, y = this.rand() * S, r = 0.8 + this.rand() * 3.2;
-      ctx.fillStyle = this.rand() < 0.5 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.06)';
-      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      const col = this.rand() < 0.5 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.06)';
+      wrap((dx, dy) => {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.arc(x + dx, y + dy, r, 0, Math.PI * 2); ctx.fill();
+      });
     }
-    // Small pebbles
+    // Small pebbles, also wrapped
     for (let i = 0; i < 7; i++) {
-      const x = this.rand() * S, y = this.rand() * S, r = 2 + this.rand() * 4;
-      ctx.fillStyle = 'rgba(60,35,25,0.45)';
-      ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.75, this.rand() * 3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      ctx.beginPath(); ctx.ellipse(x - r * 0.25, y - r * 0.25, r * 0.5, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      const x = this.rand() * S, y = this.rand() * S, r = 2 + this.rand() * 4, rot = this.rand() * 3;
+      wrap((dx, dy) => {
+        ctx.fillStyle = 'rgba(60,35,25,0.45)';
+        ctx.beginPath(); ctx.ellipse(x + dx, y + dy, r, r * 0.75, rot, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.07)';
+        ctx.beginPath(); ctx.ellipse(x + dx - r * 0.25, y + dy - r * 0.25, r * 0.5, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
+      });
     }
     return c;
   },
