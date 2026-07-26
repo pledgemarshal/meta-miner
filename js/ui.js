@@ -183,80 +183,101 @@ const UI = {
     for (let y = 0; y < S; y += 3) ctx.fillRect(0, y, S, 1);
   },
 
-  // --- Canvas HUD ---
+  // --- Canvas HUD (scaled 1.8x for readability) ---
   drawHUD(ctx) {
     const P = Player;
-    const pad = 12, barW = 170, barH = 15;
+    // 1.8x HUD on full-width screens, scaling down so nothing collides on narrow ones
+    const U = Math.min(1.8, Math.max(1, C.VIEW_W / 1100));
+    const pad = 12 * U, barW = 170 * U, barH = 15 * U, gap = 12 * U;
     ctx.save();
-    ctx.font = '12px Verdana';
     ctx.textBaseline = 'middle';
 
     // Backdrop strip
-    const grad = ctx.createLinearGradient(0, 0, 0, 64);
+    const stripH = 66 * U;
+    const grad = ctx.createLinearGradient(0, 0, 0, stripH);
     grad.addColorStop(0, 'rgba(8,9,14,0.82)');
     grad.addColorStop(1, 'rgba(8,9,14,0)');
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, C.VIEW_W, 64);
+    ctx.fillRect(0, 0, C.VIEW_W, stripH);
 
-    // Fuel bar
-    this.bar(ctx, pad, 10, barW, barH, P.fuel / P.fuelCap(),
-      P.fuel / P.fuelCap() < 0.25 ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
+    const fuelFrac = P.fuel / P.fuelCap();
+    // Fuel bar — red at or below 25%
+    this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
+      fuelFrac <= 0.25 ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
     // Hull bar
-    this.bar(ctx, pad, 32, barW, barH, P.hull / P.hullCap(), '#7dffb0', `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);
+    this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, P.hull / P.hullCap(), '#7dffb0',
+      `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);
     // Cargo bar
-    this.bar(ctx, pad + barW + 18, 10, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
+    this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
       `CARGO ${P.cargo.length}/${P.cargoCap()}`);
 
     // Money & depth
     ctx.textAlign = 'right';
-    ctx.font = 'bold 16px Verdana';
+    ctx.font = `bold ${Math.round(16 * U)}px Verdana`;
     ctx.fillStyle = '#7dffb0';
-    ctx.fillText('$' + P.money.toLocaleString(), C.VIEW_W - pad, 18);
-    ctx.font = 'bold 13px Verdana';
+    ctx.fillText('$' + P.money.toLocaleString(), C.VIEW_W - pad, 18 * U);
+    ctx.font = `bold ${Math.round(13 * U)}px Verdana`;
     const depth = P.depthFeet();
     let depthStr;
     if (Game.inHell()) depthStr = C.HELL_ALTIMETER.toLocaleString() + ' ft';
     else if (depth > C.ALTIMETER_FAIL) depthStr = (Math.random() < 0.5 ? '?' : '') + '✕✕✕✕ ft';
     else depthStr = '-' + depth.toLocaleString() + ' ft';
     ctx.fillStyle = depth > C.ALTIMETER_FAIL ? '#ff6a50' : '#d8d3c8';
-    ctx.fillText(depthStr, C.VIEW_W - pad, 40);
-    ctx.font = '11px Verdana';
+    ctx.fillText(depthStr, C.VIEW_W - pad, 40 * U);
+    ctx.font = `${Math.round(11 * U)}px Verdana`;
     ctx.fillStyle = '#9a958a';
-    ctx.fillText('SCORE ' + Game.score.toLocaleString(), C.VIEW_W - pad, 58);
+    ctx.fillText('SCORE ' + Game.score.toLocaleString(), C.VIEW_W - pad, 58 * U);
 
     // Item quickbar
     ctx.textAlign = 'left';
-    let ix = pad + barW + 18;
-    ctx.font = '11px Verdana';
+    let ix = pad + barW + gap * 1.5;
+    ctx.font = `${Math.round(11 * U)}px Verdana`;
     const itemIcons = { fuelTank: '⛽F', nanobots: '🔧R', dynamite: '🧨X', plastic: '💥C', teleporter: '🌀Q', transmitter: '📡M' };
     for (const key of Object.keys(itemIcons)) {
       const n = P.items[key];
       ctx.fillStyle = n > 0 ? '#ffd9a0' : 'rgba(150,145,135,0.35)';
-      ctx.fillText(`${itemIcons[key]}:${n}`, ix, 40);
-      ix += 58;
+      ctx.fillText(`${itemIcons[key]}:${n}`, ix, 42 * U);
+      ix += 58 * U;
+    }
+
+    // Low fuel warning: pulsing center-screen banner
+    if (Game.fuelWarnT > 0) {
+      const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));
+      ctx.save();
+      ctx.globalAlpha = pulse * Math.min(1, Game.fuelWarnT / 0.4);   // fade out at the end
+      ctx.textAlign = 'center';
+      ctx.font = `bold ${Math.round(34 * U)}px Verdana`;
+      ctx.shadowColor = '#ff2010';
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = '#ff4530';
+      ctx.fillText('FUEL LOW!', C.VIEW_W / 2, C.VIEW_H * 0.4);
+      ctx.shadowBlur = 0;
+      ctx.restore();
     }
     ctx.restore();
   },
 
   bar(ctx, x, y, w, h, frac, color, label) {
     frac = Math.max(0, Math.min(1, frac));
+    const r = h * 0.28;
     ctx.fillStyle = 'rgba(255,255,255,0.09)';
-    Sprites.rr(ctx, x, y, w, h, 4);
+    Sprites.rr(ctx, x, y, w, h, r);
     ctx.fill();
     if (frac > 0) {
       ctx.fillStyle = color;
-      Sprites.rr(ctx, x, y, Math.max(6, w * frac), h, 4);
+      Sprites.rr(ctx, x, y, Math.max(h * 0.5, w * frac), h, r);
       ctx.fill();
     }
     ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-    ctx.lineWidth = 1;
-    Sprites.rr(ctx, x, y, w, h, 4);
+    ctx.lineWidth = Math.max(1, h * 0.06);
+    Sprites.rr(ctx, x, y, w, h, r);
     ctx.stroke();
-    ctx.fillStyle = '#10120e';
-    ctx.font = 'bold 10px Verdana';
+    const fs = Math.max(10, Math.round(h * 0.66));
+    ctx.font = `bold ${fs}px Verdana`;
     ctx.textAlign = 'left';
-    ctx.fillText(label, x + 6, y + h / 2 + 0.5);
+    ctx.fillStyle = '#10120e';
+    ctx.fillText(label, x + h * 0.42, y + h / 2 + 1);
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillText(label, x + 5, y + h / 2);
+    ctx.fillText(label, x + h * 0.38, y + h / 2);
   },
 };

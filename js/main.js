@@ -11,6 +11,8 @@ const Game = {
   shakeT: 0,
   shakeMag: 0,
   hurtFlash: 0,
+  fuelWarnT: 0,          // "FUEL LOW!" banner timer
+  _prevFuelFrac: 1,
   input: { up: false, down: false, left: false, right: false },
   stars: [],
   deathCause: null,
@@ -228,6 +230,15 @@ const Game = {
     Boss.update(dt);
     Particles.update(dt);
     Story.check();
+
+    // Fuel-low banner: fires each time fuel crosses down through 25%
+    if (this.fuelWarnT > 0) this.fuelWarnT -= dt;
+    const fuelFrac = Player.fuel / Player.fuelCap();
+    if (fuelFrac <= 0.25 && this._prevFuelFrac > 0.25 && !Player.dead) {
+      this.fuelWarnT = 3.5;
+      Audio.play('denied');
+    }
+    this._prevFuelFrac = fuelFrac;
 
     // Entering Hell triggers the boss
     if (this.inHell() && !Boss.active && !Boss.defeated && !Player.dead) Boss.start();
