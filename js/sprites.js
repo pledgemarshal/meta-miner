@@ -553,21 +553,37 @@ const Sprites = {
     ctx.lineWidth = Math.max(1, T * 0.015);
     this.rr(ctx, -T * 0.42, trackY - T * 0.035, T * 0.84, T * 0.17, T * 0.085);
     ctx.stroke();
-    // Tread notches
+    // Tread notches — scroll with ground speed (phase advances only while grounded).
+    // The bottom run of a track moves backward relative to the hull, and the
+    // context may be mirrored, so both signs are folded into the offset.
+    const spacing = T * 0.115;
+    const phasePx = (t.treadPhase || 0) * T * (t.facing < 0 ? 1 : -1);
+    const off = ((phasePx % spacing) + spacing) % spacing;
     ctx.fillStyle = '#0f1114';
-    for (let i = 0; i < 7; i++) {
-      this.rr(ctx, -T * 0.38 + i * T * 0.115, trackY + T * 0.1, T * 0.05, T * 0.035, T * 0.012);
+    for (let i = -1; i < 8; i++) {
+      const nx = -T * 0.38 + i * spacing + off;
+      if (nx < -T * 0.4 || nx > T * 0.36) continue;
+      this.rr(ctx, nx, trackY + T * 0.1, T * 0.05, T * 0.035, T * 0.012);
       ctx.fill();
     }
-    // Road wheels with hubs
+    // Road wheels with hubs — hub bolts rotate in step with the treads
+    const wheelR = T * 0.058;
+    const wheelAng = ((t.treadPhase || 0) * T / wheelR) * (t.facing < 0 ? -1 : 1);
     for (let i = -2; i <= 2; i++) {
       const wx = i * T * 0.16;
       g = ctx.createRadialGradient(wx - T * 0.015, trackY + T * 0.02, T * 0.005, wx, trackY + T * 0.035, T * 0.062);
       g.addColorStop(0, '#8b9097'); g.addColorStop(0.7, '#4a4f56'); g.addColorStop(1, '#26292e');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(wx, trackY + T * 0.035, T * 0.058, 0, P2); ctx.fill();
+      ctx.beginPath(); ctx.arc(wx, trackY + T * 0.035, wheelR, 0, P2); ctx.fill();
       ctx.fillStyle = '#15181c';
       ctx.beginPath(); ctx.arc(wx, trackY + T * 0.035, T * 0.018, 0, P2); ctx.fill();
+      // Spinning hub bolts
+      ctx.fillStyle = '#767c84';
+      for (const ba of [0, Math.PI]) {
+        const bxw = wx + Math.cos(wheelAng + ba) * wheelR * 0.55;
+        const byw = trackY + T * 0.035 + Math.sin(wheelAng + ba) * wheelR * 0.55;
+        ctx.beginPath(); ctx.arc(bxw, byw, Math.max(1, T * 0.011), 0, P2); ctx.fill();
+      }
     }
 
     // ---- Hull: layered panels, stripe, seams, rivets, scratches, mud ----
@@ -681,6 +697,44 @@ const Sprites = {
     ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.035, 0, P2); ctx.fill();
     ctx.fillStyle = 'rgba(255,210,80,0.2)';
     ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.07, 0, P2); ctx.fill();
+
+    // ---- Swivel flashlight on the dome, aimed at the cursor ----
+    if (t.aim != null) {
+      // The context may be mirrored; fold that into the local angle
+      const aim = t.facing < 0 ? Math.PI - t.aim : t.aim;
+      ctx.save();
+      ctx.translate(T * 0.04, -T * 0.4);
+      // Swivel base
+      ctx.fillStyle = '#2c3036';
+      ctx.beginPath(); ctx.arc(0, 0, T * 0.05, 0, P2); ctx.fill();
+      ctx.rotate(aim);
+      // Lamp body
+      ctx.fillStyle = '#3a3f46';
+      this.rr(ctx, -T * 0.02, -T * 0.038, T * 0.12, T * 0.076, T * 0.022);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = Math.max(1, T * 0.012);
+      this.rr(ctx, -T * 0.02, -T * 0.038, T * 0.12, T * 0.076, T * 0.022);
+      ctx.stroke();
+      // Lens
+      ctx.fillStyle = '#fff3c0';
+      ctx.beginPath(); ctx.arc(T * 0.1, 0, T * 0.03, 0, P2); ctx.fill();
+      // Visible beam (short, soft; the real darkness-cutting cone is in the lighting pass)
+      ctx.globalCompositeOperation = 'lighter';
+      const bg = ctx.createLinearGradient(T * 0.1, 0, T * 1.7, 0);
+      bg.addColorStop(0, 'rgba(255,240,190,0.32)');
+      bg.addColorStop(1, 'rgba(255,240,190,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.moveTo(T * 0.1, -T * 0.03);
+      ctx.lineTo(T * 1.7, -T * 0.34);
+      ctx.lineTo(T * 1.7, T * 0.34);
+      ctx.lineTo(T * 0.1, T * 0.03);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.restore();
+    }
 
     ctx.restore();
   },

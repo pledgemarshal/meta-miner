@@ -32,6 +32,7 @@ const Player = {
     this.dead = false;
     this.teleporting = 0;
     this.fallStartY = null;
+    this.treadPhase = 0;
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -153,6 +154,9 @@ const Player = {
     if (this.vy <= 0) this.fallStartY = this.y;
 
     this.moveAndCollide(dt);
+
+    // Treads roll only while actually driving on the ground
+    if (this.onGround) this.treadPhase = (this.treadPhase || 0) + this.vx * dt;
 
     // --- Start drilling? Grounded + direction key toward a drillable tile ---
     if (this.onGround && !thrustUp) {

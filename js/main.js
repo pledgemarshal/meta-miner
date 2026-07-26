@@ -22,6 +22,12 @@ const Game = {
     this.ctx = this.canvas.getContext('2d');
     this.resize();
     UI.init();
+    this.mouse = { x: C.VIEW_W * 0.5, y: C.VIEW_H * 0.4 };
+    this.canvas.addEventListener('mousemove', e => {
+      const r = this.canvas.getBoundingClientRect();
+      this.mouse.x = (e.clientX - r.left) * (this.canvas.width / r.width);
+      this.mouse.y = (e.clientY - r.top) * (this.canvas.height / r.height);
+    });
     window.addEventListener('resize', () => {
       clearTimeout(this._resizeTimer);
       this._resizeTimer = setTimeout(() => this.resize(), 150);
@@ -58,7 +64,7 @@ const Game = {
     C.TEX = Math.min(256, C.TILE * 2);
     this.canvas.width = w;
     this.canvas.height = h;
-    this._caveA = this._caveB = null;    // mask canvases must match the viewport
+    this._caveA = this._caveB = this._lightC = null;   // offscreen layers must match the viewport
     Sprites.init();
   },
 
@@ -276,16 +282,19 @@ const Game = {
     Boss.draw(ctx, this.cam);
     Particles.draw(ctx, this.cam);
     if (!Player.dead) {
-      Sprites.drawPod(ctx,
-        (Player.x - this.cam.x) * C.TILE,
-        (Player.y - this.cam.y) * C.TILE,
-        {
-          facing: Player.facing,
-          drilling: Player.drilling ? Player.drilling.dir : null,
-          thrust: this.input.up && this.state === 'play',
-          time: this.time,
-          teleporting: Player.teleporting,
-        });
+      const podX = (Player.x - this.cam.x) * C.TILE;
+      const podY = (Player.y - this.cam.y) * C.TILE;
+      // Flashlight aim: from the dome lamp toward the cursor (screen space)
+      this._aim = Math.atan2(this.mouse.y - (podY - C.TILE * 0.4), this.mouse.x - podX);
+      Sprites.drawPod(ctx, podX, podY, {
+        facing: Player.facing,
+        drilling: Player.drilling ? Player.drilling.dir : null,
+        thrust: this.input.up && this.state === 'play',
+        time: this.time,
+        teleporting: Player.teleporting,
+        treadPhase: Player.treadPhase || 0,
+        aim: this._aim,
+      });
     }
     this.drawLighting(ctx);
 
@@ -569,18 +578,47 @@ const Game = {
     else darkness = Math.min(0.88, Math.max(0, (depth - 150) / 2600));
     if (darkness <= 0.02) return;
 
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    if (!this._lightC || this._lightC.width !== W || this._lightC.height !== H) {
+      this._lightC = document.createElement('canvas');
+      this._lightC.width = W;
+      this._lightC.height = H;
+    }
+    const lc = this._lightC.getContext('2d');
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, W, H);
+
     const px = (Player.x - this.cam.x) * C.TILE;
     const py = (Player.y - this.cam.y) * C.TILE;
     const radius = C.TILE * (this.inHell() ? 7 : 5.2);
 
-    // Radial light around the pod, multiplied over a dark overlay
-    const g = ctx.createRadialGradient(px, py, C.TILE * 0.8, px, py, radius);
+    // Radial pool of light around the pod inside the dark overlay
     const tint = this.inHell() ? '40,8,4' : '6,5,8';
+    const g = lc.createRadialGradient(px, py, C.TILE * 0.8, px, py, radius);
     g.addColorStop(0, `rgba(${tint},0)`);
     g.addColorStop(0.55, `rgba(${tint},${darkness * 0.45})`);
     g.addColorStop(1, `rgba(${tint},${darkness})`);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
+    lc.fillStyle = g;
+    lc.fillRect(0, 0, W, H);
+
+    // The dome flashlight carves a cone of visibility toward the cursor
+    if (!Player.dead && this._aim != null) {
+      const beamLen = C.TILE * 7;
+      const bg = lc.createRadialGradient(px, py - C.TILE * 0.4, C.TILE * 0.4, px, py - C.TILE * 0.4, beamLen);
+      bg.addColorStop(0, 'rgba(0,0,0,0.85)');
+      bg.addColorStop(0.65, 'rgba(0,0,0,0.55)');
+      bg.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.globalCompositeOperation = 'destination-out';
+      lc.fillStyle = bg;
+      lc.beginPath();
+      lc.moveTo(px, py - C.TILE * 0.4);
+      lc.arc(px, py - C.TILE * 0.4, beamLen, this._aim - 0.26, this._aim + 0.26);
+      lc.closePath();
+      lc.fill();
+      lc.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.drawImage(this._lightC, 0, 0);
 
     // Headlamp glow
     ctx.save();
