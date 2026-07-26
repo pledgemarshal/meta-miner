@@ -203,8 +203,10 @@ const Game = {
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
     if (this.state !== 'play') { Particles.update(dt); return; }
+    // Shop menus pause the world (and the fuel drain), as in the original
+    if (UI.isOpen()) { Particles.update(dt); return; }
 
-    Player.update(dt, UI.isOpen() ? { up: 0, down: 0, left: 0, right: 0 } : this.input);
+    Player.update(dt, this.input);
     Boss.update(dt);
     Particles.update(dt);
     Story.check();
