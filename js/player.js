@@ -188,7 +188,8 @@ const Player = {
     if (kind.mineral) {
       if (this.cargo.length < this.cargoCap()) {
         this.cargo.push(kind.key);
-        Audio.play('pickup');
+        Audio.pickup(kind.mineral.value);
+        Game.popup(d.x + 0.5, d.y + 0.2, '+$' + kind.mineral.value.toLocaleString());
         Particles.sparks(d.x + 0.5, d.y + 0.5);
       } else {
         // Full bay: the mineral is destroyed, as in the original
@@ -198,7 +199,8 @@ const Player = {
     } else if (kind.artifact) {
       const a = kind.artifact;
       this.money += a.value;
-      Audio.play('sell');
+      Audio.pickup(a.value);
+      Game.popup(d.x + 0.5, d.y + 0.2, '+$' + a.value.toLocaleString(), '#ffd76e');
       Game.toast(`${a.name}! +$${a.value.toLocaleString()}`);
       Particles.burst(d.x + 0.5, d.y + 0.5, 14, { color: a.color, speed: 4, life: 0.7, size: 0.08, glow: true });
     } else if (kind.lava) {

@@ -13,6 +13,8 @@ const Game = {
   hurtFlash: 0,
   fuelWarnT: 0,          // "FUEL LOW!" banner timer
   _prevFuelFrac: 1,
+  ghost: null,           // at most one spectral visitor at a time
+  popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
   deathCause: null,
@@ -157,6 +159,85 @@ const Game = {
   shake(mag) { this.shakeT = Math.max(this.shakeT, 0.35); this.shakeMag = Math.max(this.shakeMag, mag); },
   toast(msg) { UI.toast(msg); },
 
+  popup(x, y, text, color) {
+    this.popups.push({ x, y, text, color: color || '#7dffb0', age: 0, life: 1.3 });
+  },
+
+  // --- Ghosts: rarer up top, common down deep; one at a time ---
+  updateGhost(dt) {
+    const depth = Player.depthFeet();
+    if (!this.ghost) {
+      if (Player.dead || this.bossActive() || this.inHell()) return;
+      // Spawn chance per second grows with depth (zero at the surface)
+      const p = Math.pow(Math.min(1, depth / 7300), 1.2) * 0.035;
+      if (Math.random() < p * dt) this.spawnGhost();
+      return;
+    }
+    const g = this.ghost;
+    g.age += dt;
+
+    if (g.fading > 0) {
+      g.fading -= dt;
+      if (g.fading <= 0) this.ghost = null;
+      return;
+    }
+
+    // Slow pursuit with a spectral wobble (ghosts ignore walls)
+    const dx = Player.x - g.x, dy = Player.y - g.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    g.x += (dx / dist) * 1.3 * dt + Math.sin(g.age * 2.1 + g.seed) * 0.4 * dt;
+    g.y += (dy / dist) * 1.3 * dt + Math.cos(g.age * 1.7 + g.seed) * 0.35 * dt;
+
+    // Contact: siphons 20% of the pod's fuel
+    if (dist < 0.85 && !Player.dead && Player.teleporting <= 0) {
+      const lost = Player.fuel * 0.2;
+      Player.fuel -= lost;
+      this.flashHurt();
+      Audio.play('ghostHit');
+      this.popup(Player.x, Player.y - 0.8, '-' + lost.toFixed(1) + ' L', '#a0c8ff');
+      this.toast('A ghost siphoned your fuel!');
+      g.fading = 0.5;
+      return;
+    }
+
+    // Held in the flashlight beam long enough → banished, fuel refunded
+    const px = (Player.x - this.cam.x) * C.TILE;
+    const py = (Player.y - this.cam.y) * C.TILE - C.TILE * 0.4;
+    const gx = (g.x - this.cam.x) * C.TILE;
+    const gy = (g.y - this.cam.y) * C.TILE;
+    const ang = Math.atan2(gy - py, gx - px);
+    let diff = Math.abs(ang - (this._aim || 0));
+    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+    const distPx = Math.hypot(gx - px, gy - py);
+    if (diff < 0.3 && distPx < C.TILE * 7 && !Player.dead) {
+      g.exposure += dt;
+      if (g.exposure > 0.4) {
+        Audio.play('shriek');
+        const bonus = Player.fuelCap() * 0.1;
+        Player.fuel = Math.min(Player.fuelCap(), Player.fuel + bonus);
+        this.popup(g.x, g.y - 0.5, '+' + bonus.toFixed(1) + ' L', '#7de0ff');
+        this.toast('Ghost banished by your flashlight!');
+        g.fading = 0.5;
+      }
+    } else {
+      g.exposure = Math.max(0, g.exposure - dt * 2);
+    }
+  },
+
+  spawnGhost() {
+    const a = Math.random() * Math.PI * 2;
+    const r = 12 + Math.random() * 3;
+    this.ghost = {
+      x: Math.max(1.5, Math.min(C.WORLD_W - 1.5, Player.x + Math.cos(a) * r)),
+      y: Math.max(1, Math.min(C.GROUND_BOTTOM_ROW - 2, Player.y + Math.sin(a) * r)),
+      age: 0,
+      seed: Math.random() * 10,
+      exposure: 0,
+      fading: 0,
+    };
+    Audio.play('moan');
+  },
+
   rollMarsquake() {
     if (Math.random() < C.MARSQUAKE_CHANCE && Player.depthFeet() < 10) {
       World.quake();
@@ -191,6 +272,8 @@ const Game = {
     Story.restore(data.story);
     Boss.restore(data.boss);
     this.score = 0;
+    this.ghost = null;
+    this.popups.length = 0;
   },
 
   onPlayerDeath(cause) {
@@ -246,6 +329,14 @@ const Game = {
     }
     this._prevFuelFrac = fuelFrac;
 
+    this.updateGhost(dt);
+
+    // Floating popups age out
+    for (let i = this.popups.length - 1; i >= 0; i--) {
+      this.popups[i].age += dt;
+      if (this.popups[i].age >= this.popups[i].life) this.popups.splice(i, 1);
+    }
+
     // Entering Hell triggers the boss
     if (this.inHell() && !Boss.active && !Boss.defeated && !Player.dead) Boss.start();
 
@@ -297,6 +388,8 @@ const Game = {
       });
     }
     this.drawLighting(ctx);
+    this.drawGhost(ctx);
+    this.drawPopups(ctx);
 
     // Hurt vignette
     if (this.hurtFlash > 0) {
@@ -628,6 +721,85 @@ const Game = {
     hl.addColorStop(1, 'rgba(255,220,150,0)');
     ctx.fillStyle = hl;
     ctx.fillRect(px - C.TILE * 3, py - C.TILE * 3, C.TILE * 6, C.TILE * 6);
+    ctx.restore();
+  },
+
+  // Ghost renders above the lighting layer — spectres glow in the dark
+  drawGhost(ctx) {
+    const g = this.ghost;
+    if (!g) return;
+    const T = C.TILE;
+    const gx = (g.x - this.cam.x) * T;
+    const gy = (g.y - this.cam.y) * T + Math.sin(g.age * 3) * T * 0.08;
+    if (gx < -T * 2 || gx > C.VIEW_W + T * 2 || gy < -T * 2 || gy > C.VIEW_H + T * 2) return;
+    let alpha = 0.72;
+    if (g.fading > 0) alpha *= g.fading / 0.5;
+    alpha = Math.min(1, alpha + g.exposure * 0.6);   // brightens while lit by the beam
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // Spectral glow
+    ctx.globalCompositeOperation = 'lighter';
+    let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.1);
+    gg.addColorStop(0, 'rgba(160,220,255,0.35)');
+    gg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gg;
+    ctx.fillRect(gx - T * 1.2, gy - T * 1.2, T * 2.4, T * 2.4);
+    ctx.globalCompositeOperation = 'source-over';
+    // Body: dome head, tapering wavy skirt
+    gg = ctx.createLinearGradient(gx, gy - T * 0.45, gx, gy + T * 0.5);
+    gg.addColorStop(0, 'rgba(220,242,255,0.9)');
+    gg.addColorStop(1, 'rgba(150,190,230,0.12)');
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(gx, gy - T * 0.1, T * 0.32, Math.PI, 0);
+    const bot = gy + T * 0.42;
+    ctx.lineTo(gx + T * 0.32, bot - T * 0.08);
+    for (let i = 3; i >= 0; i--) {
+      const wx = gx - T * 0.32 + (i + 0.5) * (T * 0.64 / 4);
+      const wy = bot + Math.sin(g.age * 6 + i * 2) * T * 0.06 - (i % 2) * T * 0.09;
+      ctx.quadraticCurveTo(wx + T * 0.08, wy + T * 0.12, wx - T * 0.08, wy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Trailing wisps
+    ctx.fillStyle = 'rgba(190,225,255,0.25)';
+    for (let i = 0; i < 3; i++) {
+      const wxp = gx - T * (0.4 + i * 0.16) * Math.cos(g.age * 1.5);
+      const wyp = gy + T * 0.2 + Math.sin(g.age * 4 + i * 1.8) * T * 0.12;
+      ctx.beginPath();
+      ctx.arc(wxp, wyp, T * (0.07 - i * 0.015), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Hollow eyes & mouth
+    ctx.fillStyle = 'rgba(20,40,70,0.9)';
+    ctx.beginPath();
+    ctx.ellipse(gx - T * 0.11, gy - T * 0.15, T * 0.05, T * 0.075, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(gx + T * 0.11, gy - T * 0.15, T * 0.05, T * 0.075, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(gx, gy + T * 0.03, T * 0.055, T * 0.08, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  },
+
+  drawPopups(ctx) {
+    if (!this.popups.length) return;
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const p of this.popups) {
+      const t = p.age / p.life;
+      const sx = (p.x - this.cam.x) * C.TILE;
+      const sy = (p.y - this.cam.y) * C.TILE - t * C.TILE * 0.95;
+      ctx.globalAlpha = 1 - t * t;
+      ctx.font = `bold ${Math.round(C.TILE * (0.3 + 0.06 * (1 - t)))}px Verdana`;
+      ctx.lineWidth = Math.max(2, C.TILE * 0.05);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeText(p.text, sx, sy);
+      ctx.fillStyle = p.color;
+      ctx.fillText(p.text, sx, sy);
+    }
     ctx.restore();
   },
 

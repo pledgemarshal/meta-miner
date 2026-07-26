@@ -59,9 +59,35 @@ const Audio = {
     src.start(t0);
   },
 
+  // Ore collection jingle — escalates with the ore's value
+  pickup(value) {
+    if (value >= 100000) {
+      // Diamond / Amazonite: triumphant rising fanfare with a sparkle on top
+      [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.14, 'triangle', 0.16, null, i * 0.07));
+      this.tone(2093, 0.3, 'sine', 0.1, null, 0.46);
+      this.tone(1568, 0.24, 'sine', 0.08, null, 0.52);
+    } else if (value >= 20000) {
+      // Ruby: five-note fanfare
+      [523, 659, 784, 988, 1319].forEach((f, i) => this.tone(f, 0.12, 'triangle', 0.15, null, i * 0.06));
+    } else if (value >= 2000) {
+      // Einsteinium / Emerald: bright four-note sparkle
+      [587, 740, 880, 1175].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.14, null, i * 0.055));
+    } else if (value >= 250) {
+      // Goldium / Platinium: happy three-note arpeggio
+      [523, 659, 784].forEach((f, i) => this.tone(f, 0.09, 'sine', 0.14, null, i * 0.05));
+    } else {
+      // Ironium / Bronzium / Silverium: simple two-tone blip
+      this.tone(660, 0.07, 'sine', 0.13);
+      this.tone(880, 0.1, 'sine', 0.12, null, 0.06);
+    }
+  },
+
   play(name) {
     switch (name) {
       case 'pickup':   this.tone(660, 0.08, 'sine', 0.15); this.tone(990, 0.12, 'sine', 0.15, null, 0.07); break;
+      case 'moan':     this.tone(180, 1.4, 'sine', 0.1, 120); this.tone(240, 1.2, 'sine', 0.06, 150, 0.15); break;
+      case 'shriek':   this.tone(1750, 0.55, 'sawtooth', 0.16, 280); this.tone(2300, 0.4, 'square', 0.08, 500, 0.05); this.noise(0.45, 0.2, 3500, 0.05); break;
+      case 'ghostHit': this.tone(420, 0.5, 'sine', 0.14, 90); this.tone(330, 0.4, 'triangle', 0.1, 70, 0.1); this.noise(0.3, 0.15, 600, 0.05); break;
       case 'sell':     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.14, null, i * 0.07)); break;
       case 'buy':      this.tone(784, 0.09, 'triangle', 0.15); this.tone(1175, 0.14, 'triangle', 0.13, null, 0.08); break;
       case 'denied':   this.tone(180, 0.18, 'square', 0.12, 120); break;
