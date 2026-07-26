@@ -24,10 +24,10 @@ const C = {
   MAX_FALL: 22,                 // terminal velocity (~600 ft fall to reach max dmg)
   WEIGHT_SLOW: 0.55,            // fraction of thrust lost at max cargo weight
 
-  // --- Fall damage (original table: distance in feet -> HP). Safe up to 24 ft. ---
+  // --- Fall damage (distance in feet -> HP). Softened from the original: safe up to ~50 ft. ---
   FALL_DMG: [
-    { ft: 25, dmg: 3 }, { ft: 37, dmg: 4 }, { ft: 67, dmg: 5 },
-    { ft: 119, dmg: 6 }, { ft: 219, dmg: 7 }, { ft: 576, dmg: 8 },
+    { ft: 50, dmg: 1 }, { ft: 100, dmg: 2 }, { ft: 200, dmg: 3 },
+    { ft: 350, dmg: 4 }, { ft: 600, dmg: 5 },
   ],
 
   // --- Fuel (liters; original: ~5 L/min idle, ~17 L/min flying, more while digging) ---

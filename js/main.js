@@ -351,17 +351,12 @@ const Game = {
         const sx = (x - this.cam.x) * T;
         const sy = (y - this.cam.y) * T;
         if (id === 0) {
-          // Open tunnel: dark cave backdrop with soft wall shading
+          // Open tunnel: dark cave backdrop with organic, scalloped walls
           if (y <= C.GROUND_BOTTOM_ROW) {
-            const [top, bot] = Sprites.soil(band);
-            ctx.fillStyle = Sprites.shade(bot.startsWith('#') ? bot : '#333', -0.72);
+            const bot = Sprites.soil(band)[1];
+            ctx.fillStyle = Sprites.shade(bot, -0.72);
             ctx.fillRect(sx, sy, T + 1, T + 1);
-            // Ambient occlusion at solid neighbors
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
-            if (World.isSolid(x, y - 1)) ctx.fillRect(sx, sy, T + 1, 6);
-            if (World.isSolid(x, y + 1)) ctx.fillRect(sx, sy + T - 6, T + 1, 6);
-            if (World.isSolid(x - 1, y)) ctx.fillRect(sx, sy, 6, T + 1);
-            if (World.isSolid(x + 1, y)) ctx.fillRect(sx + T - 6, sy, 6, T + 1);
+            this.drawCaveEdges(ctx, x, y, sx, sy, band);
           } else {
             // Hell atmosphere
             ctx.fillStyle = '#1a0505';
@@ -416,6 +411,61 @@ const Game = {
         ctx.stroke();
       }
       ctx.restore();
+    }
+  },
+
+  // Scalloped soil lips, corner fillets, shadows and floor debris that make dug
+  // tiles read as round-walled tunnels instead of square cells.
+  drawCaveEdges(ctx, x, y, sx, sy, band) {
+    const T = C.TILE;
+    const soil = Sprites.soil(band);
+    const wall = Sprites.shade(soil[1], -0.3);
+    const h = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+    const r01 = i => ((h >>> ((i * 5) % 27)) & 31) / 31;
+    const up = World.isSolid(x, y - 1) && y > 0;
+    const dn = World.isSolid(x, y + 1);
+    const lf = World.isSolid(x - 1, y);
+    const rt = World.isSolid(x + 1, y);
+
+    // Irregular soil bumps protruding from each solid side (centers sit on the edge)
+    ctx.fillStyle = wall;
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const t = ((i + 0.5) / 3 + (r01(i) - 0.5) * 0.26) * T;
+      if (up) { const r = T * (0.1 + 0.13 * r01(i + 1)); ctx.moveTo(sx + t + r, sy); ctx.arc(sx + t, sy, r, 0, Math.PI * 2); }
+      if (dn) { const r = T * (0.1 + 0.13 * r01(i + 2)); ctx.moveTo(sx + t + r, sy + T); ctx.arc(sx + t, sy + T, r, 0, Math.PI * 2); }
+      if (lf) { const r = T * (0.1 + 0.13 * r01(i + 3)); ctx.moveTo(sx + r, sy + t); ctx.arc(sx, sy + t, r, 0, Math.PI * 2); }
+      if (rt) { const r = T * (0.1 + 0.13 * r01(i + 4)); ctx.moveTo(sx + T + r, sy + t); ctx.arc(sx + T, sy + t, r, 0, Math.PI * 2); }
+    }
+    // Corner fillets where two solid sides meet, and where only a diagonal is solid
+    const corner = (cx, cy, cond, i) => {
+      if (!cond) return;
+      const r = T * (0.16 + 0.12 * r01(i));
+      ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    };
+    corner(sx, sy, (up && lf) || (!up && !lf && World.isSolid(x - 1, y - 1) && y > 0), 5);
+    corner(sx + T, sy, (up && rt) || (!up && !rt && World.isSolid(x + 1, y - 1) && y > 0), 6);
+    corner(sx, sy + T, (dn && lf) || (!dn && !lf && World.isSolid(x - 1, y + 1)), 7);
+    corner(sx + T, sy + T, (dn && rt) || (!dn && !rt && World.isSolid(x + 1, y + 1)), 8);
+    ctx.fill();
+
+    // Soft depth shadows over the lips
+    if (up) { const g = ctx.createLinearGradient(0, sy, 0, sy + T * 0.42); g.addColorStop(0, 'rgba(0,0,0,0.42)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy, T + 1, T * 0.42); }
+    if (dn) { const g = ctx.createLinearGradient(0, sy + T, 0, sy + T * 0.62); g.addColorStop(0, 'rgba(0,0,0,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy + T * 0.62, T + 1, T * 0.38); }
+    if (lf) { const g = ctx.createLinearGradient(sx, 0, sx + T * 0.4, 0); g.addColorStop(0, 'rgba(0,0,0,0.38)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy, T * 0.4, T + 1); }
+    if (rt) { const g = ctx.createLinearGradient(sx + T, 0, sx + T * 0.6, 0); g.addColorStop(0, 'rgba(0,0,0,0.38)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx + T * 0.6, sy, T * 0.4, T + 1); }
+
+    // Loose rubble resting on tunnel floors
+    if (dn) {
+      ctx.fillStyle = Sprites.shade(soil[0], -0.15);
+      for (let i = 0; i < 2; i++) {
+        if (r01(i + 9) < 0.45) continue;
+        const px = sx + T * (0.12 + 0.75 * r01(i + 10));
+        const pr = T * (0.03 + 0.045 * r01(i + 11));
+        ctx.beginPath();
+        ctx.ellipse(px, sy + T - pr * 0.7, pr * 1.4, pr, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   },
 
