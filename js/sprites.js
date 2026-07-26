@@ -3,9 +3,11 @@
 
 const Sprites = {
   BANDS: 8,                  // soil palettes from surface to Hell
-  VARIANTS: 4,
+  VARIANTS: 6,
   dirt: [],                  // [band][variant] -> canvas
   stone: [],                 // [band] -> canvas
+  cave: [],                  // [band] -> dark tunnel-interior texture
+  dirtPattern: [],           // [band] -> CanvasPattern for organic wall lips
   lavaBase: null,
   minerals: {},              // key -> [band] -> canvas
   artifacts: {},
@@ -36,10 +38,13 @@ const Sprites = {
 
   init() {
     const S = C.TEX;
+    const pctx = this.makeCanvas(4).getContext('2d');
     for (let b = 0; b < this.BANDS; b++) {
       this.dirt[b] = [];
       for (let v = 0; v < this.VARIANTS; v++) this.dirt[b].push(this.makeDirt(b, S));
       this.stone[b] = this.makeStone(b, S);
+      this.cave[b] = this.makeCave(b, S);
+      this.dirtPattern[b] = pctx.createPattern(this.dirt[b][0], 'repeat');
     }
     this.lavaBase = this.makeLava(S);
     for (const key of Object.keys(C.MINERALS)) {
@@ -53,32 +58,65 @@ const Sprites = {
   },
 
   makeDirt(band, S) {
+    // Deliberately seamless: flat base, no per-tile gradient and no edge bevel,
+    // so adjacent tiles merge into one continuous soil mass with no grid lines.
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
     const [top, bot] = this.soil(band);
-    const g = ctx.createLinearGradient(0, 0, 0, S);
-    g.addColorStop(0, top); g.addColorStop(1, bot);
-    ctx.fillStyle = g;
+    ctx.fillStyle = this.mix(top, bot, 0.5);
     ctx.fillRect(0, 0, S, S);
+    // Very faint in-tile blotches (large-scale variation is painted in world space
+    // by Game.drawSoilClouds so it can cross tile boundaries)
+    for (let i = 0; i < 5; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = S * (0.2 + this.rand() * 0.4);
+      const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
+      g.addColorStop(0, this.rand() < 0.55 ? 'rgba(30,10,5,0.05)' : 'rgba(255,225,190,0.03)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, S, S);
+    }
     // Speckled grain
-    for (let i = 0; i < 90; i++) {
-      const x = this.rand() * S, y = this.rand() * S, r = 1 + this.rand() * 3.5;
-      ctx.fillStyle = this.rand() < 0.5 ? 'rgba(0,0,0,0.16)' : 'rgba(255,255,255,0.07)';
+    for (let i = 0; i < 110; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 0.8 + this.rand() * 3.2;
+      ctx.fillStyle = this.rand() < 0.5 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.06)';
       ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
     }
     // Small pebbles
-    for (let i = 0; i < 6; i++) {
-      const x = this.rand() * S, y = this.rand() * S, r = 2.5 + this.rand() * 4;
-      ctx.fillStyle = 'rgba(60,35,25,0.5)';
+    for (let i = 0; i < 7; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 2 + this.rand() * 4;
+      ctx.fillStyle = 'rgba(60,35,25,0.45)';
       ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.75, this.rand() * 3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
       ctx.beginPath(); ctx.ellipse(x - r * 0.25, y - r * 0.25, r * 0.5, r * 0.35, 0, 0, Math.PI * 2); ctx.fill();
     }
-    // Soft edge bevel
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.fillRect(0, 0, S, 3);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(0, S - 3, S, 3);
     return c;
+  },
+
+  // Dark tunnel interior: rough shadowed dirt, not a flat color
+  makeCave(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    const bot = this.soil(band)[1];
+    ctx.fillStyle = this.shade(bot, -0.74);
+    ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 50; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 1 + this.rand() * 3;
+      ctx.fillStyle = this.rand() < 0.6 ? 'rgba(0,0,0,0.25)' : 'rgba(255,220,190,0.035)';
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Faint half-buried rocks catching what little light there is
+    for (let i = 0; i < 4; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 4 + this.rand() * 8;
+      ctx.fillStyle = 'rgba(160,120,95,0.07)';
+      ctx.beginPath(); ctx.ellipse(x, y, r, r * 0.7, this.rand() * 3, 0, Math.PI * 2); ctx.fill();
+    }
+    return c;
+  },
+
+  mix(h1, h2, t) {
+    const a = parseInt(h1.slice(1), 16), b = parseInt(h2.slice(1), 16);
+    const r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+    const g = Math.round(((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+    const bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
+    return `rgb(${r},${g},${bl})`;
   },
 
   makeStone(band, S) {

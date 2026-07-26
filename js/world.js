@@ -54,7 +54,7 @@ const World = {
       const feet = C.rowToFeet(y);
       for (let x = 0; x < W; x++) {
         const i = y * W + x;
-        this.variant[i] = Math.floor(rand() * 4);
+        this.variant[i] = Math.floor(rand() * 6);
 
         // Side walls: impassable stone
         if (x === 0 || x === W - 1) { this.grid[i] = 2; continue; }
