@@ -214,7 +214,7 @@ const Game = {
       return;
     }
 
-    // Held in the flashlight beam long enough → banished, fuel refunded
+    // Flashlight burns the ghost: 3 cumulative seconds of light destroys it
     const px = (Player.x - this.cam.x) * C.TILE;
     const py = (Player.y - this.cam.y) * C.TILE - C.TILE * 0.4;
     const gx = (g.x - this.cam.x) * C.TILE;
@@ -223,18 +223,32 @@ const Game = {
     let diff = Math.abs(ang - (this._aim || 0));
     if (diff > Math.PI) diff = Math.PI * 2 - diff;
     const distPx = Math.hypot(gx - px, gy - py);
-    if (diff < 0.3 && distPx < C.TILE * 7 && !Player.dead) {
+    g.lit = diff < 0.3 && distPx < C.TILE * 7 && !Player.dead;
+    if (g.lit) {
       g.exposure += dt;
-      if (g.exposure > 0.4) {
+      // Embers rising off the burning spectre
+      if (Math.random() < dt * (14 + 30 * Math.min(1, g.exposure / 3))) {
+        Particles.spawn({
+          x: g.x + (Math.random() - 0.5) * 0.55,
+          y: g.y + (Math.random() - 0.5) * 0.55,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: -1.5 - Math.random() * 1.8,
+          life: 0.5, size: 0.09,
+          color: Math.random() < 0.5 ? '#ff9a3c' : '#ffd97a',
+          glow: true,
+        });
+      }
+      if (Math.random() < dt * 6) Audio.play('crackle');
+      if (g.exposure >= 3) {
         Audio.play('shriek');
         const bonus = Player.fuelCap() * 0.1;
         Player.fuel = Math.min(Player.fuelCap(), Player.fuel + bonus);
         this.popup(g.x, g.y - 0.5, '+' + bonus.toFixed(1) + ' L', '#7de0ff');
-        this.toast('Ghost banished by your flashlight!');
+        this.toast('Ghost burned away by your flashlight!');
+        Particles.burst(g.x, g.y, 22, { color: '#ff9a3c', speed: 6, life: 0.6, size: 0.12, glow: true });
+        Particles.burst(g.x, g.y, 12, { color: '#cfe8ff', speed: 4, life: 0.8, size: 0.09, glow: true });
         g.fading = 0.5;
       }
-    } else {
-      g.exposure = Math.max(0, g.exposure - dt * 2);
     }
   },
 
@@ -744,58 +758,172 @@ const Game = {
     const g = this.ghost;
     if (!g) return;
     const T = C.TILE;
-    const gx = (g.x - this.cam.x) * T;
-    const gy = (g.y - this.cam.y) * T + Math.sin(g.age * 3) * T * 0.08;
+    const burn = Math.min(1, (g.exposure || 0) / 3);
+    const scared = !!g.lit && g.fading <= 0;
+    // Panicked trembling while caught in the beam
+    const trX = scared ? (Math.random() - 0.5) * T * 0.07 : 0;
+    const trY = scared ? (Math.random() - 0.5) * T * 0.07 : 0;
+    const gx = (g.x - this.cam.x) * T + trX;
+    const gy = (g.y - this.cam.y) * T + Math.sin(g.age * 3) * T * 0.08 + trY;
     if (gx < -T * 2 || gx > C.VIEW_W + T * 2 || gy < -T * 2 || gy > C.VIEW_H + T * 2) return;
-    let alpha = 0.72;
+    let alpha = 0.78;
     if (g.fading > 0) alpha *= g.fading / 0.5;
-    alpha = Math.min(1, alpha + g.exposure * 0.6);   // brightens while lit by the beam
     ctx.save();
     ctx.globalAlpha = alpha;
-    // Spectral glow
+
+    // Aura: cold spectral blue, shifting to firelight as it burns
     ctx.globalCompositeOperation = 'lighter';
-    let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.1);
-    gg.addColorStop(0, 'rgba(160,220,255,0.35)');
+    let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.15);
+    gg.addColorStop(0, `rgba(${Math.round(160 + 95 * burn)},${Math.round(215 - 90 * burn)},${Math.round(255 - 195 * burn)},${0.32 + 0.2 * burn})`);
     gg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gg;
-    ctx.fillRect(gx - T * 1.2, gy - T * 1.2, T * 2.4, T * 2.4);
+    ctx.fillRect(gx - T * 1.25, gy - T * 1.25, T * 2.5, T * 2.5);
     ctx.globalCompositeOperation = 'source-over';
-    // Body: dome head, tapering wavy skirt
-    gg = ctx.createLinearGradient(gx, gy - T * 0.45, gx, gy + T * 0.5);
-    gg.addColorStop(0, 'rgba(220,242,255,0.9)');
-    gg.addColorStop(1, 'rgba(150,190,230,0.12)');
+
+    // Shroud: leans hungrily toward the pod, chars as it burns
+    const lean = Math.atan2(Player.y - g.y, Player.x - g.x);
+    const lx = Math.cos(lean) * T * 0.05;
+    const topR = Math.round(225 - 140 * burn), topG = Math.round(243 - 165 * burn), topB = Math.round(255 - 190 * burn);
+    gg = ctx.createLinearGradient(gx, gy - T * 0.5, gx, gy + T * 0.55);
+    gg.addColorStop(0, `rgba(${topR},${topG},${topB},0.92)`);
+    gg.addColorStop(1, `rgba(${Math.round(140 - 80 * burn)},${Math.round(180 - 110 * burn)},${Math.round(225 - 160 * burn)},0.1)`);
     ctx.fillStyle = gg;
     ctx.beginPath();
-    ctx.arc(gx, gy - T * 0.1, T * 0.32, Math.PI, 0);
-    const bot = gy + T * 0.42;
-    ctx.lineTo(gx + T * 0.32, bot - T * 0.08);
-    for (let i = 3; i >= 0; i--) {
-      const wx = gx - T * 0.32 + (i + 0.5) * (T * 0.64 / 4);
-      const wy = bot + Math.sin(g.age * 6 + i * 2) * T * 0.06 - (i % 2) * T * 0.09;
-      ctx.quadraticCurveTo(wx + T * 0.08, wy + T * 0.12, wx - T * 0.08, wy);
+    ctx.arc(gx + lx, gy - T * 0.14, T * 0.31, Math.PI, 0);
+    // Tattered skirt: sharp, restless triangular rags
+    const bot = gy + T * 0.46;
+    ctx.lineTo(gx + lx + T * 0.31, bot - T * 0.18);
+    const rags = 5;
+    for (let i = rags; i >= 0; i--) {
+      const rxp = gx + lx - T * 0.31 + (i / rags) * T * 0.62;
+      const drop = bot + Math.sin(g.age * 7 + i * 2.4) * T * 0.05 + (i % 2 ? -T * 0.14 : T * 0.03);
+      ctx.lineTo(rxp + T * 0.05, drop);
+      ctx.lineTo(rxp - T * 0.02, drop - T * 0.1);
     }
     ctx.closePath();
     ctx.fill();
+
+    // Clawed wisp arms: reaching for the pod — or thrown up in panic
+    ctx.strokeStyle = `rgba(${topR},${topG},${topB},0.7)`;
+    ctx.lineWidth = Math.max(1.5, T * 0.055);
+    ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      const ax0 = gx + s * T * 0.26, ay0 = gy + T * 0.02;
+      let ax1, ay1;
+      if (scared) {
+        ax1 = gx + s * T * 0.4;
+        ay1 = gy - T * 0.42 + Math.sin(g.age * 22 + s) * T * 0.04;   // hands up, shaking
+      } else {
+        ax1 = gx + Math.cos(lean) * T * 0.5 + s * T * 0.14;
+        ay1 = gy + Math.sin(lean) * T * 0.4 + T * 0.06;              // grasping toward the pod
+      }
+      ctx.moveTo(ax0, ay0);
+      ctx.quadraticCurveTo((ax0 + ax1) / 2 + s * T * 0.06, (ay0 + ay1) / 2 + T * 0.08, ax1, ay1);
+      ctx.stroke();
+      // Claw fingers
+      ctx.lineWidth = Math.max(1, T * 0.028);
+      for (const fa of [-0.5, 0, 0.5]) {
+        ctx.beginPath();
+        ctx.moveTo(ax1, ay1);
+        const fAng = (scared ? -Math.PI / 2 : lean) + fa;
+        ctx.lineTo(ax1 + Math.cos(fAng) * T * 0.11, ay1 + Math.sin(fAng) * T * 0.11);
+        ctx.stroke();
+      }
+      ctx.lineWidth = Math.max(1.5, T * 0.055);
+    }
+
     // Trailing wisps
-    ctx.fillStyle = 'rgba(190,225,255,0.25)';
+    ctx.fillStyle = `rgba(${topR},${topG},${topB},0.22)`;
     for (let i = 0; i < 3; i++) {
-      const wxp = gx - T * (0.4 + i * 0.16) * Math.cos(g.age * 1.5);
-      const wyp = gy + T * 0.2 + Math.sin(g.age * 4 + i * 1.8) * T * 0.12;
+      const wxp = gx - T * (0.42 + i * 0.17) * Math.cos(g.age * 1.5);
+      const wyp = gy + T * 0.24 + Math.sin(g.age * 4 + i * 1.8) * T * 0.13;
       ctx.beginPath();
       ctx.arc(wxp, wyp, T * (0.07 - i * 0.015), 0, Math.PI * 2);
       ctx.fill();
     }
-    // Hollow eyes & mouth
-    ctx.fillStyle = 'rgba(20,40,70,0.9)';
-    ctx.beginPath();
-    ctx.ellipse(gx - T * 0.11, gy - T * 0.15, T * 0.05, T * 0.075, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(gx + T * 0.11, gy - T * 0.15, T * 0.05, T * 0.075, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(gx, gy + T * 0.03, T * 0.055, T * 0.08, 0, 0, Math.PI * 2);
-    ctx.fill();
+
+    // --- Face ---
+    const eyeY = gy - T * 0.18;
+    if (!scared) {
+      // Sunken black sockets with pinprick pupils that track the pod
+      ctx.fillStyle = 'rgba(4,8,20,0.95)';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(gx + s * T * 0.11, eyeY, T * 0.065, T * 0.09, s * 0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(190,240,255,0.95)';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.11 + Math.cos(lean) * T * 0.025, eyeY + Math.sin(lean) * T * 0.025, T * 0.016, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Wide jagged grin
+      ctx.fillStyle = 'rgba(4,8,20,0.92)';
+      ctx.beginPath();
+      ctx.moveTo(gx - T * 0.16, gy + T * 0.02);
+      for (let i = 0; i <= 6; i++) {
+        const mx = gx - T * 0.16 + (i / 6) * T * 0.32;
+        ctx.lineTo(mx, gy + T * 0.06 + (i % 2 ? T * 0.045 : 0));
+      }
+      ctx.lineTo(gx + T * 0.16, gy + T * 0.1);
+      for (let i = 6; i >= 0; i--) {
+        const mx = gx - T * 0.16 + (i / 6) * T * 0.32;
+        ctx.lineTo(mx, gy + T * 0.12 + (i % 2 ? 0 : T * 0.04));
+      }
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Terror: huge white eyes, pinpoint pupils, raised brows, screaming mouth
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = 'rgba(245,250,255,0.95)';
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.11, eyeY, T * 0.075, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(4,8,20,0.95)';
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.11, eyeY + T * 0.01, T * 0.02, 0, Math.PI * 2);
+        ctx.fill();
+        // Raised brow
+        ctx.strokeStyle = 'rgba(4,8,20,0.8)';
+        ctx.lineWidth = Math.max(1, T * 0.025);
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.11, eyeY - T * 0.02, T * 0.1, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+      }
+      // Screaming "O" mouth
+      ctx.fillStyle = 'rgba(4,8,20,0.95)';
+      ctx.beginPath();
+      ctx.ellipse(gx, gy + T * 0.09, T * 0.06, T * 0.1 + Math.sin(g.age * 25) * T * 0.012, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Flames while the beam is on it ---
+    if (scared || burn > 0.02) {
+      const intensity = Math.max(burn, scared ? 0.35 : 0);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) {
+        const fa = -Math.PI * 0.9 + (i / 4) * Math.PI * 0.8;
+        const fx = gx + Math.cos(fa) * T * 0.27;
+        const fy = gy - T * 0.1 + Math.sin(fa) * T * 0.26;
+        const flick = 0.7 + 0.3 * Math.sin(this.time * 13 + i * 2.4);
+        const fh = T * (0.14 + 0.3 * intensity) * flick;
+        const fw = T * 0.07 * (0.8 + 0.4 * intensity);
+        const fgrad = ctx.createLinearGradient(fx, fy, fx, fy - fh);
+        fgrad.addColorStop(0, `rgba(255,120,30,${0.75 * intensity + 0.2})`);
+        fgrad.addColorStop(0.5, `rgba(255,190,60,${0.6 * intensity + 0.15})`);
+        fgrad.addColorStop(1, 'rgba(255,240,180,0)');
+        ctx.fillStyle = fgrad;
+        ctx.beginPath();
+        ctx.moveTo(fx - fw, fy);
+        ctx.quadraticCurveTo(fx - fw * 0.5, fy - fh * 0.55, fx + Math.sin(this.time * 17 + i) * fw * 0.6, fy - fh);
+        ctx.quadraticCurveTo(fx + fw * 0.5, fy - fh * 0.5, fx + fw, fy);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
     ctx.restore();
   },
 

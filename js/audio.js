@@ -88,6 +88,7 @@ const Audio = {
       case 'moan':     this.tone(180, 1.4, 'sine', 0.1, 120); this.tone(240, 1.2, 'sine', 0.06, 150, 0.15); break;
       case 'shriek':   this.tone(1750, 0.55, 'sawtooth', 0.16, 280); this.tone(2300, 0.4, 'square', 0.08, 500, 0.05); this.noise(0.45, 0.2, 3500, 0.05); break;
       case 'ghostHit': this.tone(420, 0.5, 'sine', 0.14, 90); this.tone(330, 0.4, 'triangle', 0.1, 70, 0.1); this.noise(0.3, 0.15, 600, 0.05); break;
+      case 'crackle':  this.noise(0.1, 0.08, 2800); this.noise(0.07, 0.06, 4000, 0.05); break;
       case 'sell':     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.14, null, i * 0.07)); break;
       case 'buy':      this.tone(784, 0.09, 'triangle', 0.15); this.tone(1175, 0.14, 'triangle', 0.13, null, 0.08); break;
       case 'denied':   this.tone(180, 0.18, 'square', 0.12, 120); break;
