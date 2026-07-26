@@ -52,8 +52,8 @@ const Game = {
     const h = Math.max(480, window.innerHeight);
     C.VIEW_W = w;
     C.VIEW_H = h;
-    C.TILE = Math.max(36, Math.round(h / 13.3));
-    C.TEX = Math.min(192, C.TILE * 2);
+    C.TILE = Math.max(36, Math.round(h / 10.6));   // ~25% closer zoom
+    C.TEX = Math.min(256, C.TILE * 2);
     this.canvas.width = w;
     this.canvas.height = h;
     this._caveA = this._caveB = null;    // mask canvases must match the viewport

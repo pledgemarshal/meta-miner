@@ -130,28 +130,98 @@ const Sprites = {
 
   makeStone(band, S) {
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
-    const [top] = this.soil(band);
-    ctx.fillStyle = top;
+    const soil = this.soil(band);
+    ctx.fillStyle = this.mix(soil[0], soil[1], 0.5);
     ctx.fillRect(0, 0, S, S);
-    // Big rounded boulder filling the tile
-    const g = ctx.createRadialGradient(S * 0.35, S * 0.3, S * 0.1, S * 0.5, S * 0.5, S * 0.62);
-    g.addColorStop(0, '#9aa0a8'); g.addColorStop(0.6, '#6e747c'); g.addColorStop(1, '#43484f');
+    // Shadow pocket behind the boulder
+    let g = ctx.createRadialGradient(S / 2, S * 0.58, S * 0.1, S / 2, S * 0.58, S * 0.5);
+    g.addColorStop(0, 'rgba(15,8,4,0.5)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(S / 2, S / 2, S * 0.47, S * 0.44, 0, 0, Math.PI * 2);
+    ctx.fillRect(0, 0, S, S);
+
+    // Irregular boulder silhouette (12 jittered radii)
+    const pts = [];
+    const npts = 12;
+    for (let j = 0; j < npts; j++) {
+      const a = (j / npts) * Math.PI * 2;
+      const rr = S * (0.33 + this.rand() * 0.12);
+      pts.push([S / 2 + Math.cos(a) * rr, S * 0.52 + Math.sin(a) * rr * 0.92]);
+    }
+    const tracePoly = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for (let j = 1; j < npts; j++) ctx.lineTo(pts[j][0], pts[j][1]);
+      ctx.closePath();
+    };
+    g = ctx.createRadialGradient(S * 0.38, S * 0.34, S * 0.06, S * 0.5, S * 0.52, S * 0.55);
+    g.addColorStop(0, '#a8aeb6');
+    g.addColorStop(0.45, '#7c828a');
+    g.addColorStop(0.8, '#565b62');
+    g.addColorStop(1, '#33373d');
+    ctx.fillStyle = g;
+    tracePoly();
     ctx.fill();
+    ctx.strokeStyle = 'rgba(20,22,26,0.6)';
+    ctx.lineWidth = Math.max(1.5, S * 0.015);
+    tracePoly();
+    ctx.stroke();
+
+    // Lower-right facet in shadow
+    ctx.save();
+    tracePoly();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(20,22,28,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(S * 0.62, S * 0.66, S * 0.4, S * 0.32, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Mineral streaks
+    ctx.strokeStyle = 'rgba(150,110,80,0.35)';
+    ctx.lineWidth = Math.max(1, S * 0.02);
+    ctx.beginPath(); ctx.moveTo(S * 0.25, S * 0.42); ctx.quadraticCurveTo(S * 0.5, S * 0.5, S * 0.72, S * 0.44); ctx.stroke();
+    ctx.strokeStyle = 'rgba(120,125,135,0.4)';
+    ctx.beginPath(); ctx.moveTo(S * 0.3, S * 0.62); ctx.quadraticCurveTo(S * 0.55, S * 0.68, S * 0.7, S * 0.6); ctx.stroke();
     // Cracks
-    ctx.strokeStyle = 'rgba(30,32,36,0.55)';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(25,27,32,0.6)';
+    ctx.lineWidth = Math.max(1, S * 0.014);
     for (let i = 0; i < 4; i++) {
       ctx.beginPath();
-      let x = S * (0.25 + this.rand() * 0.5), y = S * (0.25 + this.rand() * 0.5);
+      let x = S * (0.3 + this.rand() * 0.4), y = S * (0.3 + this.rand() * 0.45);
       ctx.moveTo(x, y);
-      for (let j = 0; j < 3; j++) { x += (this.rand() - 0.5) * S * 0.3; y += (this.rand() - 0.5) * S * 0.3; ctx.lineTo(x, y); }
+      for (let j = 0; j < 3; j++) { x += (this.rand() - 0.5) * S * 0.28; y += (this.rand() - 0.5) * S * 0.28; ctx.lineTo(x, y); }
       ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(255,255,255,0.14)';
-    ctx.beginPath(); ctx.ellipse(S * 0.38, S * 0.32, S * 0.13, S * 0.08, -0.5, 0, Math.PI * 2); ctx.fill();
+    // Speckled grain on the rock face
+    for (let i = 0; i < 30; i++) {
+      const x = S * (0.15 + this.rand() * 0.7), y = S * (0.15 + this.rand() * 0.75);
+      ctx.fillStyle = this.rand() < 0.5 ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)';
+      ctx.beginPath(); ctx.arc(x, y, 0.6 + this.rand() * 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+
+    // Top-left highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.beginPath(); ctx.ellipse(S * 0.36, S * 0.3, S * 0.15, S * 0.08, -0.5, 0, Math.PI * 2); ctx.fill();
+
+    // Small stones settled around the base
+    for (let i = 0; i < 4; i++) {
+      const x = S * (0.12 + this.rand() * 0.76), y = S * (0.82 + this.rand() * 0.12);
+      const r = S * (0.03 + this.rand() * 0.04);
+      g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+      g.addColorStop(0, '#8b9097'); g.addColorStop(1, '#41454c');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(x, y, r * 1.3, r, this.rand(), 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Soil creeping over the boulder's edges
+    for (let i = 0; i < 5; i++) {
+      const a = this.rand() * Math.PI * 2;
+      const px = S * 0.5 + Math.cos(a) * S * 0.42;
+      const py = S * 0.52 + Math.sin(a) * S * 0.4;
+      const r = S * (0.05 + this.rand() * 0.06);
+      ctx.fillStyle = this.alpha(this.mixToHex(soil[0], soil[1], 0.5), 0.8);
+      ctx.beginPath(); ctx.ellipse(px, py, r * 1.5, r, a, 0, Math.PI * 2); ctx.fill();
+    }
     return c;
   },
 
@@ -179,35 +249,120 @@ const Sprites = {
     const m = C.MINERALS[key];
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
     ctx.drawImage(this.dirt[band][0], 0, 0);
-    // Cluster of faceted crystals
-    const n = 3 + Math.floor(this.rand() * 3);
-    for (let i = 0; i < n; i++) {
-      const cx = S * (0.28 + this.rand() * 0.44), cy = S * (0.3 + this.rand() * 0.4);
-      const r = S * (0.11 + this.rand() * 0.1);
-      const sides = 5 + Math.floor(this.rand() * 3);
-      const rot = this.rand() * Math.PI;
-      ctx.beginPath();
-      for (let j = 0; j <= sides; j++) {
-        const a = rot + (j / sides) * Math.PI * 2;
-        const rr = r * (0.75 + this.rand() * 0.4);
-        const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
-        j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+
+    // Recessed pocket so the deposit sits IN the soil, not on it
+    let g = ctx.createRadialGradient(S / 2, S / 2, S * 0.06, S / 2, S / 2, S * 0.44);
+    g.addColorStop(0, 'rgba(18,7,3,0.6)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+
+    const metallic = ['ironium', 'bronzium', 'silverium', 'goldium', 'platinium'].includes(key);
+
+    if (metallic) {
+      // Vein of irregular metallic nuggets
+      const n = 6 + Math.floor(this.rand() * 3);
+      for (let i = 0; i < n; i++) {
+        const cx = S * (0.28 + this.rand() * 0.44), cy = S * (0.3 + this.rand() * 0.4);
+        const r = S * (0.06 + this.rand() * 0.085);
+        const rot = this.rand() * Math.PI;
+        ctx.beginPath();
+        const pts = 7;
+        for (let j = 0; j <= pts; j++) {
+          const a = rot + (j / pts) * Math.PI * 2;
+          const rr = r * (0.65 + this.rand() * 0.55);
+          const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+          j === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        g = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.45, r * 0.1, cx, cy, r * 1.3);
+        g.addColorStop(0, '#fff6e8');
+        g.addColorStop(0.3, this.shade(m.color, 0.15));
+        g.addColorStop(0.75, m.color);
+        g.addColorStop(1, this.shade(m.color, -0.55));
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+        ctx.lineWidth = Math.max(1, S * 0.012);
+        ctx.stroke();
+        // Glint
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath();
+        ctx.ellipse(cx - r * 0.3, cy - r * 0.35, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2);
+        ctx.fill();
       }
-      ctx.closePath();
-      const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r * 1.2);
+    } else {
+      // Cluster of elongated crystal shards radiating from a core
+      const n = 5 + Math.floor(this.rand() * 3);
+      for (let i = 0; i < n; i++) {
+        const ang = (i / n) * Math.PI * 2 + this.rand() * 0.8 - Math.PI / 2;
+        const bx = S * 0.5 + Math.cos(ang) * S * 0.04;
+        const by = S * 0.52 + Math.sin(ang) * S * 0.04;
+        const len = S * (0.15 + this.rand() * 0.17);
+        const wid = S * (0.05 + this.rand() * 0.05);
+        const tx = bx + Math.cos(ang) * len, ty = by + Math.sin(ang) * len;
+        const px = -Math.sin(ang) * wid, py = Math.cos(ang) * wid;
+        // Shard body
+        ctx.beginPath();
+        ctx.moveTo(bx + px, by + py);
+        ctx.lineTo(tx + px * 0.25, ty + py * 0.25);
+        ctx.lineTo(tx - px * 0.25, ty - py * 0.25);
+        ctx.lineTo(bx - px, by - py);
+        ctx.closePath();
+        g = ctx.createLinearGradient(bx, by, tx, ty);
+        g.addColorStop(0, this.shade(m.color, -0.5));
+        g.addColorStop(0.55, m.color);
+        g.addColorStop(1, '#ffffff');
+        ctx.fillStyle = g;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = Math.max(1, S * 0.01);
+        ctx.stroke();
+        // Central facet ridge
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.lineWidth = Math.max(1, S * 0.012);
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(tx, ty); ctx.stroke();
+        // Shadowed lower edge
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+        ctx.beginPath();
+        ctx.moveTo(bx - px, by - py);
+        ctx.lineTo(tx - px * 0.25, ty - py * 0.25);
+        ctx.stroke();
+      }
+      // Glowing core the shards grow from
+      g = ctx.createRadialGradient(S * 0.5, S * 0.52, S * 0.01, S * 0.5, S * 0.52, S * 0.12);
       g.addColorStop(0, '#ffffff');
-      g.addColorStop(0.25, m.color);
-      g.addColorStop(1, this.shade(m.color, -0.45));
+      g.addColorStop(0.5, this.shade(m.color, 0.2));
+      g.addColorStop(1, this.shade(m.color, -0.4));
       ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      // Facet line + sparkle
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(cx - r * 0.5, cy); ctx.lineTo(cx + r * 0.3, cy - r * 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(S * 0.5, S * 0.52, S * 0.09, 0, Math.PI * 2); ctx.fill();
     }
+
+    // Sparkle stars
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = Math.max(1, S * 0.01);
+    for (let i = 0; i < 3; i++) {
+      const px = S * (0.3 + this.rand() * 0.4), py = S * (0.28 + this.rand() * 0.4);
+      const sr = S * (0.02 + this.rand() * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(px - sr, py); ctx.lineTo(px + sr, py);
+      ctx.moveTo(px, py - sr); ctx.lineTo(px, py + sr);
+      ctx.stroke();
+    }
+
+    // Dirt occlusion: soil creeping over the deposit's rim so it reads as embedded
+    const soilCol = this.soil(band);
+    for (let i = 0; i < 6; i++) {
+      const a = this.rand() * Math.PI * 2;
+      const px = S * 0.5 + Math.cos(a) * S * 0.38;
+      const py = S * 0.5 + Math.sin(a) * S * 0.38;
+      const r = S * (0.06 + this.rand() * 0.07);
+      ctx.fillStyle = this.alpha(this.mixToHex(soilCol[0], soilCol[1], 0.5), 0.85);
+      ctx.beginPath();
+      ctx.ellipse(px, py, r * 1.4, r, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     // Value glow for precious ones
     if (m.value >= 5000) {
       ctx.globalCompositeOperation = 'lighter';
@@ -221,10 +376,25 @@ const Sprites = {
     return c;
   },
 
+  // mix() returns an rgb() string; this variant returns a hex for alpha()
+  mixToHex(h1, h2, t) {
+    const a = parseInt(h1.slice(1), 16), b = parseInt(h2.slice(1), 16);
+    const r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
+    const g = Math.round(((a >> 8) & 255) * (1 - t) + ((b >> 8) & 255) * t);
+    const bl = Math.round((a & 255) * (1 - t) + (b & 255) * t);
+    return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
+  },
+
   makeArtifact(key, band, S) {
     const a = C.ARTIFACTS[key];
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
     ctx.drawImage(this.dirt[band][1], 0, 0);
+    // Recessed pocket so the relic reads as half-buried
+    const pg = ctx.createRadialGradient(S / 2, S / 2, S * 0.06, S / 2, S / 2, S * 0.42);
+    pg.addColorStop(0, 'rgba(18,7,3,0.55)');
+    pg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pg;
+    ctx.fillRect(0, 0, S, S);
     ctx.save();
     ctx.translate(S / 2, S / 2);
     ctx.fillStyle = a.color;
@@ -289,10 +459,10 @@ const Sprites = {
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
   },
 
-  // --- The mining pod ---
+  // --- The mining pod (detailed) ---
   drawPod(ctx, px, py, t) {
     // px, py: screen pixels of pod center. t: {facing, drilling, thrust, time, teleporting}
-    const T = C.TILE;
+    const T = C.TILE, P2 = Math.PI * 2;
     ctx.save();
     ctx.translate(px, py);
     if (t.teleporting) {
@@ -303,90 +473,214 @@ const Sprites = {
     const bob = Math.sin(t.time * 6) * (t.thrust ? 1.5 : 0.6);
     ctx.translate(0, bob);
 
-    // Drill arm (in front, pointing right or down)
-    const drillLen = T * 0.34;
-    const spin = t.time * (t.drilling ? 40 : 6);
+    // Soft ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, T * 0.45 - bob, T * 0.4, T * 0.07, 0, 0, P2); ctx.fill();
+
+    // ---- Drill arm: mount, hydraulic piston, collar, fluted cone bit ----
+    const spin = t.time * (t.drilling ? 46 : 6);
     ctx.save();
-    if (t.drilling === 'down') { ctx.translate(0, T * 0.42); ctx.rotate(Math.PI / 2); }
-    else ctx.translate(T * 0.42, T * 0.1);
-    // Arm
-    ctx.fillStyle = '#5a5f66';
-    ctx.fillRect(-T * 0.1, -T * 0.07, T * 0.2, T * 0.14);
-    // Cone bit with spinning stripes
-    const grad = ctx.createLinearGradient(0, -T * 0.12, 0, T * 0.12);
-    grad.addColorStop(0, '#c8ccd2'); grad.addColorStop(0.5, '#8b9097'); grad.addColorStop(1, '#5c6066');
-    ctx.fillStyle = grad;
+    if (t.drilling === 'down') { ctx.translate(0, T * 0.44); ctx.rotate(Math.PI / 2); }
+    else ctx.translate(T * 0.4, T * 0.13);
+    if (t.drilling) ctx.translate((Math.random() - 0.5) * T * 0.03, (Math.random() - 0.5) * T * 0.03);
+    // Mount bracket
+    ctx.fillStyle = '#31353c';
+    this.rr(ctx, -T * 0.14, -T * 0.11, T * 0.16, T * 0.22, T * 0.03);
+    ctx.fill();
+    // Telescoping piston
+    let g = ctx.createLinearGradient(0, -T * 0.055, 0, T * 0.055);
+    g.addColorStop(0, '#8b9097'); g.addColorStop(0.5, '#d5d9de'); g.addColorStop(1, '#5c6066');
+    ctx.fillStyle = g;
+    ctx.fillRect(-T * 0.02, -T * 0.055, T * 0.12, T * 0.11);
+    g = ctx.createLinearGradient(0, -T * 0.04, 0, T * 0.04);
+    g.addColorStop(0, '#b4b9c0'); g.addColorStop(0.5, '#eef1f4'); g.addColorStop(1, '#767a80');
+    ctx.fillStyle = g;
+    ctx.fillRect(T * 0.08, -T * 0.04, T * 0.08, T * 0.08);
+    // Collar with bolts
+    ctx.fillStyle = '#3a3f46';
+    this.rr(ctx, T * 0.14, -T * 0.1, T * 0.07, T * 0.2, T * 0.02);
+    ctx.fill();
+    ctx.fillStyle = '#15181c';
+    for (const by of [-0.06, 0, 0.06]) { ctx.beginPath(); ctx.arc(T * 0.175, T * by, Math.max(1, T * 0.013), 0, P2); ctx.fill(); }
+    // Cone bit
+    const bx = T * 0.21, len = T * 0.34;
+    g = ctx.createLinearGradient(0, -T * 0.14, 0, T * 0.14);
+    g.addColorStop(0, '#dde1e7'); g.addColorStop(0.45, '#9ba0a8'); g.addColorStop(1, '#53575d');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.moveTo(T * 0.05, -T * 0.13);
-    ctx.lineTo(drillLen, 0);
-    ctx.lineTo(T * 0.05, T * 0.13);
+    ctx.moveTo(bx, -T * 0.14);
+    ctx.quadraticCurveTo(bx + len * 0.55, -T * 0.055, bx + len, 0);
+    ctx.quadraticCurveTo(bx + len * 0.55, T * 0.055, bx, T * 0.14);
     ctx.closePath();
     ctx.fill();
     ctx.save();
     ctx.clip();
-    ctx.strokeStyle = 'rgba(40,44,50,0.7)';
-    ctx.lineWidth = 2;
-    for (let i = -3; i < 6; i++) {
-      const off = ((spin + i * 6) % 12) - 6;
+    // Spinning helical flutes
+    ctx.strokeStyle = 'rgba(35,38,44,0.85)';
+    ctx.lineWidth = Math.max(1.5, T * 0.03);
+    for (let i = -2; i < 8; i++) {
+      const off = ((spin * 0.35 + i) % 6) - 3;
       ctx.beginPath();
-      ctx.moveTo(T * 0.02, off * T * 0.035 - T * 0.1);
-      ctx.lineTo(drillLen, off * T * 0.035 + T * 0.02);
+      ctx.moveTo(bx, off * T * 0.09 - T * 0.05);
+      ctx.quadraticCurveTo(bx + len * 0.5, off * T * 0.06, bx + len, off * T * 0.02 + T * 0.01);
       ctx.stroke();
     }
+    // Specular streak along the top edge
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(bx + T * 0.02, -T * 0.1);
+    ctx.quadraticCurveTo(bx + len * 0.5, -T * 0.045, bx + len * 0.95, -T * 0.005);
+    ctx.stroke();
     ctx.restore();
+    if (t.drilling) {
+      ctx.fillStyle = 'rgba(255,220,150,0.8)';
+      ctx.beginPath(); ctx.arc(bx + len, 0, T * 0.03 + Math.random() * T * 0.02, 0, P2); ctx.fill();
+    }
     ctx.restore();
 
-    // Tracks / undercarriage
-    ctx.fillStyle = '#2e3238';
-    this.rr(ctx, -T * 0.4, T * 0.26, T * 0.8, T * 0.18, T * 0.09);
+    // ---- Track assembly: suspension, band, treads, road wheels ----
+    ctx.strokeStyle = '#3a3f46';
+    ctx.lineWidth = Math.max(2, T * 0.045);
+    for (const ax of [-0.24, 0, 0.24]) {
+      ctx.beginPath(); ctx.moveTo(ax * T, T * 0.22); ctx.lineTo(ax * T * 0.85, T * 0.33); ctx.stroke();
+    }
+    const trackY = T * 0.3;
+    ctx.fillStyle = '#23262b';
+    this.rr(ctx, -T * 0.42, trackY - T * 0.035, T * 0.84, T * 0.17, T * 0.085);
     ctx.fill();
-    ctx.fillStyle = '#484e56';
-    for (let i = -2; i <= 2; i++) {
-      ctx.beginPath();
-      ctx.arc(i * T * 0.16, T * 0.35, T * 0.055, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    this.rr(ctx, -T * 0.42, trackY - T * 0.035, T * 0.84, T * 0.17, T * 0.085);
+    ctx.stroke();
+    // Tread notches
+    ctx.fillStyle = '#0f1114';
+    for (let i = 0; i < 7; i++) {
+      this.rr(ctx, -T * 0.38 + i * T * 0.115, trackY + T * 0.1, T * 0.05, T * 0.035, T * 0.012);
       ctx.fill();
     }
-
-    // Body
-    const bodyGrad = ctx.createLinearGradient(0, -T * 0.4, 0, T * 0.3);
-    bodyGrad.addColorStop(0, '#e8a33c');
-    bodyGrad.addColorStop(0.45, '#c97f22');
-    bodyGrad.addColorStop(1, '#8a5514');
-    ctx.fillStyle = bodyGrad;
-    this.rr(ctx, -T * 0.38, -T * 0.34, T * 0.76, T * 0.62, T * 0.14);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(60,35,5,0.6)';
-    ctx.lineWidth = 2;
-    this.rr(ctx, -T * 0.38, -T * 0.34, T * 0.76, T * 0.62, T * 0.14);
-    ctx.stroke();
-    // Rivets & panel line
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    for (const rx of [-0.28, -0.1, 0.08, 0.26]) {
-      ctx.beginPath(); ctx.arc(rx * T, T * 0.18, 1.6, 0, Math.PI * 2); ctx.fill();
+    // Road wheels with hubs
+    for (let i = -2; i <= 2; i++) {
+      const wx = i * T * 0.16;
+      g = ctx.createRadialGradient(wx - T * 0.015, trackY + T * 0.02, T * 0.005, wx, trackY + T * 0.035, T * 0.062);
+      g.addColorStop(0, '#8b9097'); g.addColorStop(0.7, '#4a4f56'); g.addColorStop(1, '#26292e');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(wx, trackY + T * 0.035, T * 0.058, 0, P2); ctx.fill();
+      ctx.fillStyle = '#15181c';
+      ctx.beginPath(); ctx.arc(wx, trackY + T * 0.035, T * 0.018, 0, P2); ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(90,55,10,0.5)';
-    ctx.beginPath(); ctx.moveTo(-T * 0.38, T * 0.1); ctx.lineTo(T * 0.38, T * 0.1); ctx.stroke();
 
-    // Cockpit dome
-    const glass = ctx.createRadialGradient(T * 0.08, -T * 0.26, T * 0.02, T * 0.05, -T * 0.18, T * 0.26);
-    glass.addColorStop(0, '#eafaff');
-    glass.addColorStop(0.4, '#7fd4ef');
-    glass.addColorStop(1, '#1d6d8f');
-    ctx.fillStyle = glass;
-    ctx.beginPath();
-    ctx.ellipse(T * 0.05, -T * 0.16, T * 0.23, T * 0.2, 0, Math.PI, 0);
-    ctx.closePath();
+    // ---- Hull: layered panels, stripe, seams, rivets, scratches, mud ----
+    g = ctx.createLinearGradient(0, -T * 0.36, 0, T * 0.3);
+    g.addColorStop(0, '#f2b246');
+    g.addColorStop(0.4, '#d68a25');
+    g.addColorStop(0.85, '#9a5f16');
+    g.addColorStop(1, '#7a4a10');
+    ctx.fillStyle = g;
+    this.rr(ctx, -T * 0.4, -T * 0.34, T * 0.8, T * 0.62, T * 0.13);
     ctx.fill();
-    ctx.strokeStyle = '#274';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(50,28,4,0.7)';
+    ctx.lineWidth = Math.max(1.5, T * 0.03);
+    this.rr(ctx, -T * 0.4, -T * 0.34, T * 0.8, T * 0.62, T * 0.13);
     ctx.stroke();
-    // Pilot silhouette
-    ctx.fillStyle = 'rgba(20,40,50,0.75)';
-    ctx.beginPath(); ctx.arc(T * 0.03, -T * 0.17, T * 0.07, 0, Math.PI * 2); ctx.fill();
+    // Accent stripe
+    ctx.fillStyle = 'rgba(150,42,30,0.9)';
+    this.rr(ctx, -T * 0.4, T * 0.03, T * 0.8, T * 0.085, T * 0.03);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    this.rr(ctx, -T * 0.4, T * 0.03, T * 0.8, T * 0.025, T * 0.01);
+    ctx.fill();
+    // Panel seams
+    ctx.strokeStyle = 'rgba(90,55,10,0.5)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    ctx.beginPath(); ctx.moveTo(-T * 0.4, T * 0.15); ctx.lineTo(T * 0.4, T * 0.15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-T * 0.15, -T * 0.34); ctx.lineTo(-T * 0.15, T * 0.02); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(T * 0.19, -T * 0.34); ctx.lineTo(T * 0.19, T * 0.02); ctx.stroke();
+    // Rivets
+    ctx.fillStyle = 'rgba(255,235,200,0.4)';
+    for (const rx of [-0.34, -0.2, -0.06, 0.1, 0.24, 0.34]) {
+      ctx.beginPath(); ctx.arc(rx * T, T * 0.18, Math.max(1, T * 0.014), 0, P2); ctx.fill();
+      ctx.beginPath(); ctx.arc(rx * T, -T * 0.3, Math.max(1, T * 0.014), 0, P2); ctx.fill();
+    }
+    // Scratches
+    ctx.strokeStyle = 'rgba(255,240,210,0.25)';
+    ctx.lineWidth = Math.max(0.8, T * 0.01);
+    ctx.beginPath(); ctx.moveTo(-T * 0.32, -T * 0.1); ctx.lineTo(-T * 0.2, -T * 0.14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(T * 0.05, -T * 0.02); ctx.lineTo(T * 0.2, -T * 0.06); ctx.stroke();
+    // Mud splatter low on the hull
+    ctx.fillStyle = 'rgba(70,45,25,0.5)';
+    for (const [mx, my, mr] of [[-0.3, 0.22, 0.035], [-0.12, 0.25, 0.05], [0.2, 0.23, 0.03], [0.33, 0.25, 0.04]]) {
+      ctx.beginPath(); ctx.ellipse(mx * T, my * T, mr * T * 1.4, mr * T, 0, 0, P2); ctx.fill();
+    }
 
-    // Warning light
+    // Rear exhaust stack (glows while thrusting)
+    ctx.fillStyle = '#3a3f46';
+    this.rr(ctx, -T * 0.47, -T * 0.3, T * 0.09, T * 0.26, T * 0.03);
+    ctx.fill();
+    ctx.fillStyle = '#22252a';
+    this.rr(ctx, -T * 0.485, -T * 0.35, T * 0.12, T * 0.07, T * 0.03);
+    ctx.fill();
+    if (t.thrust) {
+      ctx.fillStyle = 'rgba(255,160,60,0.7)';
+      ctx.beginPath(); ctx.arc(-T * 0.425, -T * 0.315, T * 0.025 + Math.random() * T * 0.015, 0, P2); ctx.fill();
+    }
+
+    // Headlamp
+    ctx.fillStyle = '#2c3036';
+    this.rr(ctx, T * 0.31, -T * 0.17, T * 0.11, T * 0.13, T * 0.03);
+    ctx.fill();
+    g = ctx.createRadialGradient(T * 0.375, -T * 0.105, T * 0.005, T * 0.375, -T * 0.105, T * 0.05);
+    g.addColorStop(0, '#fff7d8'); g.addColorStop(1, '#c8b060');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(T * 0.375, -T * 0.105, T * 0.038, 0, P2); ctx.fill();
+
+    // ---- Cockpit: framed dome, layered glass, pilot with visor, reflections ----
+    ctx.fillStyle = '#8a5a14';
+    ctx.beginPath(); ctx.ellipse(T * 0.04, -T * 0.15, T * 0.27, T * 0.235, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+    g = ctx.createRadialGradient(T * 0.1, -T * 0.28, T * 0.02, T * 0.05, -T * 0.16, T * 0.28);
+    g.addColorStop(0, '#f2fdff');
+    g.addColorStop(0.35, '#8fdcf2');
+    g.addColorStop(0.75, '#2f8cb0');
+    g.addColorStop(1, '#175a78');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(T * 0.04, -T * 0.16, T * 0.235, T * 0.2, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
+    // Pilot: suit, helmet, tinted visor
+    ctx.fillStyle = '#c96a20';
+    this.rr(ctx, -T * 0.06, -T * 0.12, T * 0.17, T * 0.11, T * 0.04);
+    ctx.fill();
+    ctx.fillStyle = '#e8e4da';
+    ctx.beginPath(); ctx.arc(T * 0.025, -T * 0.18, T * 0.08, 0, P2); ctx.fill();
+    ctx.fillStyle = '#20343f';
+    ctx.beginPath(); ctx.ellipse(T * 0.05, -T * 0.18, T * 0.048, T * 0.038, 0, 0, P2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath(); ctx.ellipse(T * 0.06, -T * 0.19, T * 0.015, T * 0.01, 0, 0, P2); ctx.fill();
+    // Glass reflection arc
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = Math.max(1, T * 0.022);
+    ctx.beginPath(); ctx.arc(T * 0.04, -T * 0.15, T * 0.19, -Math.PI * 0.82, -Math.PI * 0.45); ctx.stroke();
+    // Dome rim bolts
+    ctx.fillStyle = '#5d3c0c';
+    for (const a of [0.85, 0.6, 0.35, 0.12]) {
+      const bxr = T * 0.04 - Math.cos(Math.PI * a) * T * 0.26;
+      const byr = -T * 0.15 - Math.sin(Math.PI * a) * T * 0.22;
+      ctx.beginPath(); ctx.arc(bxr, byr, Math.max(1, T * 0.016), 0, P2); ctx.fill();
+    }
+
+    // ---- Roof gear: antenna with blinker, warning beacon ----
+    ctx.strokeStyle = '#2c3036';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    ctx.beginPath(); ctx.moveTo(-T * 0.3, -T * 0.34); ctx.lineTo(-T * 0.34, -T * 0.5); ctx.stroke();
+    const blink = Math.sin(t.time * 5) > 0.4;
+    ctx.fillStyle = blink ? '#ff5540' : '#7a2c22';
+    ctx.beginPath(); ctx.arc(-T * 0.34, -T * 0.51, T * 0.025, 0, P2); ctx.fill();
+    if (blink) {
+      ctx.fillStyle = 'rgba(255,85,64,0.25)';
+      ctx.beginPath(); ctx.arc(-T * 0.34, -T * 0.51, T * 0.06, 0, P2); ctx.fill();
+    }
     ctx.fillStyle = t.drilling ? '#ff5540' : '#ffd040';
-    ctx.beginPath(); ctx.arc(-T * 0.28, -T * 0.28, T * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.035, 0, P2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,210,80,0.2)';
+    ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.07, 0, P2); ctx.fill();
 
     ctx.restore();
   },
@@ -401,86 +695,427 @@ const Sprites = {
     ctx.closePath();
   },
 
-  // --- Surface buildings (modernized industrial look) ---
+  // --- Surface buildings: shared industrial base + unique props per shop ---
   drawBuilding(ctx, key, sx, sy, t) {
-    const T = C.TILE;
+    const T = C.TILE, P2 = Math.PI * 2;
     const b = C.BUILDINGS[key];
     const w = b.w * T;
     ctx.save();
     ctx.translate(sx, sy);   // sy = ground line
     const palettes = {
-      fuel:      { base: '#8a4b3a', roof: '#5f3026', accent: '#ffd23e', sign: 'FUEL' },
-      processor: { base: '#4a5e70', roof: '#32414f', accent: '#7fd4ef', sign: 'ORE' },
-      save:      { base: '#3f6a52', roof: '#2a4a38', accent: '#7dffb0', sign: 'SAVE' },
-      upgrades:  { base: '#6a5a3f', roof: '#4a3e2a', accent: '#ffb347', sign: 'SHOP' },
-      items:     { base: '#5e4a6e', roof: '#41324e', accent: '#c9a2ff', sign: 'ITEMS' },
+      fuel:      { base: '#8a4b3a', roof: '#5f3026', accent: '#ffd23e', sign: 'FUEL',  h: 2.15 },
+      processor: { base: '#4a5e70', roof: '#32414f', accent: '#7fd4ef', sign: 'ORE',   h: 2.5 },
+      save:      { base: '#3f6a52', roof: '#2a4a38', accent: '#7dffb0', sign: 'SAVE',  h: 1.2 },
+      upgrades:  { base: '#6a5a3f', roof: '#4a3e2a', accent: '#ffb347', sign: 'SHOP',  h: 2.3 },
+      items:     { base: '#5e4a6e', roof: '#41324e', accent: '#c9a2ff', sign: 'ITEMS', h: 2.05 },
     };
     const p = palettes[key];
-    const H = T * 2.1;
+    const H = T * p.h;
+    let g;
 
     if (b.hover) {
-      // Hovering save machine
+      // --- Hovering save machine: capsule, ring antenna, thruster pods, scan glow ---
       const hov = Math.sin(t * 1.8) * T * 0.12;
       ctx.translate(0, -T * 2.4 + hov);
-      const g = ctx.createLinearGradient(0, 0, 0, T * 1.4);
-      g.addColorStop(0, p.base); g.addColorStop(1, p.roof);
+      // Thruster pods
+      for (const px of [T * 0.12, w - T * 0.12]) {
+        ctx.fillStyle = '#2c463a';
+        this.rr(ctx, px - T * 0.11, T * 0.55, T * 0.22, T * 0.42, T * 0.08);
+        ctx.fill();
+        const flick = 0.5 + 0.5 * Math.sin(t * 17 + px);
+        g = ctx.createRadialGradient(px, T * 1.02, T * 0.02, px, T * 1.02, T * 0.18);
+        g.addColorStop(0, `rgba(150,255,190,${0.5 + flick * 0.3})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(px, T * 1.02, T * 0.18, 0, P2); ctx.fill();
+      }
+      // Capsule body
+      g = ctx.createLinearGradient(0, 0, 0, T * 1.1);
+      g.addColorStop(0, this.shade(p.base, 0.25));
+      g.addColorStop(0.5, p.base);
+      g.addColorStop(1, p.roof);
       ctx.fillStyle = g;
-      this.rr(ctx, 0, 0, w, T * 1.1, T * 0.25);
+      this.rr(ctx, 0, 0, w, T * 1.05, T * 0.3);
       ctx.fill();
-      ctx.fillStyle = p.accent;
-      ctx.beginPath(); ctx.arc(w / 2, T * 0.55, T * 0.28, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.beginPath(); ctx.arc(w / 2 - T * 0.08, T * 0.47, T * 0.09, 0, Math.PI * 2); ctx.fill();
-      // Anti-grav glow
+      ctx.strokeStyle = 'rgba(15,30,22,0.7)';
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      this.rr(ctx, 0, 0, w, T * 1.05, T * 0.3);
+      ctx.stroke();
+      // Panel seams + rivets
+      ctx.strokeStyle = 'rgba(10,25,18,0.4)';
+      ctx.lineWidth = Math.max(1, T * 0.015);
+      ctx.beginPath(); ctx.moveTo(T * 0.15, T * 0.52); ctx.lineTo(w - T * 0.15, T * 0.52); ctx.stroke();
+      ctx.fillStyle = 'rgba(220,255,230,0.35)';
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath(); ctx.arc(T * 0.2 + i * (w - T * 0.4) / 4, T * 0.13, Math.max(1, T * 0.015), 0, P2); ctx.fill();
+      }
+      // Data screen with scanline
+      ctx.fillStyle = '#0a1a12';
+      this.rr(ctx, T * 0.16, T * 0.2, T * 0.5, T * 0.34, T * 0.05);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(125,255,176,0.7)';
+      const scan = (t * 0.7) % 1;
+      ctx.fillRect(T * 0.19, T * 0.22 + scan * T * 0.26, T * 0.44, T * 0.03);
+      ctx.strokeStyle = 'rgba(125,255,176,0.5)';
+      ctx.lineWidth = 1;
+      this.rr(ctx, T * 0.16, T * 0.2, T * 0.5, T * 0.34, T * 0.05);
+      ctx.stroke();
+      // Central orb
+      g = ctx.createRadialGradient(w / 2 - T * 0.08, T * 0.45, T * 0.03, w / 2, T * 0.53, T * 0.3);
+      g.addColorStop(0, '#eafff2');
+      g.addColorStop(0.4, p.accent);
+      g.addColorStop(1, '#1d5c3c');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(w / 2, T * 0.53, T * 0.27, 0, P2); ctx.fill();
+      ctx.strokeStyle = 'rgba(10,40,25,0.8)';
+      ctx.lineWidth = Math.max(1.5, T * 0.025);
+      ctx.stroke();
+      // Ring antenna with blinking tip
+      ctx.strokeStyle = '#2c463a';
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      ctx.beginPath(); ctx.moveTo(w / 2, 0); ctx.lineTo(w / 2, -T * 0.32); ctx.stroke();
+      ctx.beginPath(); ctx.arc(w / 2, -T * 0.42, T * 0.11, 0, P2); ctx.stroke();
+      const blink = Math.sin(t * 4) > 0.2;
+      ctx.fillStyle = blink ? p.accent : '#2c5a40';
+      ctx.beginPath(); ctx.arc(w / 2, -T * 0.42, T * 0.045, 0, P2); ctx.fill();
+      // Anti-grav glow cone
       ctx.globalCompositeOperation = 'lighter';
-      const gg = ctx.createRadialGradient(w / 2, T * 1.2, T * 0.05, w / 2, T * 1.2, T * 0.8);
-      gg.addColorStop(0, 'rgba(125,255,176,0.5)'); gg.addColorStop(1, 'rgba(0,0,0,0)');
+      const gg = ctx.createRadialGradient(w / 2, T * 1.25, T * 0.05, w / 2, T * 1.25, T * 0.9);
+      gg.addColorStop(0, `rgba(125,255,176,${0.4 + 0.15 * Math.sin(t * 3)})`);
+      gg.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = gg;
-      ctx.fillRect(-T, T * 0.8, w + 2 * T, T * 1.6);
+      ctx.fillRect(-T, T * 0.8, w + 2 * T, T * 1.8);
       ctx.globalCompositeOperation = 'source-over';
       ctx.restore();
       return;
     }
 
-    // Main structure
-    const g = ctx.createLinearGradient(0, -H, 0, 0);
-    g.addColorStop(0, p.base);
-    g.addColorStop(1, this.shadeCss(p.base, -0.35));
+    // --- Ground shadow & foundation pad ---
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(w / 2, T * 0.04, w * 0.62, T * 0.09, 0, 0, P2); ctx.fill();
+    g = ctx.createLinearGradient(0, -T * 0.08, 0, T * 0.08);
+    g.addColorStop(0, '#6a6c72'); g.addColorStop(1, '#3f4146');
     ctx.fillStyle = g;
-    this.rr(ctx, 0, -H, w, H, T * 0.15);
+    this.rr(ctx, -T * 0.2, -T * 0.08, w + T * 0.4, T * 0.16, T * 0.04);
     ctx.fill();
-    // Roof
-    ctx.fillStyle = p.roof;
-    this.rr(ctx, -T * 0.15, -H - T * 0.28, w + T * 0.3, T * 0.4, T * 0.1);
+
+    // --- Main structure: gradient walls + paneled facade ---
+    g = ctx.createLinearGradient(0, -H, 0, 0);
+    g.addColorStop(0, this.shade(p.base, 0.18));
+    g.addColorStop(0.55, p.base);
+    g.addColorStop(1, this.shade(p.base, -0.38));
+    ctx.fillStyle = g;
+    this.rr(ctx, 0, -H, w, H, T * 0.12);
     ctx.fill();
-    // Door
-    ctx.fillStyle = 'rgba(15,15,20,0.85)';
-    this.rr(ctx, w / 2 - T * 0.45, -T * 1.25, T * 0.9, T * 1.25, T * 0.12);
-    ctx.fill();
-    ctx.strokeStyle = p.accent;
-    ctx.lineWidth = 2;
-    this.rr(ctx, w / 2 - T * 0.45, -T * 1.25, T * 0.9, T * 1.25, T * 0.12);
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = Math.max(1.5, T * 0.025);
+    this.rr(ctx, 0, -H, w, H, T * 0.12);
     ctx.stroke();
-    // Windows
-    ctx.fillStyle = this.hexA(p.accent, 0.75);
-    for (let i = 0; i < 2; i++) {
-      this.rr(ctx, T * 0.25 + i * (w - T * 0.9), -H + T * 0.35, T * 0.4, T * 0.35, 4);
+    // Vertical panel seams + rivets
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+    ctx.lineWidth = Math.max(1, T * 0.014);
+    for (let i = 1; i < 4; i++) {
+      const px = (w / 4) * i;
+      ctx.beginPath(); ctx.moveTo(px, -H + T * 0.1); ctx.lineTo(px, -T * 0.1); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 2; j++) {
+        ctx.beginPath();
+        ctx.arc(w / 8 + i * w / 4, -H + T * 0.22 + j * (H - T * 0.5), Math.max(1, T * 0.014), 0, P2);
+        ctx.fill();
+      }
+    }
+    // Corner trim columns
+    ctx.fillStyle = this.shade(p.roof, -0.1);
+    this.rr(ctx, -T * 0.04, -H, T * 0.12, H, T * 0.04); ctx.fill();
+    this.rr(ctx, w - T * 0.08, -H, T * 0.12, H, T * 0.04); ctx.fill();
+    // Warning stripes at the base corners
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, -T * 0.34, T * 0.5, T * 0.26);
+    ctx.rect(w - T * 0.5, -T * 0.34, T * 0.5, T * 0.26);
+    ctx.clip();
+    for (let i = -2; i < 14; i++) {
+      ctx.fillStyle = i % 2 ? '#c9a227' : '#2c2c30';
+      ctx.beginPath();
+      ctx.moveTo(i * T * 0.16, -T * 0.08);
+      ctx.lineTo(i * T * 0.16 + T * 0.16, -T * 0.08);
+      ctx.lineTo(i * T * 0.16 + T * 0.32, -T * 0.34);
+      ctx.lineTo(i * T * 0.16 + T * 0.16, -T * 0.34);
       ctx.fill();
     }
-    // Glowing sign
-    ctx.fillStyle = '#14161c';
-    const signW = Math.min(w - T * 0.4, T * 2.2);
-    this.rr(ctx, (w - signW) / 2, -H - T * 0.85, signW, T * 0.5, 6);
+    ctx.restore();
+
+    // --- Roof: slab, lip, vent boxes, pipe ---
+    g = ctx.createLinearGradient(0, -H - T * 0.32, 0, -H);
+    g.addColorStop(0, this.shade(p.roof, 0.15)); g.addColorStop(1, p.roof);
+    ctx.fillStyle = g;
+    this.rr(ctx, -T * 0.15, -H - T * 0.28, w + T * 0.3, T * 0.36, T * 0.08);
     ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    this.rr(ctx, -T * 0.15, -H - T * 0.28, w + T * 0.3, T * 0.08, T * 0.04);
+    ctx.fill();
+    // Vent box with slats
+    ctx.fillStyle = this.shade(p.roof, -0.25);
+    this.rr(ctx, w - T * 0.85, -H - T * 0.58, T * 0.6, T * 0.32, T * 0.05);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(w - T * 0.8, -H - T * 0.58 + i * T * 0.08);
+      ctx.lineTo(w - T * 0.3, -H - T * 0.58 + i * T * 0.08);
+      ctx.stroke();
+    }
+    // Side conduit pipe
+    ctx.strokeStyle = this.shade(p.roof, -0.2);
+    ctx.lineWidth = Math.max(2, T * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(T * 0.22, -T * 0.05);
+    ctx.lineTo(T * 0.22, -H + T * 0.3);
+    ctx.quadraticCurveTo(T * 0.22, -H + T * 0.1, T * 0.42, -H + T * 0.1);
+    ctx.stroke();
+    ctx.fillStyle = this.shade(p.roof, -0.35);
+    for (const py of [-T * 0.4, -H * 0.5, -H + T * 0.35]) {
+      this.rr(ctx, T * 0.15, py, T * 0.14, T * 0.07, T * 0.02);
+      ctx.fill();
+    }
+
+    // --- Door: frame, steps, glow edge, keypad, lamp ---
+    const dx = w / 2 - T * 0.45;
+    ctx.fillStyle = this.shade(p.roof, -0.15);
+    this.rr(ctx, dx - T * 0.07, -T * 1.34, T * 1.04, T * 1.34, T * 0.12);
+    ctx.fill();
+    g = ctx.createLinearGradient(0, -T * 1.25, 0, 0);
+    g.addColorStop(0, '#191a20'); g.addColorStop(1, '#0c0d11');
+    ctx.fillStyle = g;
+    this.rr(ctx, dx, -T * 1.25, T * 0.9, T * 1.25, T * 0.1);
+    ctx.fill();
+    ctx.strokeStyle = p.accent;
+    ctx.lineWidth = Math.max(1.5, T * 0.025);
+    this.rr(ctx, dx, -T * 1.25, T * 0.9, T * 1.25, T * 0.1);
+    ctx.stroke();
+    // Door split line
+    ctx.strokeStyle = this.hexA(p.accent, 0.4);
+    ctx.lineWidth = Math.max(1, T * 0.012);
+    ctx.beginPath(); ctx.moveTo(w / 2, -T * 1.25); ctx.lineTo(w / 2, 0); ctx.stroke();
+    // Keypad
+    ctx.fillStyle = '#22252b';
+    this.rr(ctx, dx + T * 0.98, -T * 0.85, T * 0.12, T * 0.18, T * 0.02);
+    ctx.fill();
+    ctx.fillStyle = this.hexA(p.accent, 0.9);
+    ctx.fillRect(dx + T * 1.005, -T * 0.82, T * 0.07, T * 0.03);
+    // Lamp above the door with light cone
+    ctx.fillStyle = '#2c2f35';
+    this.rr(ctx, w / 2 - T * 0.09, -T * 1.52, T * 0.18, T * 0.1, T * 0.03);
+    ctx.fill();
+    g = ctx.createLinearGradient(0, -T * 1.45, 0, -T * 0.2);
+    g.addColorStop(0, this.hexA(p.accent, 0.22));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - T * 0.07, -T * 1.44);
+    ctx.lineTo(w / 2 + T * 0.07, -T * 1.44);
+    ctx.lineTo(w / 2 + T * 0.42, -T * 0.02);
+    ctx.lineTo(w / 2 - T * 0.42, -T * 0.02);
+    ctx.fill();
+
+    // --- Windows: frame + lit interior + crossbar ---
+    for (const wx of [T * 0.28, w - T * 0.72]) {
+      ctx.fillStyle = this.shade(p.roof, -0.2);
+      this.rr(ctx, wx - T * 0.05, -H + T * 0.3, T * 0.54, T * 0.46, T * 0.06);
+      ctx.fill();
+      g = ctx.createLinearGradient(0, -H + T * 0.34, 0, -H + T * 0.7);
+      g.addColorStop(0, this.hexA(p.accent, 0.95));
+      g.addColorStop(1, this.hexA(p.accent, 0.35));
+      ctx.fillStyle = g;
+      this.rr(ctx, wx, -H + T * 0.35, T * 0.44, T * 0.36, T * 0.04);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = Math.max(1, T * 0.014);
+      ctx.beginPath();
+      ctx.moveTo(wx, -H + T * 0.53); ctx.lineTo(wx + T * 0.44, -H + T * 0.53);
+      ctx.moveTo(wx + T * 0.22, -H + T * 0.35); ctx.lineTo(wx + T * 0.22, -H + T * 0.71);
+      ctx.stroke();
+    }
+
+    // --- Per-building props ---
+    this.drawBuildingProps(ctx, key, w, H, T, t, p);
+
+    // --- Glowing sign with occasional flicker ---
+    const signW = Math.min(w - T * 0.4, T * 2.2);
+    ctx.fillStyle = '#111318';
+    this.rr(ctx, (w - signW) / 2, -H - T * 0.88, signW, T * 0.52, T * 0.08);
+    ctx.fill();
+    ctx.strokeStyle = this.hexA(p.accent, 0.5);
+    ctx.lineWidth = Math.max(1, T * 0.018);
+    this.rr(ctx, (w - signW) / 2, -H - T * 0.88, signW, T * 0.52, T * 0.08);
+    ctx.stroke();
+    const flicker = Math.sin(t * 13 + w) > 0.985 ? 0.35 : 1;
     ctx.font = `bold ${Math.floor(T * 0.34)}px Verdana`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = p.accent;
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = p.accent;
-    ctx.fillText(p.sign, w / 2, -H - T * 0.6);
+    ctx.shadowBlur = 12 * flicker;
+    ctx.fillStyle = this.hexA(p.accent, flicker);
+    ctx.fillText(p.sign, w / 2, -H - T * 0.62);
     ctx.shadowBlur = 0;
     ctx.restore();
+  },
+
+  // Unique dressing per shop
+  drawBuildingProps(ctx, key, w, H, T, t, p) {
+    const P2 = Math.PI * 2;
+    let g;
+    if (key === 'fuel') {
+      // Striped fuel silo on the left with a feed pipe into the wall
+      const sx = -T * 0.72, sw = T * 0.55, sh = T * 1.6;
+      g = ctx.createLinearGradient(sx, 0, sx + sw, 0);
+      g.addColorStop(0, '#7a2b20'); g.addColorStop(0.35, '#c04a35'); g.addColorStop(0.65, '#c04a35'); g.addColorStop(1, '#6a241b');
+      ctx.fillStyle = g;
+      this.rr(ctx, sx, -sh, sw, sh, T * 0.12);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (const py of [-sh * 0.72, -sh * 0.38]) ctx.fillRect(sx, py, sw, T * 0.09);
+      // Dome cap
+      g = ctx.createRadialGradient(sx + sw * 0.4, -sh - T * 0.05, T * 0.02, sx + sw / 2, -sh, T * 0.35);
+      g.addColorStop(0, '#d86a50'); g.addColorStop(1, '#6a241b');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(sx + sw / 2, -sh, sw / 2, T * 0.16, 0, Math.PI, 0); ctx.fill();
+      // Feed pipe
+      ctx.strokeStyle = '#4a4c52';
+      ctx.lineWidth = Math.max(2, T * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(sx + sw, -sh * 0.5);
+      ctx.lineTo(T * 0.1, -sh * 0.5);
+      ctx.stroke();
+      // Pump bollard + hose by the door
+      ctx.fillStyle = '#2c2f35';
+      this.rr(ctx, w - T * 0.42, -T * 0.55, T * 0.3, T * 0.55, T * 0.05);
+      ctx.fill();
+      ctx.fillStyle = p.accent;
+      this.rr(ctx, w - T * 0.38, -T * 0.48, T * 0.22, T * 0.14, T * 0.03);
+      ctx.fill();
+      ctx.strokeStyle = '#191b1f';
+      ctx.lineWidth = Math.max(2, T * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(w - T * 0.27, -T * 0.55);
+      ctx.quadraticCurveTo(w - T * 0.05, -T * 0.85, w - T * 0.12, -T * 0.32);
+      ctx.stroke();
+    } else if (key === 'processor') {
+      // Rooftop hopper + inclined conveyor with rollers
+      ctx.fillStyle = '#3a4a58';
+      ctx.beginPath();
+      ctx.moveTo(w - T * 1.1, -H - T * 0.3);
+      ctx.lineTo(w - T * 0.2, -H - T * 0.3);
+      ctx.lineTo(w - T * 0.42, -H - T * 0.85);
+      ctx.lineTo(w - T * 0.88, -H - T * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = Math.max(1, T * 0.02);
+      ctx.stroke();
+      // Ore heap peeking out of the hopper
+      ctx.fillStyle = '#8a6a3c';
+      ctx.beginPath(); ctx.ellipse(w - T * 0.65, -H - T * 0.85, T * 0.2, T * 0.08, 0, Math.PI, 0); ctx.fill();
+      // Conveyor from the ground up to the hopper
+      const cx0 = w + T * 0.55, cy0 = -T * 0.1, cx1 = w - T * 0.5, cy1 = -H - T * 0.78;
+      ctx.strokeStyle = '#23262b';
+      ctx.lineWidth = Math.max(3, T * 0.11);
+      ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx1, cy1); ctx.stroke();
+      ctx.strokeStyle = '#4a5058';
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx1, cy1); ctx.stroke();
+      // Rollers
+      ctx.fillStyle = '#5a616a';
+      for (let i = 0; i < 4; i++) {
+        const rt2 = i / 3;
+        ctx.beginPath();
+        ctx.arc(cx0 + (cx1 - cx0) * rt2, cy0 + (cy1 - cy0) * rt2, T * 0.045, 0, P2);
+        ctx.fill();
+      }
+      // Support leg
+      ctx.strokeStyle = '#2c313a';
+      ctx.lineWidth = Math.max(2, T * 0.05);
+      ctx.beginPath(); ctx.moveTo(w + T * 0.18, -T * 0.02); ctx.lineTo(w + T * 0.05, -H * 0.55); ctx.stroke();
+    } else if (key === 'upgrades') {
+      // Gear emblem on the facade
+      const gx = w / 2, gy = -H + T * 0.52, gr = T * 0.2;
+      ctx.fillStyle = this.shade(p.base, -0.3);
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * P2;
+        ctx.lineTo(gx + Math.cos(a - 0.12) * gr * 1.25, gy + Math.sin(a - 0.12) * gr * 1.25);
+        ctx.lineTo(gx + Math.cos(a + 0.12) * gr * 1.25, gy + Math.sin(a + 0.12) * gr * 1.25);
+        ctx.lineTo(gx + Math.cos(a + 0.28) * gr, gy + Math.sin(a + 0.28) * gr);
+        ctx.lineTo(gx + Math.cos(a + 0.5) * gr, gy + Math.sin(a + 0.5) * gr);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = this.hexA(p.accent, 0.85);
+      ctx.beginPath(); ctx.arc(gx, gy, gr * 0.45, 0, P2); ctx.fill();
+      ctx.fillStyle = this.shade(p.base, -0.3);
+      ctx.beginPath(); ctx.arc(gx, gy, gr * 0.2, 0, P2); ctx.fill();
+      // Parts crates stacked outside
+      const crate = (cx, cy, cs) => {
+        g = ctx.createLinearGradient(cx, cy - cs, cx, cy);
+        g.addColorStop(0, '#8a6a42'); g.addColorStop(1, '#5c4326');
+        ctx.fillStyle = g;
+        this.rr(ctx, cx, cy - cs, cs, cs, T * 0.03);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(30,18,8,0.6)';
+        ctx.lineWidth = Math.max(1, T * 0.016);
+        this.rr(ctx, cx, cy - cs, cs, cs, T * 0.03);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - cs); ctx.lineTo(cx + cs, cy);
+        ctx.moveTo(cx + cs, cy - cs); ctx.lineTo(cx, cy);
+        ctx.stroke();
+      };
+      crate(w + T * 0.12, 0, T * 0.42);
+      crate(w + T * 0.6, 0, T * 0.34);
+      crate(w + T * 0.3, -T * 0.42, T * 0.36);
+    } else if (key === 'items') {
+      // Striped awning over the door
+      const ax = w / 2 - T * 0.62, aw = T * 1.24;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(ax, -T * 1.42);
+      ctx.lineTo(ax + aw, -T * 1.42);
+      ctx.lineTo(ax + aw - T * 0.12, -T * 1.14);
+      ctx.lineTo(ax + T * 0.12, -T * 1.14);
+      ctx.closePath();
+      ctx.clip();
+      for (let i = 0; i < 8; i++) {
+        ctx.fillStyle = i % 2 ? '#c9a2ff' : '#4a3760';
+        ctx.fillRect(ax + i * aw / 8, -T * 1.45, aw / 8 + 1, T * 0.34);
+      }
+      ctx.restore();
+      // Scalloped awning edge
+      ctx.fillStyle = '#4a3760';
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.arc(ax + T * 0.12 + (i + 0.5) * (aw - T * 0.24) / 6, -T * 1.14, T * 0.055, 0, Math.PI);
+        ctx.fill();
+      }
+      // Supply barrel + crate
+      g = ctx.createLinearGradient(-T * 0.6, 0, -T * 0.15, 0);
+      g.addColorStop(0, '#3f6a52'); g.addColorStop(0.5, '#5c8a6e'); g.addColorStop(1, '#2c4a38');
+      ctx.fillStyle = g;
+      this.rr(ctx, -T * 0.58, -T * 0.62, T * 0.42, T * 0.62, T * 0.06);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(-T * 0.58, -T * 0.5, T * 0.42, T * 0.05);
+      ctx.fillRect(-T * 0.58, -T * 0.24, T * 0.42, T * 0.05);
+      ctx.fillStyle = '#8a6a42';
+      this.rr(ctx, -T * 1.05, -T * 0.4, T * 0.4, T * 0.4, T * 0.03);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(30,18,8,0.6)';
+      ctx.lineWidth = Math.max(1, T * 0.016);
+      this.rr(ctx, -T * 1.05, -T * 0.4, T * 0.4, T * 0.4, T * 0.03);
+      ctx.stroke();
+    }
   },
 
   shadeCss(hex, amt) { return this.shade(hex, amt); },

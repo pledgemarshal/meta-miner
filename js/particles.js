@@ -26,7 +26,9 @@ const Particles = {
   },
 
   dust(x, y, color) {
-    this.burst(x, y, 6, { color: color || '#a9744c', speed: 2.5, life: 0.45, size: 0.09, gravity: 8 });
+    this.burst(x, y, 9, { color: color || '#a9744c', speed: 2.8, life: 0.5, size: 0.09, gravity: 8 });
+    // A couple of heavier chips that arc and fall
+    this.burst(x, y, 2, { color: color || '#7a5236', speed: 4, life: 0.7, size: 0.13, gravity: 14 });
   },
 
   sparks(x, y) {

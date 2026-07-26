@@ -109,10 +109,12 @@ const Player = {
       const ease = Math.min(1, d.progress);
       this.x += (tx - this.x) * Math.min(1, dt * (4 + 10 * ease));
       this.y += (ty - this.y) * Math.min(1, dt * (4 + 10 * ease));
-      if (Math.random() < dt * 30) {
-        const kind = World.kind(d.x, d.y);
-        Particles.dust(tx, ty + 0.3, kind && kind.mineral ? kind.mineral.color : undefined);
-      }
+      // Denser debris: dust kicked out around the bit, plus occasional sparks
+      const kind = World.kind(d.x, d.y);
+      const dustCol = kind && kind.mineral ? kind.mineral.color : undefined;
+      if (Math.random() < dt * 45) Particles.dust(tx + (Math.random() - 0.5) * 0.5, ty + 0.3, dustCol);
+      if (Math.random() < dt * 30) Particles.dust(tx, ty - 0.2, dustCol);
+      if (Math.random() < dt * 10) Particles.sparks(tx, ty);
       if (d.progress >= 1) this.finishDrill();
       return;
     }
