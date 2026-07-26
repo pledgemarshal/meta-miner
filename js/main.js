@@ -459,28 +459,45 @@ const Game = {
         !(y > 0 && (World.isSolid(x - 1, y - 1) || World.isSolid(x + 1, y - 1))) &&
         !World.isSolid(x - 1, y + 1) && !World.isSolid(x + 1, y + 1)) return;
 
-    // Build the lip path once, fill it twice: real dirt texture, then a shadow tint
-    const buildPath = () => {
+    // One bumpy contour, filled in passes. Bumps are sized/spaced to always
+    // overlap, so no straight tile edge or sharp corner survives anywhere.
+    const buildPath = (scale) => {
       ctx.beginPath();
-      for (let i = 0; i < 4; i++) {
-        const t = ((i + 0.5) / 4 + (r01(i) - 0.5) * 0.22) * T;
-        if (up) { const r = T * (0.12 + 0.16 * r01(i + 1)); ctx.moveTo(sx + t + r, sy); ctx.arc(sx + t, sy, r, 0, Math.PI * 2); }
-        if (dn) { const r = T * (0.12 + 0.16 * r01(i + 2)); ctx.moveTo(sx + t + r, sy + T); ctx.arc(sx + t, sy + T, r, 0, Math.PI * 2); }
-        if (lf) { const r = T * (0.12 + 0.16 * r01(i + 3)); ctx.moveTo(sx + r, sy + t); ctx.arc(sx, sy + t, r, 0, Math.PI * 2); }
-        if (rt) { const r = T * (0.12 + 0.16 * r01(i + 4)); ctx.moveTo(sx + T + r, sy + t); ctx.arc(sx + T, sy + t, r, 0, Math.PI * 2); }
+      for (let i = 0; i < 5; i++) {
+        const t = ((i + 0.5) / 5 + (r01(i) - 0.5) * 0.14) * T;
+        if (up) { const r = T * (0.14 + 0.12 * r01(i + 1)) * scale; ctx.moveTo(sx + t + r, sy); ctx.arc(sx + t, sy, r, 0, Math.PI * 2); }
+        if (dn) { const r = T * (0.14 + 0.12 * r01(i + 2)) * scale; ctx.moveTo(sx + t + r, sy + T); ctx.arc(sx + t, sy + T, r, 0, Math.PI * 2); }
+        if (lf) { const r = T * (0.14 + 0.12 * r01(i + 3)) * scale; ctx.moveTo(sx + r, sy + t); ctx.arc(sx, sy + t, r, 0, Math.PI * 2); }
+        if (rt) { const r = T * (0.14 + 0.12 * r01(i + 4)) * scale; ctx.moveTo(sx + T + r, sy + t); ctx.arc(sx + T, sy + t, r, 0, Math.PI * 2); }
       }
+      // A corner is rounded whenever ANY soil touches it — this is what kills
+      // the sharp 90° angles where tunnels turn.
       const corner = (cx, cy, cond, i) => {
         if (!cond) return;
-        const r = T * (0.18 + 0.14 * r01(i));
+        const r = T * (0.16 + 0.14 * r01(i)) * scale;
         ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, Math.PI * 2);
       };
-      corner(sx, sy, (up && lf) || (!up && !lf && y > 0 && World.isSolid(x - 1, y - 1)), 5);
-      corner(sx + T, sy, (up && rt) || (!up && !rt && y > 0 && World.isSolid(x + 1, y - 1)), 6);
-      corner(sx, sy + T, (dn && lf) || (!dn && !lf && World.isSolid(x - 1, y + 1)), 7);
-      corner(sx + T, sy + T, (dn && rt) || (!dn && !rt && World.isSolid(x + 1, y + 1)), 8);
+      corner(sx, sy, up || lf || (y > 0 && World.isSolid(x - 1, y - 1)), 5);
+      corner(sx + T, sy, up || rt || (y > 0 && World.isSolid(x + 1, y - 1)), 6);
+      corner(sx, sy + T, dn || lf || World.isSolid(x - 1, y + 1), 7);
+      corner(sx + T, sy + T, dn || rt || World.isSolid(x + 1, y + 1), 8);
     };
 
-    // Lips wear the same dirt texture as the walls, so they merge with the soil
+    // 1) Wide soft shadow halo following the bumpy contour (replaces the old
+    //    straight rectangle gradients that made edges read as sharp lines)
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    buildPath(1.75);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    buildPath(1.35);
+    ctx.fill();
+
+    // 2) Feathered dirt fringe: faint oversized lips, like crumbling loose soil
+    ctx.fillStyle = 'rgba(120,80,55,0.18)';
+    buildPath(1.18);
+    ctx.fill();
+
+    // 3) The lips themselves, wearing the same dirt texture as the walls
     const pat = Sprites.dirtPattern[band];
     if (pat && pat.setTransform) {
       pat.setTransform(new DOMMatrix([T / C.TEX, 0, 0, T / C.TEX, sx, sy]));
@@ -488,18 +505,12 @@ const Game = {
     } else {
       ctx.fillStyle = Sprites.shade(soil[1], -0.2);
     }
-    buildPath();
+    buildPath(1);
     ctx.fill();
-    // Shade the lips so they sit in the tunnel's shadow
+    // 4) Shade the lips into the tunnel's gloom
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    buildPath();
+    buildPath(1);
     ctx.fill();
-
-    // Soft depth shadows deepening toward the walls
-    if (up) { const g = ctx.createLinearGradient(0, sy, 0, sy + T * 0.5); g.addColorStop(0, 'rgba(0,0,0,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy, T + 1, T * 0.5); }
-    if (dn) { const g = ctx.createLinearGradient(0, sy + T, 0, sy + T * 0.55); g.addColorStop(0, 'rgba(0,0,0,0.36)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy + T * 0.55, T + 1, T * 0.45); }
-    if (lf) { const g = ctx.createLinearGradient(sx, 0, sx + T * 0.45, 0); g.addColorStop(0, 'rgba(0,0,0,0.34)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx, sy, T * 0.45, T + 1); }
-    if (rt) { const g = ctx.createLinearGradient(sx + T, 0, sx + T * 0.55, 0); g.addColorStop(0, 'rgba(0,0,0,0.34)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(sx + T * 0.55, sy, T * 0.45, T + 1); }
 
     // Loose rubble resting on tunnel floors
     if (dn) {
