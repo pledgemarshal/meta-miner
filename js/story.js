@@ -1,0 +1,113 @@
+// Story transmissions. All dialogue below is original writing for this remake,
+// following the same story beats and trigger depths as the 1994-era classic it honors.
+
+const Story = {
+  seen: {},        // depth -> true
+
+  // Original-length beats keyed to C.TRANSMISSIONS depths.
+  script: {
+    0: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      text: 'Ah, my newest contractor — welcome to Mars. The pod is yours; the minerals you haul are, naturally, mine to buy. A small oversight in logistics: we dropped you off with an empty tank. Do visit the fuel depot before you embarrass us both.\n\nDig well. I have... high hopes for you.',
+    },
+    500: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      text: 'Five hundred feet already. You show promise, contractor. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. The good veins never lie near the light.',
+    },
+    1000: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      text: 'A thousand feet! Splendid. Another $3,000 has been wired to you.\n\nOne housekeeping note: the planet\'s core has been... restless. If your radio picks up stray chatter from the deep, ignore it. Static plays tricks on tired minds.',
+    },
+    1750: {
+      from: 'UNKNOWN SIGNAL',
+      portrait: 'unknown',
+      signal: 'Signal: weak — source unverified',
+      text: '…it watches… do you understand me? THE EYES. They were in the rock, they were always in the rock—\n\n—no no no it heard me— [SIGNAL LOST]',
+    },
+    2100: {
+      from: 'Digging Pod #3422-2',
+      portrait: 'miner',
+      text: 'Hey there, neighbor! Didn\'t think anyone else still worked this sector. Everyone else just... stopped answering, one by one. Creepy, huh?\n\nAnyway — last season for me. One more good haul and I\'m retiring to the Jovian moons with my wife and the little ones. Dig safe out there!',
+    },
+    2500: {
+      from: 'UNKNOWN SIGNAL',
+      portrait: 'unknown',
+      signal: 'Signal: very weak — source unverified',
+      text: 'Please— is anyone on this channel? My drill\'s dead, something is cutting through the wall— it\'s not a machine, IT\'S NOT A MACHINE—\n\n[SIGNAL LOST]',
+    },
+    3100: {
+      from: 'Digging Pod #3422-2',
+      portrait: 'miner',
+      text: 'Whew — friend, word of advice. I just kissed a lava pocket and my hull\'s half slag. If you\'re heading down past three thousand, put your money in a better radiator BEFORE you need it. Trust me on this one.',
+    },
+    3500: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas no sensor can see.\n\nAlso: your altimeter is only rated to six thousand feet. Company policy is FIRM — do not dig past six thousand. Am I understood?',
+    },
+    4100: {
+      from: 'Digging Pod #3422-2',
+      portrait: 'miner',
+      signal: 'Signal: weak',
+      text: 'Neighbor... looks like I won\'t make that ferry to Jupiter after all. Quake sealed me in. Fuel\'s gone. If this reaches anyone — tell my family the last thing I thought about was them.\n\n…wait. Something\'s coming through the wall. Oh. Oh no. YOU—? [SIGNAL LOST]',
+    },
+    4500: {
+      from: 'Digging Pod #10043',
+      portrait: 'miner',
+      text: 'HA! JACKPOT! You should see this vein, it goes on forever — I\'m rich, I\'m RICH! Drinks on me back at the depot, everybody, I—\n\nwhat is that. WHAT IS THAT?! [SIGNAL LOST]',
+    },
+    6200: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      signal: 'Signal: distorted',
+      text: 'CONTRACTOR. Your depth gauge failed six hundred feet ago and yet you are STILL DESCENDING. Read your contract — section nine, clause one: disobedience is grounds for TERMINATION of employment.\n\nTurn. Back. Now.',
+    },
+    7000: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      signal: 'Signal: very distorted',
+      text: 'You are making a grave mistake, little digger. Continue and you will be terminated— ...ahem. Fired. You will be FIRED.\n\nLast warning. Some doors should stay buried.',
+    },
+    7200: {
+      from: '??? ',
+      portrait: 'satan',
+      signal: 'SIGNAL SOURCE: DIRECTLY BELOW',
+      text: 'Enough theater. You want the truth, worm? Your missing colleagues found me. They dug so very well — right into my parlor. As will you.\n\nCome then, contractor. Your contract ends where all contracts end: in fire. THIS is your termination notice.',
+    },
+  },
+
+  check() {
+    if (Game.state !== 'play' || UI.isOpen()) return;
+    const depth = Player.depthFeet();
+    // Intro plays immediately at the start
+    if (!this.seen[0]) { this.deliver(0); return; }
+    for (const t of C.TRANSMISSIONS) {
+      if (depth >= t.depth && !this.seen[t.depth]) {
+        this.deliver(t.depth, t.bonus);
+        return;
+      }
+    }
+  },
+
+  deliver(depth, bonus) {
+    this.seen[depth] = true;
+    const s = this.script[depth];
+    if (!s) return;
+    Audio.play('radio');
+    Game.pauseForDialog();
+    UI.transmission(s, () => {
+      if (bonus) {
+        Player.money += bonus;
+        UI.toast(`Bonus wired: +$${bonus.toLocaleString()}`);
+        Audio.play('sell');
+      }
+      Game.resumeFromDialog();
+    });
+  },
+
+  serialize() { return Object.assign({}, this.seen); },
+  restore(d) { this.seen = Object.assign({}, d || {}); },
+};
