@@ -24,5 +24,11 @@ supplies — and dig deeper. Something is waiting at the bottom.
 
 ## Tech
 
-Plain HTML5 Canvas + JavaScript. No frameworks, no assets — every sprite is drawn
-in code with gradients, dynamic lighting, and particles.
+Plain HTML5 Canvas + JavaScript. No frameworks — every sprite is drawn in code
+with gradients, dynamic lighting, and particles, and all sound effects are
+synthesized live with WebAudio.
+
+## Music credit
+
+- "Airglow" by [Stellardrone](https://stellardrone.bandcamp.com/) — from the album
+  *Light Years*, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

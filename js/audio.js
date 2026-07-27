@@ -1,4 +1,5 @@
-// All sound is synthesized with WebAudio — no audio files.
+// All sound effects are synthesized with WebAudio. The only audio file is the
+// music: "Airglow" by Stellardrone (CC BY 4.0), looping via an <audio> element.
 
 const Audio = {
   ctx: null,
@@ -7,6 +8,28 @@ const Audio = {
   thrustNode: null,
   drillNode: null,
   musicTimer: null,
+
+  // Note: this object shadows window.Audio, so the element is created via DOM
+  music: null,
+  initMusic() {
+    const el = document.createElement('audio');
+    el.src = 'audio/airglow.mp3';
+    el.loop = true;
+    el.volume = 0.5;
+    el.preload = 'auto';
+    this.music = el;
+  },
+
+  // Browsers block autoplay until a user gesture — called from every keydown,
+  // so the music starts on the first key press and stays running
+  startMusic() {
+    if (this.music && this.music.paused && !this.muted) this.music.play().catch(() => {});
+  },
+
+  // Louder on the title screen, a quiet companion while mining
+  setMusicLevel(v) {
+    if (this.music) this.music.volume += (v - this.music.volume) * 0.08;
+  },
 
   ensure() {
     if (this.ctx) return true;
@@ -19,11 +42,18 @@ const Audio = {
     return true;
   },
 
-  resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); },
+  resume() {
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    this.startMusic();
+  },
 
   toggleMute() {
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    if (this.music) {
+      this.music.muted = this.muted;
+      if (!this.muted) this.startMusic();
+    }
     return this.muted;
   },
 

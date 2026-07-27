@@ -38,6 +38,7 @@ const Game = {
     this.ctx = this.canvas.getContext('2d');
     this.resize();
     UI.init();
+    Audio.initMusic();
     this.mouse = { x: C.VIEW_W * 0.5, y: C.VIEW_H * 0.4 };
     this.canvas.addEventListener('mousemove', e => {
       const r = this.canvas.getBoundingClientRect();
@@ -690,6 +691,9 @@ const Game = {
     this.time += dt;
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeMag = 0;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
+
+    // Music sits forward on the title screen, tucks behind the mining underground
+    Audio.setMusicLevel(this.state === 'title' ? 0.5 : 0.18);
 
     if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.thrustOff(); return; }
     // Shop menus pause the world (and the fuel drain), as in the original
@@ -2046,6 +2050,9 @@ const Game = {
       'Sell minerals at the processor. Refuel often. Watch your hull. Dig deep…',
     ];
     lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.68 + i * 22));
+    ctx.font = '11px Verdana';
+    ctx.fillStyle = '#6e6a60';
+    ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 22 + 18);
     ctx.restore();
   },
 

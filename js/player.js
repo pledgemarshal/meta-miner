@@ -357,6 +357,14 @@ const Player = {
       this.damage(dmg, 'gas');
     }
     this.vy = Math.min(this.vy, 1);
+
+    // Holding DOWN chains straight into the next tile below — continuous
+    // drilling with no bounce-and-resettle between tiles
+    const inp = Game._effInput || Game.input;
+    if (d.dir === 'down' && inp.down && !this.dead && !this.flush && !this.drilling
+        && World.isDrillable(d.x, d.y + 1)) {
+      this.tryDrill(d.x, d.y + 1, 'down');
+    }
   },
 
   moveAndCollide(dt) {
