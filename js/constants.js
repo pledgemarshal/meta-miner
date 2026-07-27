@@ -36,6 +36,7 @@ const C = {
   FUEL_THRUST_PER_SEC: 17 / 60,
   FUEL_DRILL_PER_SEC: 20 / 60,
   FUEL_PRICE: 1,               // $1 per liter
+  FUEL_WARN_FRAC: 0.35,        // FUEL LOW banner + red bar at or below this fraction
 
   // --- Drilling ---
   DRILL_BASE_TIME: 0.5,        // seconds per tile with stock drill at surface

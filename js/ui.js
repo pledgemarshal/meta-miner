@@ -280,9 +280,9 @@ const UI = {
     ctx.fillRect(0, 0, C.VIEW_W, stripH);
 
     const fuelFrac = P.fuel / P.fuelCap();
-    // Fuel bar — red at or below 25%
+    // Fuel bar — red at or below the warn threshold
     this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
-      fuelFrac <= 0.25 ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
+      fuelFrac <= C.FUEL_WARN_FRAC ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
     // Hull bar
     this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, P.hull / P.hullCap(), '#7dffb0',
       `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);

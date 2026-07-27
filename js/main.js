@@ -860,10 +860,10 @@ const Game = {
     this.updateWorm(dt);
     this.checkPyramids();
 
-    // Fuel-low banner: fires each time fuel crosses down through 25%
+    // Fuel-low banner: fires each time fuel crosses down through the warn line
     if (this.fuelWarnT > 0) this.fuelWarnT -= dt;
     const fuelFrac = Player.fuel / Player.fuelCap();
-    if (fuelFrac <= 0.25 && this._prevFuelFrac > 0.25 && !Player.dead) {
+    if (fuelFrac <= C.FUEL_WARN_FRAC && this._prevFuelFrac > C.FUEL_WARN_FRAC && !Player.dead) {
       this.fuelWarnT = 3.5;
       Audio.play('denied');
     }
