@@ -449,7 +449,8 @@ const Game = {
     w.x += mx * speed * dt;
     w.y += my * speed * dt;
     w.x = Math.max(2, Math.min(C.WORLD_W - 3, w.x));
-    w.y = Math.max(C.feetToRow(C.WORM.min - 1200), Math.min(C.GROUND_BOTTOM_ROW - 2, w.y));
+    // Never hunts above -500 ft — the shallows are safe ground
+    w.y = Math.max(C.feetToRow(C.WORM.ceilingFt), Math.min(C.GROUND_BOTTOM_ROW - 2, w.y));
     w.heading = Math.atan2(my, mx);
 
     // Chewing: fast jaw churn while eating rock, idle gnashing in the open
@@ -474,11 +475,13 @@ const Game = {
       Player.damage(C.WORM.biteDmg, 'worm');
     }
 
-    // Gives up eventually, or if the pod climbs out of its territory
-    if (w.age > C.WORM.lifetime || depth < C.WORM.min - 1000) {
+    // Gives up eventually, or the moment the pod puts 500 ft between them
+    if (w.age > C.WORM.lifetime || dist * C.FEET_PER_TILE > C.WORM.leashFt) {
       w.leaving = true;
       Audio.play('wormRoar');
-      this.toast('The worm loses interest and burrows away…');
+      this.toast(dist * C.FEET_PER_TILE > C.WORM.leashFt
+        ? 'You outran the worm — it loses your trail…'
+        : 'The worm loses interest and burrows away…');
     }
   },
 
@@ -529,7 +532,7 @@ const Game = {
     const a = Math.random() * Math.PI * 2;
     const r = 16 + Math.random() * 5;
     const x = Math.max(2.5, Math.min(C.WORLD_W - 3.5, Player.x + Math.cos(a) * r));
-    const y = Math.max(C.feetToRow(C.WORM.min - 1200), Math.min(C.GROUND_BOTTOM_ROW - 3, Player.y + Math.sin(a) * r));
+    const y = Math.max(C.feetToRow(C.WORM.ceilingFt), Math.min(C.GROUND_BOTTOM_ROW - 3, Player.y + Math.sin(a) * r));
     this.worm = {
       x, y, age: 0, biteCd: 0, chew: 0,
       leaving: false, fade: 1, heading: 0,

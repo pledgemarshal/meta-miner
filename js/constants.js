@@ -100,8 +100,9 @@ const C = {
   NUKE: { min: 4000, count: 5, fuse: 6, chainFuse: 0.8, blastRadius: 5, dmgRadius: 7.5, maxDmg: 150, salvage: 60000 },
   // The worm from ~-5,000 ft: two tiles wide, chews its own tunnel toward the
   // pod at a fixed rate — half the stock drill's 2 tiles/sec, never faster no
-  // matter what drill the player owns. Only explosives can kill it.
-  WORM: { min: 5000, speedSolid: 1.0, speedOpen: 1.6, biteDmg: 25, biteCd: 1.2, bounty: 40000, lifetime: 55 },
+  // matter what drill the player owns. Only explosives can kill it. It loses
+  // the trail if the pod gets 500+ ft away, and never hunts above -500 ft.
+  WORM: { min: 5000, speedSolid: 1.0, speedOpen: 1.6, biteDmg: 25, biteCd: 1.2, bounty: 40000, lifetime: 55, leashFt: 500, ceilingFt: 500 },
 
   // --- Upgrades (Autobuy 2000). Price ladder 750/2k/5k/20k/100k/500k. ---
   // Buying a fuel tank fills it; buying a hull fully repairs.
