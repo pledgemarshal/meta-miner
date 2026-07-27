@@ -122,6 +122,12 @@ const Audio = {
         this.tone(28, 2.0, 'sine', 0.3, 16, 0.2);
         break;
       case 'chomp':    this.noise(0.12, 0.35, 900); this.tone(150, 0.16, 'square', 0.2, 55); this.tone(85, 0.22, 'sawtooth', 0.16, 40, 0.06); break;
+      // Geiger counter tick: a dry, sharp crackle. Fired at random intervals
+      // whose rate scales with radiation intensity, so it clicks like the real thing.
+      case 'geiger':
+        this.noise(0.018, 0.32, 6500);
+        if (Math.random() < 0.3) this.noise(0.014, 0.22, 7500, 0.03);   // occasional double-tick
+        break;
       case 'wormRoar': this.tone(70, 1.3, 'sawtooth', 0.24, 32); this.noise(1.3, 0.24, 300); this.tone(115, 0.9, 'square', 0.07, 50, 0.15); break;
     }
   },

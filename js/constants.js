@@ -97,7 +97,11 @@ const C = {
   // Dormant warheads from ~-4,000 ft. Drilling any tile beside one arms it:
   // flee the blast, or drill the warhead itself before the fuse runs out to
   // salvage it for a payout. Blasts chain-arm other warheads they uncover.
-  NUKE: { min: 4000, count: 5, fuse: 6, chainFuse: 0.8, blastRadius: 5, dmgRadius: 7.5, maxDmg: 150, salvage: 60000 },
+  // cloudLife: mushroom cloud dissipation (visual only — flyable); falloutLife:
+  // how long the site stays radioactive (Geiger clicks inside dmgRadius);
+  // shockRadius: how far the visible shockwave ring travels past the damage zone
+  NUKE: { min: 4000, count: 5, fuse: 6, chainFuse: 0.8, blastRadius: 5, dmgRadius: 7.5, maxDmg: 150, salvage: 60000,
+          cloudLife: 8, falloutLife: 120, shockRadius: 14 },
   // The worm from ~-5,000 ft: two tiles wide, chews its own tunnel toward the
   // pod at a fixed rate — half the stock drill's 2 tiles/sec, never faster no
   // matter what drill the player owns. Only explosives can kill it. It loses

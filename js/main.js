@@ -23,6 +23,9 @@ const Game = {
   _magnetIntro: false,
   armedNukes: [],        // ticking warheads: { x, y, t, beepT }
   nukeFlash: 0,
+  shockwaves: [],        // expanding detonation rings: { x, y, age }
+  nukeClouds: [],        // mushroom clouds (visual only, flyable): { x, y, age, seed }
+  fallout: [],           // radioactive sites that tick the Geiger counter: { x, y, age }
   worm: null,            // the burrowing horror below -5,000 ft
   wormIntroSeen: false,
   popups: [],            // floating "+$" texts
@@ -222,7 +225,7 @@ const Game = {
       this.flashHurt();
       Audio.play('ghostHit');
       this.popup(Player.x, Player.y - 0.8, '-' + lost.toFixed(1) + ' L', '#a0c8ff');
-      this.toast(g.cursed ? 'The tomb guardian drains your fuel!' : 'A ghost siphoned your fuel!');
+      this.toast(g.cursed ? "The pharaoh's spirit drains your fuel!" : 'A ghost siphoned your fuel!');
       g.fading = 0.5;
       return;
     }
@@ -257,7 +260,7 @@ const Game = {
         const bonus = Player.fuelCap() * 0.1;
         Player.fuel = Math.min(Player.fuelCap(), Player.fuel + bonus);
         this.popup(g.x, g.y - 0.5, '+' + bonus.toFixed(1) + ' L', '#7de0ff');
-        this.toast('Ghost burned away by your flashlight!');
+        this.toast(g.cursed ? "The pharaoh's spirit burns back into the dust!" : 'Ghost burned away by your flashlight!');
         Particles.burst(g.x, g.y, 22, { color: '#ff9a3c', speed: 6, life: 0.6, size: 0.12, glow: true });
         Particles.burst(g.x, g.y, 12, { color: '#cfe8ff', speed: 4, life: 0.8, size: 0.09, glow: true });
         g.fading = 0.5;
@@ -293,6 +296,9 @@ const Game = {
     this._magnetIntro = false;
     this.armedNukes = [];
     this.nukeFlash = 0;
+    this.shockwaves = [];
+    this.nukeClouds = [];
+    this.fallout = [];
     this.worm = null;
     this.wormIntroSeen = false;
     this.alertT = 0;
@@ -354,6 +360,26 @@ const Game = {
 
   updateNukes(dt) {
     if (this.nukeFlash > 0) this.nukeFlash -= dt;
+
+    // Age the visual aftermath
+    for (const s of this.shockwaves) s.age += dt;
+    this.shockwaves = this.shockwaves.filter(s => s.age < 1.2);
+    for (const m of this.nukeClouds) m.age += dt;
+    this.nukeClouds = this.nukeClouds.filter(m => m.age < C.NUKE.cloudLife);
+
+    // Fallout: inside a blast site's damage radius the Geiger counter ticks,
+    // faster near the center, tapering as the site cools over two minutes
+    let rad = 0;
+    for (const f of this.fallout) {
+      f.age += dt;
+      const d = Math.hypot(Player.x - (f.x + 0.5), Player.y - (f.y + 0.5));
+      if (d < C.NUKE.dmgRadius) {
+        rad = Math.max(rad, (1 - d / C.NUKE.dmgRadius) * (1 - f.age / C.NUKE.falloutLife));
+      }
+    }
+    this.fallout = this.fallout.filter(f => f.age < C.NUKE.falloutLife);
+    if (rad > 0.02 && !Player.dead && Math.random() < dt * (4 + 32 * rad)) Audio.play('geiger');
+
     for (let i = this.armedNukes.length - 1; i >= 0; i--) {
       const n = this.armedNukes[i];
       n.t -= dt;
@@ -378,6 +404,9 @@ const Game = {
     Audio.play('nukeBlast');
     this.shake(3);
     this.nukeFlash = 0.7;
+    this.shockwaves.push({ x: n.x + 0.5, y: n.y + 0.5, age: 0 });
+    this.nukeClouds.push({ x: n.x + 0.5, y: n.y + 0.5, age: 0, seed: (n.x * 31 + n.y * 7) % 100 });
+    this.fallout.push({ x: n.x, y: n.y, age: 0 });
     Particles.explosion(n.x + 0.5, n.y + 0.5, 3);
     // Mushroom column of fire and ash boiling upward
     for (let i = 0; i < 46; i++) {
@@ -575,7 +604,7 @@ const Game = {
   // Taking the Pharaoh's Bounty wakes the tomb's guardian — a faster, hungrier ghost
   triggerCurse(x, y) {
     Audio.play('curse');
-    this.warn("THE TOMB'S GUARDIAN AWAKENS!", '#c99cff');
+    this.warn("THE PHARAOH'S SPIRIT AWAKENS!", '#ffd76e');
     this.shake(1);
     this.spawnGhost({ cursed: true });
   },
@@ -1222,6 +1251,7 @@ const Game = {
       ctx.restore();
     }
 
+    this.drawNukeAftermath(ctx);
     this.drawWorm(ctx);
 
     // Control-inversion shimmer: rippling violet vignette while magnetized
@@ -1235,6 +1265,91 @@ const Game = {
       vg.addColorStop(1, `rgba(150,70,255,${0.16 + 0.1 * p})`);
       ctx.fillStyle = vg;
       ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
+      ctx.restore();
+    }
+  },
+
+  // Nuclear aftermath: mushroom cloud (8 s, purely visual — the pod flies
+  // straight through it) and an expanding shockwave ring that travels well
+  // past the damage radius
+  drawNukeAftermath(ctx) {
+    const T = C.TILE;
+
+    // Mushroom clouds first so the shockwave rings draw over them
+    for (const m of this.nukeClouds) {
+      const cx = (m.x - this.cam.x) * T;
+      const baseY = (m.y - this.cam.y) * T;
+      if (cx < -T * 10 || cx > C.VIEW_W + T * 10 || baseY < -T * 14 || baseY > C.VIEW_H + T * 14) continue;
+      const t = m.age / C.NUKE.cloudLife;                       // 0..1 lifetime
+      const heat = Math.max(0, 1 - m.age / 2.2);                // orange fire fading to smoke
+      const fade = t > 0.7 ? (1 - t) / 0.3 : 1;                 // dissipate over the last ~2.4 s
+      const rise = Math.min(1, m.age / 2.8);                    // column climbs then hangs
+      const capY = baseY - rise * T * 5.2;
+      const billow = i => 0.85 + 0.3 * Math.sin(this.time * 1.7 + m.seed + i * 2.1);
+
+      ctx.save();
+      ctx.globalAlpha = fade * 0.85;
+
+      // Stem: overlapping smoke puffs from ground to cap
+      for (let i = 0; i < 7; i++) {
+        const f = i / 6;
+        const py = baseY + (capY - baseY) * f;
+        const r = T * (1.15 - f * 0.35) * billow(i);
+        const sway = Math.sin(this.time * 1.2 + m.seed + f * 3) * T * 0.18 * f;
+        const g = ctx.createRadialGradient(cx + sway, py, r * 0.15, cx + sway, py, r);
+        const smoke = 110 - f * 20;
+        g.addColorStop(0, `rgba(${smoke + 40 + 145 * heat},${smoke + 30 + 60 * heat},${smoke - 10},${0.5})`);
+        g.addColorStop(1, 'rgba(60,55,50,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(cx + sway - r, py - r, r * 2, r * 2);
+      }
+      // Cap: a wide crown of puffs, slowly spreading as it ages
+      const capW = T * (2.1 + t * 1.1);
+      for (let i = -3; i <= 3; i++) {
+        const px = cx + (i / 3) * capW * 0.8;
+        const lift = -Math.cos((i / 3) * Math.PI * 0.5) * T * 0.9;
+        const r = T * (1.25 - Math.abs(i) * 0.16) * billow(i + 10);
+        const g = ctx.createRadialGradient(px, capY + lift, r * 0.15, px, capY + lift, r);
+        const smoke = 120;
+        g.addColorStop(0, `rgba(${smoke + 30 + 135 * heat},${smoke + 20 + 55 * heat},${smoke - 15},0.55)`);
+        g.addColorStop(1, 'rgba(70,65,58,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(px - r, capY + lift - r, r * 2, r * 2);
+      }
+      // Hot glowing core while young
+      if (heat > 0.02) {
+        ctx.globalCompositeOperation = 'lighter';
+        const g = ctx.createRadialGradient(cx, capY, T * 0.2, cx, capY, T * 2.4);
+        g.addColorStop(0, `rgba(255,190,80,${0.5 * heat})`);
+        g.addColorStop(0.5, `rgba(255,120,40,${0.25 * heat})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(cx - T * 2.4, capY - T * 2.4, T * 4.8, T * 4.8);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.restore();
+    }
+
+    // Shockwaves: a bright compression ring racing outward past the damage zone
+    for (const s of this.shockwaves) {
+      const sx = (s.x - this.cam.x) * T;
+      const sy = (s.y - this.cam.y) * T;
+      const t = s.age / 1.2;                                    // 0..1
+      const R = (0.6 + t * C.NUKE.shockRadius) * T;
+      const a = (1 - t) * 0.85;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(255,245,225,${a})`;
+      ctx.lineWidth = Math.max(2, T * 0.22 * (1 - t * 0.6));
+      ctx.beginPath();
+      ctx.arc(sx, sy, R, 0, Math.PI * 2);
+      ctx.stroke();
+      // Trailing haze band just inside the front
+      ctx.strokeStyle = `rgba(255,180,110,${a * 0.45})`;
+      ctx.lineWidth = Math.max(2, T * 0.5 * (1 - t * 0.5));
+      ctx.beginPath();
+      ctx.arc(sx, sy, R * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     }
   },
@@ -1352,6 +1467,7 @@ const Game = {
   drawGhost(ctx) {
     const g = this.ghost;
     if (!g) return;
+    if (g.cursed) return this.drawPharaoh(ctx, g);
     const T = C.TILE;
     const burn = Math.min(1, (g.exposure || 0) / 3);
     const scared = !!g.lit && g.fading <= 0;
@@ -1366,13 +1482,10 @@ const Game = {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Aura: cold spectral blue — violet for the tomb guardian — shifting to
-    // firelight as it burns
+    // Aura: cold spectral blue, shifting to firelight as it burns
     ctx.globalCompositeOperation = 'lighter';
     let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.15);
-    gg.addColorStop(0, g.cursed
-      ? `rgba(${Math.round(200 + 55 * burn)},${Math.round(120 - 30 * burn)},${Math.round(255 - 195 * burn)},${0.36 + 0.2 * burn})`
-      : `rgba(${Math.round(160 + 95 * burn)},${Math.round(215 - 90 * burn)},${Math.round(255 - 195 * burn)},${0.32 + 0.2 * burn})`);
+    gg.addColorStop(0, `rgba(${Math.round(160 + 95 * burn)},${Math.round(215 - 90 * burn)},${Math.round(255 - 195 * burn)},${0.32 + 0.2 * burn})`);
     gg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gg;
     ctx.fillRect(gx - T * 1.25, gy - T * 1.25, T * 2.5, T * 2.5);
@@ -1381,8 +1494,7 @@ const Game = {
     // Shroud: leans hungrily toward the pod, chars as it burns
     const lean = Math.atan2(Player.y - g.y, Player.x - g.x);
     const lx = Math.cos(lean) * T * 0.05;
-    const baseR = g.cursed ? 220 : 225, baseG = g.cursed ? 175 : 243;
-    const topR = Math.round(baseR - 140 * burn), topG = Math.round(baseG - 165 * burn), topB = Math.round(255 - 190 * burn);
+    const topR = Math.round(225 - 140 * burn), topG = Math.round(243 - 165 * burn), topB = Math.round(255 - 190 * burn);
     gg = ctx.createLinearGradient(gx, gy - T * 0.5, gx, gy + T * 0.55);
     gg.addColorStop(0, `rgba(${topR},${topG},${topB},0.92)`);
     gg.addColorStop(1, `rgba(${Math.round(140 - 80 * burn)},${Math.round(180 - 110 * burn)},${Math.round(225 - 160 * burn)},0.1)`);
@@ -1506,6 +1618,231 @@ const Game = {
         const fa = -Math.PI * 0.9 + (i / 4) * Math.PI * 0.8;
         const fx = gx + Math.cos(fa) * T * 0.27;
         const fy = gy - T * 0.1 + Math.sin(fa) * T * 0.26;
+        const flick = 0.7 + 0.3 * Math.sin(this.time * 13 + i * 2.4);
+        const fh = T * (0.14 + 0.3 * intensity) * flick;
+        const fw = T * 0.07 * (0.8 + 0.4 * intensity);
+        const fgrad = ctx.createLinearGradient(fx, fy, fx, fy - fh);
+        fgrad.addColorStop(0, `rgba(255,120,30,${0.75 * intensity + 0.2})`);
+        fgrad.addColorStop(0.5, `rgba(255,190,60,${0.6 * intensity + 0.15})`);
+        fgrad.addColorStop(1, 'rgba(255,240,180,0)');
+        ctx.fillStyle = fgrad;
+        ctx.beginPath();
+        ctx.moveTo(fx - fw, fy);
+        ctx.quadraticCurveTo(fx - fw * 0.5, fy - fh * 0.55, fx + Math.sin(this.time * 17 + i) * fw * 0.6, fy - fh);
+        ctx.quadraticCurveTo(fx + fw * 0.5, fy - fh * 0.5, fx + fw, fy);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.restore();
+  },
+
+  // The tomb's guardian: an undead pharaoh spirit. Same haunting rules as a
+  // ghost (chases, siphons fuel, burns under the flashlight) — royal regalia.
+  drawPharaoh(ctx, g) {
+    const T = C.TILE;
+    const burn = Math.min(1, (g.exposure || 0) / 3);
+    const scared = !!g.lit && g.fading <= 0;
+    const trX = scared ? (Math.random() - 0.5) * T * 0.07 : 0;
+    const trY = scared ? (Math.random() - 0.5) * T * 0.07 : 0;
+    const gx = (g.x - this.cam.x) * T + trX;
+    const gy = (g.y - this.cam.y) * T + Math.sin(g.age * 3) * T * 0.08 + trY;
+    if (gx < -T * 2 || gx > C.VIEW_W + T * 2 || gy < -T * 2 || gy > C.VIEW_H + T * 2) return;
+    let alpha = 0.82;
+    if (g.fading > 0) alpha *= g.fading / 0.5;
+    const lean = Math.atan2(Player.y - g.y, Player.x - g.x);
+    // Regalia palette, charring as the flashlight burns it
+    const gold = `rgba(${Math.round(240 - 150 * burn)},${Math.round(195 - 140 * burn)},${Math.round(80 - 55 * burn)},0.95)`;
+    const goldDim = `rgba(${Math.round(200 - 130 * burn)},${Math.round(158 - 115 * burn)},${Math.round(58 - 40 * burn)},0.9)`;
+    const linen = `rgba(${Math.round(228 - 140 * burn)},${Math.round(216 - 145 * burn)},${Math.round(188 - 140 * burn)},0.88)`;
+    const lapis = `rgba(${Math.round(46 + 60 * burn)},${Math.round(82 - 40 * burn)},${Math.round(180 - 120 * burn)},0.92)`;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Golden funerary aura
+    ctx.globalCompositeOperation = 'lighter';
+    let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.2);
+    gg.addColorStop(0, `rgba(${Math.round(255 - 30 * burn)},${Math.round(205 - 80 * burn)},${Math.round(90 - 40 * burn)},${0.34 + 0.2 * burn})`);
+    gg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gg;
+    ctx.fillRect(gx - T * 1.3, gy - T * 1.3, T * 2.6, T * 2.6);
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Bandage-wrapped body tapering into tattered linen rags
+    const lx = Math.cos(lean) * T * 0.05;
+    ctx.fillStyle = linen;
+    ctx.beginPath();
+    ctx.moveTo(gx + lx - T * 0.27, gy + T * 0.02);
+    ctx.lineTo(gx + lx + T * 0.27, gy + T * 0.02);
+    const bot = gy + T * 0.5;
+    ctx.lineTo(gx + lx + T * 0.24, bot - T * 0.14);
+    const rags = 5;
+    for (let i = rags; i >= 0; i--) {
+      const rxp = gx + lx - T * 0.24 + (i / rags) * T * 0.48;
+      const drop = bot + Math.sin(g.age * 7 + i * 2.4) * T * 0.05 + (i % 2 ? -T * 0.12 : T * 0.03);
+      ctx.lineTo(rxp + T * 0.045, drop);
+      ctx.lineTo(rxp - T * 0.02, drop - T * 0.09);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Wrap seams
+    ctx.strokeStyle = `rgba(${Math.round(160 - 90 * burn)},${Math.round(146 - 85 * burn)},${Math.round(118 - 70 * burn)},0.7)`;
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    for (let i = 0; i < 3; i++) {
+      const wy = gy + T * (0.08 + i * 0.13);
+      ctx.beginPath();
+      ctx.moveTo(gx + lx - T * 0.25, wy);
+      ctx.quadraticCurveTo(gx + lx, wy + T * 0.04, gx + lx + T * 0.25, wy - T * 0.02);
+      ctx.stroke();
+    }
+    // A loose bandage streaming behind
+    ctx.strokeStyle = linen;
+    ctx.lineWidth = Math.max(1.5, T * 0.045);
+    ctx.beginPath();
+    ctx.moveTo(gx + lx - T * 0.24, gy + T * 0.18);
+    ctx.quadraticCurveTo(
+      gx - T * 0.55 - Math.cos(g.age * 1.5) * T * 0.12,
+      gy + T * 0.1 + Math.sin(g.age * 4) * T * 0.12,
+      gx - T * (0.6 + 0.12 * Math.sin(g.age * 2.2)), gy + T * 0.34);
+    ctx.stroke();
+
+    // Broad golden collar
+    ctx.fillStyle = goldDim;
+    ctx.beginPath();
+    ctx.ellipse(gx + lx, gy + T * 0.03, T * 0.24, T * 0.1, 0, 0, Math.PI);
+    ctx.fill();
+
+    // Nemes headdress: gold hood with lapis stripes and side lappets
+    const hy = gy - T * 0.2;
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.moveTo(gx - T * 0.3, hy + T * 0.28);              // left lappet bottom
+    ctx.lineTo(gx - T * 0.3, hy - T * 0.02);
+    ctx.quadraticCurveTo(gx - T * 0.3, hy - T * 0.26, gx, hy - T * 0.28);
+    ctx.quadraticCurveTo(gx + T * 0.3, hy - T * 0.26, gx + T * 0.3, hy - T * 0.02);
+    ctx.lineTo(gx + T * 0.3, hy + T * 0.28);
+    ctx.lineTo(gx + T * 0.18, hy + T * 0.3);
+    ctx.lineTo(gx + T * 0.17, hy + T * 0.06);
+    ctx.quadraticCurveTo(gx, hy + T * 0.14, gx - T * 0.17, hy + T * 0.06);
+    ctx.lineTo(gx - T * 0.18, hy + T * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    // Lapis stripes down the hood
+    ctx.strokeStyle = lapis;
+    ctx.lineWidth = Math.max(1.5, T * 0.035);
+    for (const s of [-0.24, -0.12, 0.12, 0.24]) {
+      ctx.beginPath();
+      ctx.moveTo(gx + T * s, hy - T * (0.26 - Math.abs(s) * 0.3));
+      ctx.lineTo(gx + T * s * 1.2, hy + T * 0.27);
+      ctx.stroke();
+    }
+    // Uraeus cobra on the brow
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = Math.max(1.5, T * 0.035);
+    ctx.beginPath();
+    ctx.arc(gx, hy - T * 0.3, T * 0.045, Math.PI * 0.4, Math.PI * 2.2);
+    ctx.stroke();
+
+    // Golden death-mask face
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.ellipse(gx, hy + T * 0.05, T * 0.16, T * 0.19, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const eyeY = hy + T * 0.01;
+    if (!scared) {
+      // Kohl-lined almond eyes, embers tracking the pod
+      ctx.fillStyle = 'rgba(10,8,4,0.95)';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(gx + s * T * 0.07, eyeY, T * 0.05, T * 0.028, s * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,210,110,0.95)';
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.07 + Math.cos(lean) * T * 0.02, eyeY + Math.sin(lean) * T * 0.015, T * 0.014, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Stern sealed mouth with the ceremonial beard below
+      ctx.strokeStyle = 'rgba(10,8,4,0.85)';
+      ctx.lineWidth = Math.max(1, T * 0.022);
+      ctx.beginPath();
+      ctx.moveTo(gx - T * 0.05, hy + T * 0.13);
+      ctx.lineTo(gx + T * 0.05, hy + T * 0.13);
+      ctx.stroke();
+      ctx.fillStyle = lapis;
+      ctx.fillRect(gx - T * 0.02, hy + T * 0.17, T * 0.04, T * 0.1);
+    } else {
+      // Terror: the royal composure cracks — wide eyes, screaming mouth
+      for (const s of [-1, 1]) {
+        ctx.fillStyle = 'rgba(250,245,230,0.95)';
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.07, eyeY, T * 0.055, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(10,8,4,0.95)';
+        ctx.beginPath();
+        ctx.arc(gx + s * T * 0.07, eyeY + T * 0.008, T * 0.016, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(10,8,4,0.95)';
+      ctx.beginPath();
+      ctx.ellipse(gx, hy + T * 0.13, T * 0.045, T * 0.07 + Math.sin(g.age * 25) * T * 0.01, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wrapped arms: grasping for the pod — or thrown up in panic
+    ctx.strokeStyle = linen;
+    ctx.lineWidth = Math.max(1.5, T * 0.055);
+    ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      const ax0 = gx + s * T * 0.24, ay0 = gy + T * 0.05;
+      let ax1, ay1;
+      if (scared) {
+        ax1 = gx + s * T * 0.38;
+        ay1 = gy - T * 0.4 + Math.sin(g.age * 22 + s) * T * 0.04;
+      } else {
+        ax1 = gx + Math.cos(lean) * T * 0.48 + s * T * 0.13;
+        ay1 = gy + Math.sin(lean) * T * 0.38 + T * 0.06;
+      }
+      ctx.moveTo(ax0, ay0);
+      ctx.quadraticCurveTo((ax0 + ax1) / 2 + s * T * 0.06, (ay0 + ay1) / 2 + T * 0.08, ax1, ay1);
+      ctx.stroke();
+      // Skeletal gilded fingers
+      ctx.strokeStyle = goldDim;
+      ctx.lineWidth = Math.max(1, T * 0.026);
+      for (const fa of [-0.5, 0, 0.5]) {
+        ctx.beginPath();
+        ctx.moveTo(ax1, ay1);
+        const fAng = (scared ? -Math.PI / 2 : lean) + fa;
+        ctx.lineTo(ax1 + Math.cos(fAng) * T * 0.11, ay1 + Math.sin(fAng) * T * 0.11);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = linen;
+      ctx.lineWidth = Math.max(1.5, T * 0.055);
+    }
+
+    // Drifting golden motes of grave-dust
+    ctx.fillStyle = `rgba(255,220,130,0.3)`;
+    for (let i = 0; i < 3; i++) {
+      const wxp = gx - T * (0.4 + i * 0.16) * Math.cos(g.age * 1.5);
+      const wyp = gy + T * 0.22 + Math.sin(g.age * 4 + i * 1.8) * T * 0.12;
+      ctx.beginPath();
+      ctx.arc(wxp, wyp, T * (0.055 - i * 0.012), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Flames while the beam is on it — same rules as any spectre
+    if (scared || burn > 0.02) {
+      const intensity = Math.max(burn, scared ? 0.35 : 0);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) {
+        const fa = -Math.PI * 0.9 + (i / 4) * Math.PI * 0.8;
+        const fx = gx + Math.cos(fa) * T * 0.28;
+        const fy = gy - T * 0.12 + Math.sin(fa) * T * 0.27;
         const flick = 0.7 + 0.3 * Math.sin(this.time * 13 + i * 2.4);
         const fh = T * (0.14 + 0.3 * intensity) * flick;
         const fw = T * 0.07 * (0.8 + 0.4 * intensity);
