@@ -75,6 +75,8 @@ const Player = {
     Audio.setWind(0);
     Audio.setTreads(0);
     Audio.setGeyser(0);
+    Audio.setRumble(0);
+    Audio.setMagnet(0);
     Audio.thrustOff();
     Audio.play('explode');
     Particles.explosion(this.x, this.y, 1.8);
@@ -246,7 +248,8 @@ const Player = {
     if (ty < 0 || !World.isSolid(tx, ty)) return;
     if (!World.isDrillable(tx, ty)) return;    // stone: drill just skitters off
     const band = Sprites.bandForRow(ty);
-    const harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
+    let harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
+    if (World.get(tx, ty) === World.kindIndex.sand) harden *= C.PYRAMID.sandHardness;
     const time = (C.DRILL_BASE_TIME * harden) / this.drillSpeed();
     this.drilling = { x: tx, y: ty, dir, progress: 0, time: Math.max(0.1, time) };
     this.fallStartY = null;
@@ -260,7 +263,20 @@ const Player = {
     World.clear(d.x, d.y);
     Audio.stop('drill');
 
-    if (kind.mineral) {
+    // Breaking ground beside a sleeping warhead wakes it up
+    Game.armNukesAround(d.x, d.y);
+
+    if (kind.nuke) {
+      // Drilled the warhead itself: careful salvage — and a defusal if it was ticking
+      const wasArmed = Game.disarmNuke(d.x, d.y);
+      this.money += C.NUKE.salvage;
+      Audio.play('defuse');
+      Game.popup(d.x + 0.5, d.y + 0.2, '+$' + C.NUKE.salvage.toLocaleString(), '#e8c53c');
+      Game.toast(wasArmed != null
+        ? `Warhead DEFUSED with ${wasArmed.toFixed(1)}s to spare — salvage +$${C.NUKE.salvage.toLocaleString()}`
+        : `Dormant warhead salvaged: +$${C.NUKE.salvage.toLocaleString()}`);
+      Particles.burst(d.x + 0.5, d.y + 0.5, 16, { color: '#e8c53c', speed: 4, life: 0.7, size: 0.09, glow: true });
+    } else if (kind.mineral) {
       if (this.cargo.length < this.cargoCap()) {
         this.cargo.push(kind.key);
         Audio.pickup(kind.mineral.value);
@@ -278,6 +294,7 @@ const Player = {
       Game.popup(d.x + 0.5, d.y + 0.2, '+$' + a.value.toLocaleString(), '#ffd76e');
       Game.toast(`${a.name}! +$${a.value.toLocaleString()}`);
       Particles.burst(d.x + 0.5, d.y + 0.5, 14, { color: a.color, speed: 4, life: 0.7, size: 0.08, glow: true });
+      if (kind.key === 'relic') Game.triggerCurse(d.x, d.y);
     } else if (kind.lava) {
       // Lava hits twice (two damage rolls), reduced by radiator
       const res = 1 - this.heatResist();
@@ -332,7 +349,7 @@ const Player = {
       const feet = C.rowToFeet(d.y);
       const raw = Math.round(((feet - 3000) / 15) * (1 - this.heatResist()) + (Math.random() * 2 - 1));
       const dmg = Math.max(1, Math.min(raw, Math.floor(this.hullCap() * C.GAS_DMG_CAP)));
-      World.blast(d.x, d.y, 1);
+      World.blast(d.x, d.y, 1).forEach(n => Game.armNuke(n.x, n.y));
       Particles.explosion(d.x + 0.5, d.y + 0.5, 1.2);
       Particles.burst(d.x + 0.5, d.y + 0.5, 20, { color: '#9fe870', speed: 7, life: 0.5, size: 0.12, glow: true });
       Audio.play('gas');
@@ -429,11 +446,12 @@ const Player = {
         this.items[key]--;
         const r = key === 'dynamite' ? 1 : 2;
         const cx = Math.floor(this.x), cy = Math.floor(this.y);
-        World.blast(cx, cy, r);
+        World.blast(cx, cy, r).forEach(n => Game.armNuke(n.x, n.y));
         Particles.explosion(this.x, this.y, key === 'dynamite' ? 1.4 : 2.0);
         Audio.play('explode');
         Game.shake(key === 'dynamite' ? 0.6 : 1.0);
         Boss.onExplosion(cx, cy, r, key);
+        Game.onExplosion(cx, cy, r);
         return true;
       }
       case 'teleporter':

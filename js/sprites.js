@@ -48,6 +48,14 @@ const Sprites = {
     }
     this.lavaBase = this.makeLava(S);
     this.steamBase = this.makeSteam(S);
+    this.magnetiteTex = [];
+    this.sandTex = [];
+    this.nukeTex = [];
+    for (let b = 0; b < this.BANDS; b++) {
+      this.magnetiteTex.push(this.makeMagnetite(b, S));
+      this.sandTex.push(this.makeSand(b, S));
+      this.nukeTex.push(this.makeNuke(b, S));
+    }
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
       for (let b = 0; b < this.BANDS; b++) this.minerals[key].push(this.makeMineral(key, b, S));
@@ -416,6 +424,170 @@ const Sprites = {
   },
 
   // mix() returns an rgb() string; this variant returns a hex for alpha()
+  // Magnetite lodestone: a jagged near-black iron mass shot through with
+  // glowing violet crystal veins — clearly not a normal rock
+  makeMagnetite(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    ctx.drawImage(this.dirt[band][2], 0, 0);
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    // Angular iron chunk
+    ctx.beginPath();
+    const pts = 8;
+    for (let i = 0; i < pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = S * (0.3 + this.rand() * 0.1);
+      const x = Math.cos(a) * r, y = Math.sin(a) * r * 0.92;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const bg = ctx.createLinearGradient(-S * 0.3, -S * 0.3, S * 0.3, S * 0.3);
+    bg.addColorStop(0, '#3a3f58');
+    bg.addColorStop(0.5, '#20243a');
+    bg.addColorStop(1, '#12141f');
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Violet crystal veins branching from the center
+    ctx.strokeStyle = '#b56cff';
+    ctx.shadowColor = '#b56cff';
+    ctx.shadowBlur = S * 0.08;
+    ctx.lineWidth = S * 0.03;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * S * 0.05, Math.sin(a) * S * 0.05);
+      ctx.quadraticCurveTo(
+        Math.cos(a + 0.5) * S * 0.14, Math.sin(a + 0.5) * S * 0.14,
+        Math.cos(a) * S * 0.26, Math.sin(a) * S * 0.24);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    // Bright core
+    const cg = ctx.createRadialGradient(0, 0, 1, 0, 0, S * 0.14);
+    cg.addColorStop(0, 'rgba(230,190,255,0.95)');
+    cg.addColorStop(1, 'rgba(181,108,255,0)');
+    ctx.fillStyle = cg;
+    ctx.fillRect(-S * 0.15, -S * 0.15, S * 0.3, S * 0.3);
+    ctx.restore();
+    return c;
+  },
+
+  // Pyramid sandstone: pale carved blocks with mortar seams and worn glyphs —
+  // unmistakably man-made against the Martian soil
+  makeSand(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    const base = this.mixToHex('#d2a95e', this.soil(band)[0], 0.18);
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, S, S);
+    // Grain speckle
+    for (let i = 0; i < 60; i++) {
+      ctx.fillStyle = this.rand() < 0.5 ? 'rgba(90,60,25,0.12)' : 'rgba(255,240,200,0.1)';
+      ctx.fillRect(this.rand() * S, this.rand() * S, 2, 2);
+    }
+    // Two block courses with offset mortar seams
+    ctx.strokeStyle = 'rgba(70,45,18,0.55)';
+    ctx.lineWidth = Math.max(2, S * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(0, S * 0.5); ctx.lineTo(S, S * 0.5);
+    ctx.moveTo(S * 0.55, 0); ctx.lineTo(S * 0.55, S * 0.5);
+    ctx.moveTo(S * 0.22, S * 0.5); ctx.lineTo(S * 0.22, S);
+    ctx.stroke();
+    // Bevel highlights on the block tops
+    ctx.fillStyle = 'rgba(255,235,190,0.18)';
+    ctx.fillRect(0, 0, S, S * 0.05);
+    ctx.fillRect(0, S * 0.5, S, S * 0.045);
+    ctx.fillStyle = 'rgba(60,35,12,0.22)';
+    ctx.fillRect(0, S * 0.45, S, S * 0.05);
+    ctx.fillRect(0, S * 0.95, S, S * 0.05);
+    // A worn glyph on some blocks
+    if (this.rand() < 0.65) {
+      ctx.strokeStyle = 'rgba(80,50,20,0.5)';
+      ctx.lineWidth = S * 0.025;
+      ctx.save();
+      ctx.translate(S * (0.3 + this.rand() * 0.4), S * (0.55 + this.rand() * 0.25));
+      const glyph = Math.floor(this.rand() * 3);
+      ctx.beginPath();
+      if (glyph === 0) {          // eye
+        ctx.ellipse(0, 0, S * 0.1, S * 0.05, 0, 0, Math.PI * 2);
+        ctx.moveTo(S * 0.03, 0); ctx.arc(0, 0, S * 0.03, 0, Math.PI * 2);
+      } else if (glyph === 1) {   // zigzag water
+        ctx.moveTo(-S * 0.1, 0);
+        for (let i = 0; i < 4; i++) ctx.lineTo(-S * 0.1 + (i + 1) * S * 0.05, (i % 2 ? 0 : -S * 0.05));
+      } else {                    // sun disc
+        ctx.arc(0, 0, S * 0.06, 0, Math.PI * 2);
+        ctx.moveTo(-S * 0.1, S * 0.08); ctx.lineTo(S * 0.1, S * 0.08);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    return c;
+  },
+
+  // A dormant warhead half-buried in the dirt: olive casing, hazard stripes,
+  // radiation trefoil. The armed glow is layered on at draw time.
+  makeNuke(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    ctx.drawImage(this.dirt[band][3], 0, 0);
+    // Recessed pocket
+    const pg = ctx.createRadialGradient(S / 2, S / 2, S * 0.08, S / 2, S / 2, S * 0.46);
+    pg.addColorStop(0, 'rgba(10,6,3,0.5)');
+    pg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = pg;
+    ctx.fillRect(0, 0, S, S);
+    ctx.save();
+    ctx.translate(S / 2, S / 2);
+    ctx.rotate(-0.5);
+    // Casing
+    const body = ctx.createLinearGradient(0, -S * 0.16, 0, S * 0.16);
+    body.addColorStop(0, '#7a7d52');
+    body.addColorStop(0.45, '#565a38');
+    body.addColorStop(1, '#33351f');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(-S * 0.3, -S * 0.13);
+    ctx.lineTo(S * 0.14, -S * 0.13);
+    ctx.quadraticCurveTo(S * 0.34, 0, S * 0.14, S * 0.13);   // rounded nose cone
+    ctx.lineTo(-S * 0.3, S * 0.13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Tail fins
+    ctx.fillStyle = '#3c3f26';
+    ctx.beginPath();
+    ctx.moveTo(-S * 0.3, -S * 0.13); ctx.lineTo(-S * 0.38, -S * 0.2); ctx.lineTo(-S * 0.38, -S * 0.05); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-S * 0.3, S * 0.13); ctx.lineTo(-S * 0.38, S * 0.2); ctx.lineTo(-S * 0.38, S * 0.05); ctx.closePath(); ctx.fill();
+    // Hazard stripes near the tail
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = i % 2 ? '#1a1a14' : '#e8c53c';
+      ctx.fillRect(-S * 0.28 + i * S * 0.045, -S * 0.13, S * 0.04, S * 0.26);
+    }
+    // Radiation trefoil on the casing
+    ctx.fillStyle = '#e8c53c';
+    ctx.beginPath(); ctx.arc(S * 0.0, 0, S * 0.085, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1a14';
+    for (let i = 0; i < 3; i++) {
+      const a0 = i * (Math.PI * 2 / 3) - 0.42;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, S * 0.075, a0, a0 + 0.84);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, S * 0.018, 0, Math.PI * 2); ctx.fill();
+    // Glint
+    ctx.fillStyle = 'rgba(255,255,230,0.25)';
+    ctx.fillRect(-S * 0.28, -S * 0.115, S * 0.5, S * 0.028);
+    ctx.restore();
+    return c;
+  },
+
   mixToHex(h1, h2, t) {
     const a = parseInt(h1.slice(1), 16), b = parseInt(h2.slice(1), 16);
     const r = Math.round(((a >> 16) & 255) * (1 - t) + ((b >> 16) & 255) * t);
@@ -458,6 +630,39 @@ const Sprites = {
       ctx.fillStyle = a.color;
       ctx.fillRect(-S * 0.04, -S * 0.1, S * 0.08, S * 0.14);
       ctx.strokeStyle = '#3a2210'; ctx.strokeRect(-S * 0.25, -S * 0.12, S * 0.5, S * 0.3);
+    } else if (key === 'relic') {
+      // Golden pharaoh death mask with lapis stripes
+      ctx.fillStyle = a.color;
+      ctx.beginPath();
+      ctx.moveTo(-S * 0.2, -S * 0.22);
+      ctx.lineTo(S * 0.2, -S * 0.22);
+      ctx.lineTo(S * 0.24, S * 0.1);
+      ctx.quadraticCurveTo(S * 0.12, S * 0.26, 0, S * 0.26);
+      ctx.quadraticCurveTo(-S * 0.12, S * 0.26, -S * 0.24, S * 0.1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Headdress stripes
+      ctx.strokeStyle = '#2a4fb0';
+      ctx.lineWidth = S * 0.03;
+      for (const sx of [-0.19, -0.13, 0.13, 0.19]) {
+        ctx.beginPath();
+        ctx.moveTo(S * sx, -S * 0.2);
+        ctx.lineTo(S * sx * 1.25, S * 0.08);
+        ctx.stroke();
+      }
+      // Eyes & mouth
+      ctx.fillStyle = '#1a1408';
+      ctx.beginPath();
+      ctx.ellipse(-S * 0.06, -S * 0.04, S * 0.045, S * 0.025, 0, 0, Math.PI * 2);
+      ctx.ellipse(S * 0.06, -S * 0.04, S * 0.045, S * 0.025, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-S * 0.04, S * 0.12, S * 0.08, S * 0.02);
+      // Cobra on the brow
+      ctx.strokeStyle = '#2a4fb0';
+      ctx.beginPath();
+      ctx.arc(0, -S * 0.17, S * 0.03, Math.PI * 0.5, Math.PI * 2.2);
+      ctx.stroke();
     } else if (key === 'skeleton') {
       // Skull
       ctx.beginPath(); ctx.arc(0, -S * 0.06, S * 0.16, 0, Math.PI * 2); ctx.fill();

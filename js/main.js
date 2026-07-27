@@ -17,6 +17,14 @@ const Game = {
   _maxBand: 0,           // deepest soil band announced this run
   ghost: null,           // at most one spectral visitor at a time
   ghostStage: 0,         // 0: none yet, 1: met at -500 ft, 2: met at -1,000 ft (random after)
+  // Depth gimmicks
+  alertMsg: '', alertT: 0, alertColor: '#e8b06a',   // generic event banner
+  magnetActive: false,   // pod inside a magnetite field → controls inverted
+  _magnetIntro: false,
+  armedNukes: [],        // ticking warheads: { x, y, t, beepT }
+  nukeFlash: 0,
+  worm: null,            // the burrowing horror below -5,000 ft
+  wormIntroSeen: false,
   popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
@@ -150,6 +158,7 @@ const Game = {
       this.ghost = null;
       this.ghostStage = 0;
       this.popups.length = 0;
+      this.resetGimmicks();
     }
     this.state = 'play';
   },
@@ -198,20 +207,22 @@ const Game = {
       return;
     }
 
-    // Slow pursuit with a spectral wobble (ghosts ignore walls)
+    // Slow pursuit with a spectral wobble (ghosts ignore walls).
+    // The tomb guardian is twice as fast and hungrier.
+    const spd = g.cursed ? 2.6 : 1.3;
     const dx = Player.x - g.x, dy = Player.y - g.y;
     const dist = Math.hypot(dx, dy) || 1;
-    g.x += (dx / dist) * 1.3 * dt + Math.sin(g.age * 2.1 + g.seed) * 0.4 * dt;
-    g.y += (dy / dist) * 1.3 * dt + Math.cos(g.age * 1.7 + g.seed) * 0.35 * dt;
+    g.x += (dx / dist) * spd * dt + Math.sin(g.age * 2.1 + g.seed) * 0.4 * dt;
+    g.y += (dy / dist) * spd * dt + Math.cos(g.age * 1.7 + g.seed) * 0.35 * dt;
 
-    // Contact: siphons 20% of the pod's fuel
+    // Contact: siphons 20% of the pod's fuel (30% for the guardian)
     if (dist < 0.85 && !Player.dead && Player.teleporting <= 0) {
-      const lost = Player.fuel * 0.2;
+      const lost = Player.fuel * (g.cursed ? 0.3 : 0.2);
       Player.fuel -= lost;
       this.flashHurt();
       Audio.play('ghostHit');
       this.popup(Player.x, Player.y - 0.8, '-' + lost.toFixed(1) + ' L', '#a0c8ff');
-      this.toast('A ghost siphoned your fuel!');
+      this.toast(g.cursed ? 'The tomb guardian drains your fuel!' : 'A ghost siphoned your fuel!');
       g.fading = 0.5;
       return;
     }
@@ -254,9 +265,10 @@ const Game = {
     }
   },
 
-  spawnGhost() {
+  spawnGhost(opts) {
+    const cursed = !!(opts && opts.cursed);
     const a = Math.random() * Math.PI * 2;
-    const r = 12 + Math.random() * 3;
+    const r = cursed ? 7 : 12 + Math.random() * 3;    // the guardian rises close by
     this.ghost = {
       x: Math.max(1.5, Math.min(C.WORLD_W - 1.5, Player.x + Math.cos(a) * r)),
       y: Math.max(1, Math.min(C.GROUND_BOTTOM_ROW - 2, Player.y + Math.sin(a) * r)),
@@ -264,8 +276,305 @@ const Game = {
       seed: Math.random() * 10,
       exposure: 0,
       fading: 0,
+      cursed,
     };
-    Audio.play('moan');
+    if (!cursed) Audio.play('moan');
+  },
+
+  // Event banner in the style of FUEL LOW / ROCK DENSE
+  warn(msg, color) {
+    this.alertMsg = msg;
+    this.alertColor = color || '#e8b06a';
+    this.alertT = 3.5;
+  },
+
+  resetGimmicks() {
+    this.magnetActive = false;
+    this._magnetIntro = false;
+    this.armedNukes = [];
+    this.nukeFlash = 0;
+    this.worm = null;
+    this.wormIntroSeen = false;
+    this.alertT = 0;
+  },
+
+  // --- Magnetite: standing inside a lodestone's field inverts the controls ---
+  updateMagnet(dt) {
+    const R = C.MAGNETITE.radius;
+    let near = false;
+    const x0 = Math.floor(Player.x - R), x1 = Math.floor(Player.x + R);
+    const y0 = Math.max(0, Math.floor(Player.y - R)), y1 = Math.floor(Player.y + R);
+    outer:
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (World.get(x, y) !== World.kindIndex.magnetite) continue;
+        if (Math.hypot(x + 0.5 - Player.x, y + 0.5 - Player.y) <= R) { near = true; break outer; }
+      }
+    }
+    near = near && !Player.dead;
+    if (near && !this.magnetActive) {
+      Audio.play('magnet');
+      if (!this._magnetIntro) {
+        this._magnetIntro = true;
+        this.warn('MAGNETIC ANOMALY! CONTROLS INVERTED!', '#c99cff');
+      } else {
+        this.toast('Magnetic field — controls inverted!');
+      }
+    }
+    this.magnetActive = near;
+    Audio.setMagnet(near ? 1 : 0);
+  },
+
+  // --- Nuclear warheads ---
+  armNukesAround(tx, ty) {
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        if (World.get(tx + dx, ty + dy) === World.kindIndex.nuke) this.armNuke(tx + dx, ty + dy);
+      }
+    }
+  },
+
+  armNuke(x, y, fuse, quiet) {
+    if (this.armedNukes.some(n => n.x === x && n.y === y)) return;
+    this.armedNukes.push({ x, y, t: fuse || C.NUKE.fuse, beepT: 0 });
+    Audio.play('nukeArm');
+    this.shake(0.4);
+    if (!quiet) this.warn('☢ WARHEAD ARMED — GET CLEAR OR DEFUSE IT!', '#ff5540');
+  },
+
+  // Returns the seconds that were left on the fuse, or null if it wasn't ticking
+  disarmNuke(x, y) {
+    const i = this.armedNukes.findIndex(n => n.x === x && n.y === y);
+    if (i < 0) return null;
+    const t = this.armedNukes[i].t;
+    this.armedNukes.splice(i, 1);
+    return t;
+  },
+
+  updateNukes(dt) {
+    if (this.nukeFlash > 0) this.nukeFlash -= dt;
+    for (let i = this.armedNukes.length - 1; i >= 0; i--) {
+      const n = this.armedNukes[i];
+      n.t -= dt;
+      n.beepT -= dt;
+      if (n.beepT <= 0) {
+        const urgency = 1 - Math.max(0, n.t) / C.NUKE.fuse;
+        Audio.beep(900 + urgency * 900, 0.13 + 0.08 * urgency);
+        n.beepT = Math.max(0.09, 0.5 * (Math.max(0, n.t) / C.NUKE.fuse));
+      }
+      if (n.t <= 0) {
+        this.armedNukes.splice(i, 1);
+        this.detonateNuke(n);
+      }
+    }
+  },
+
+  detonateNuke(n) {
+    World.clear(n.x, n.y);
+    // Other warheads caught in the blast chain-arm on a short fuse
+    World.blast(n.x, n.y, C.NUKE.blastRadius)
+      .forEach(c => this.armNuke(c.x, c.y, C.NUKE.chainFuse, true));
+    Audio.play('nukeBlast');
+    this.shake(3);
+    this.nukeFlash = 0.7;
+    Particles.explosion(n.x + 0.5, n.y + 0.5, 3);
+    // Mushroom column of fire and ash boiling upward
+    for (let i = 0; i < 46; i++) {
+      Particles.spawn({
+        x: n.x + 0.5 + (Math.random() - 0.5) * 3.5,
+        y: n.y + 0.5 + (Math.random() - 0.5) * 2,
+        vx: (Math.random() - 0.5) * 4,
+        vy: -3.5 - Math.random() * 7,
+        life: 1 + Math.random() * 1.2,
+        size: 0.18 + Math.random() * 0.26,
+        color: Math.random() < 0.55 ? (Math.random() < 0.5 ? '#ff9a3c' : '#ffd97a') : '#6b6b66',
+        glow: Math.random() < 0.5,
+      });
+    }
+    const dist = Math.hypot(Player.x - (n.x + 0.5), Player.y - (n.y + 0.5));
+    if (!Player.dead && Player.teleporting <= 0 && dist < C.NUKE.dmgRadius) {
+      const dmg = Math.round(C.NUKE.maxDmg * (1 - dist / (C.NUKE.dmgRadius + 0.5)));
+      if (dmg > 0) Player.damage(dmg, 'nuke');
+    }
+    if (this.worm && Math.hypot(this.worm.x - n.x, this.worm.y - n.y) < C.NUKE.blastRadius + 2) this.killWorm();
+    this.toast('Nuclear detonation!');
+  },
+
+  // Player explosives near the worm hurt it (warhead arming is handled in blast)
+  onExplosion(cx, cy, r) {
+    const w = this.worm;
+    if (!w) return;
+    const hit = [{ x: w.x, y: w.y }, ...(w.segPos || [])]
+      .some(p => Math.hypot(p.x - (cx + 0.5), p.y - (cy + 0.5)) <= r + 1.6);
+    if (hit) this.killWorm();
+  },
+
+  // --- The worm: 2 tiles wide, chews toward the pod at half stock-drill speed ---
+  updateWorm(dt) {
+    const depth = Player.depthFeet();
+    if (!this.worm) {
+      Audio.setRumble(0);
+      if (Player.dead || this.bossActive() || this.inHell() || depth < C.WORM.min) return;
+      // First crossing is scripted; after that it hunts at random
+      if (!this.wormIntroSeen) { this.wormIntroSeen = true; this.spawnWorm(); return; }
+      if (Math.random() < 0.015 * dt) this.spawnWorm();
+      return;
+    }
+    const w = this.worm;
+    w.age += dt;
+    w.biteCd -= dt;
+
+    if (w.leaving) {
+      w.fade -= dt / 1.5;
+      w.y += 1.5 * dt;                        // dives back into the deep
+      this.wormTrail(w, dt);
+      Audio.setRumble(0.25 * Math.max(0, w.fade));
+      if (w.fade <= 0) { this.worm = null; Audio.setRumble(0); }
+      return;
+    }
+
+    // Steer toward the pod with a slow sinuous weave
+    const dx = Player.x - w.x, dy = Player.y - w.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const wob = Math.sin(w.age * 1.6) * 0.55 * Math.min(1, dist / 4);   // straighten for the lunge
+    let mx = dx / dist - (dy / dist) * wob;
+    let my = dy / dist + (dx / dist) * wob;
+    const ml = Math.hypot(mx, my) || 1;
+    mx /= ml; my /= ml;
+
+    // Fixed pace: solid rock at half the stock drill, a bit quicker in open tunnels
+    const ahead = World.isSolid(Math.floor(w.x + mx * 1.3), Math.floor(w.y + my * 1.3));
+    const speed = ahead ? C.WORM.speedSolid : C.WORM.speedOpen;
+    w.x += mx * speed * dt;
+    w.y += my * speed * dt;
+    w.x = Math.max(2, Math.min(C.WORLD_W - 3, w.x));
+    w.y = Math.max(C.feetToRow(C.WORM.min - 1200), Math.min(C.GROUND_BOTTOM_ROW - 2, w.y));
+    w.heading = Math.atan2(my, mx);
+
+    // Chewing: fast jaw churn while eating rock, idle gnashing in the open
+    w.chew += dt * (ahead ? 10 : 4);
+    this.wormCarve(w.x, w.y);
+    if (ahead && Math.random() < dt * 26) {
+      Particles.dust(w.x + (Math.random() - 0.5) * 1.8, w.y + (Math.random() - 0.5) * 1.8, '#6a4a30');
+    }
+    this.wormTrail(w, dt);
+
+    // The ground itself groans louder the closer it gets
+    Audio.setRumble(Math.max(0.15, Math.min(1, 1.25 - dist / 18)));
+
+    // Bite
+    if (dist < 1.5 && w.biteCd <= 0 && !Player.dead && Player.teleporting <= 0) {
+      w.biteCd = C.WORM.biteCd;
+      Audio.play('chomp');
+      this.shake(0.7);
+      Player.vx = (dx / dist) * -8;
+      Player.vy = (dy / dist) * -6 - 1.5;
+      this.toast('The worm bites into your hull!');
+      Player.damage(C.WORM.biteDmg, 'worm');
+    }
+
+    // Gives up eventually, or if the pod climbs out of its territory
+    if (w.age > C.WORM.lifetime || depth < C.WORM.min - 1000) {
+      w.leaving = true;
+      Audio.play('wormRoar');
+      this.toast('The worm loses interest and burrows away…');
+    }
+  },
+
+  // Maintain the path history and derive evenly-spaced body segment positions
+  wormTrail(w, dt) {
+    const lastP = w.path[w.path.length - 1];
+    if (Math.hypot(w.x - lastP.x, w.y - lastP.y) > 0.22) {
+      w.path.push({ x: w.x, y: w.y });
+      if (w.path.length > 70) w.path.shift();
+    }
+    const SEGS = 9, SPACING = 0.85;
+    w.segPos = [];
+    let target = SPACING, acc = 0;
+    let prev = { x: w.x, y: w.y };
+    for (let i = w.path.length - 1; i >= 0 && w.segPos.length < SEGS; i--) {
+      const p = w.path[i];
+      acc += Math.hypot(p.x - prev.x, p.y - prev.y);
+      prev = p;
+      while (acc >= target && w.segPos.length < SEGS) {
+        w.segPos.push({ x: p.x, y: p.y });
+        target += SPACING;
+      }
+    }
+    while (w.segPos.length < SEGS) {
+      const tail = w.segPos[w.segPos.length - 1] || { x: w.x, y: w.y };
+      w.segPos.push({ x: tail.x, y: tail.y });
+    }
+  },
+
+  // The worm's maw clears a 2-tile-wide bore. Boulders are no obstacle;
+  // biting a warhead wakes it instead of destroying it.
+  wormCarve(cx, cy) {
+    const r = 1.02;
+    for (let y = Math.floor(cy - r); y <= Math.floor(cy + r); y++) {
+      for (let x = Math.floor(cx - r); x <= Math.floor(cx + r); x++) {
+        if (x <= 0 || x >= C.WORLD_W - 1) continue;
+        if (y <= 1 || y >= C.GROUND_BOTTOM_ROW - 1) continue;
+        if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > r) continue;
+        const id = World.get(x, y);
+        if (id === 0) continue;
+        if (id === World.kindIndex.nuke) { this.armNuke(x, y); continue; }
+        World.clear(x, y);
+      }
+    }
+  },
+
+  spawnWorm() {
+    const a = Math.random() * Math.PI * 2;
+    const r = 16 + Math.random() * 5;
+    const x = Math.max(2.5, Math.min(C.WORLD_W - 3.5, Player.x + Math.cos(a) * r));
+    const y = Math.max(C.feetToRow(C.WORM.min - 1200), Math.min(C.GROUND_BOTTOM_ROW - 3, Player.y + Math.sin(a) * r));
+    this.worm = {
+      x, y, age: 0, biteCd: 0, chew: 0,
+      leaving: false, fade: 1, heading: 0,
+      path: [{ x, y }], segPos: [],
+    };
+    Audio.play('wormRoar');
+    this.shake(0.8);
+    this.warn('SOMETHING HUGE IS BURROWING TOWARD YOU!', '#9dff5a');
+  },
+
+  killWorm() {
+    const w = this.worm;
+    if (!w) return;
+    this.worm = null;
+    Audio.setRumble(0);
+    Audio.play('wormRoar');
+    Particles.explosion(w.x, w.y, 2);
+    for (const p of w.segPos) {
+      Particles.burst(p.x, p.y, 10, { color: '#9dff5a', speed: 5, life: 0.7, size: 0.12, glow: true });
+    }
+    Player.money += C.WORM.bounty;
+    this.popup(w.x, w.y - 1, '+$' + C.WORM.bounty.toLocaleString(), '#9dff5a');
+    this.toast(`Worm destroyed! Bounty +$${C.WORM.bounty.toLocaleString()}`);
+    this.shake(1.2);
+  },
+
+  // --- Pyramids: an eerie fanfare when the pod digs near one ---
+  checkPyramids() {
+    if (!World.pyramids) return;
+    for (const p of World.pyramids) {
+      if (p.seen) continue;
+      if (Math.hypot(Player.x - p.x, Player.y - (p.y - 2.5)) < 8) {
+        p.seen = true;
+        Audio.play('discover');
+        this.warn('ANCIENT STRUCTURE DETECTED IN THE ROCK…', '#ffd76e');
+      }
+    }
+  },
+
+  // Taking the Pharaoh's Bounty wakes the tomb's guardian — a faster, hungrier ghost
+  triggerCurse(x, y) {
+    Audio.play('curse');
+    this.warn("THE TOMB'S GUARDIAN AWAKENS!", '#c99cff');
+    this.shake(1);
+    this.spawnGhost({ cursed: true });
   },
 
   rollMarsquake() {
@@ -307,6 +616,7 @@ const Game = {
     this.popups.length = 0;
     this._maxBand = 0;
     this.rockWarnT = 0;
+    this.resetGimmicks();
   },
 
   onPlayerDeath(cause) {
@@ -323,6 +633,9 @@ const Game = {
       Story.seen = {};
       Boss.reset();
       this.score = 0;
+      this.ghost = null;
+      this.ghostStage = 0;
+      this.resetGimmicks();
     }
     Particles.clear();
     this.state = 'play';
@@ -344,14 +657,26 @@ const Game = {
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeMag = 0;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
-    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.thrustOff(); return; }
+    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.thrustOff(); return; }
     // Shop menus pause the world (and the fuel drain), as in the original
-    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.thrustOff(); return; }
+    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.thrustOff(); return; }
 
-    Player.update(dt, this.input);
+    // Magnetite fields flip the controls before the pod ever sees them
+    this.updateMagnet(dt);
+    const inp = this.magnetActive
+      ? { up: this.input.down, down: this.input.up, left: this.input.right, right: this.input.left }
+      : this.input;
+    this._effInput = inp;
+
+    Player.update(dt, inp);
     Boss.update(dt);
     Particles.update(dt);
     Story.check();
+
+    if (this.alertT > 0) this.alertT -= dt;
+    this.updateNukes(dt);
+    this.updateWorm(dt);
+    this.checkPyramids();
 
     // Fuel-low banner: fires each time fuel crosses down through 25%
     if (this.fuelWarnT > 0) this.fuelWarnT -= dt;
@@ -422,7 +747,7 @@ const Game = {
       Sprites.drawPod(ctx, podX, podY, {
         facing: Player.facing,
         drilling: Player.drilling ? Player.drilling.dir : null,
-        thrust: this.input.up && this.state === 'play',
+        thrust: (this._effInput || this.input).up && this.state === 'play',
         time: this.time,
         teleporting: Player.teleporting,
         treadPhase: Player.treadPhase || 0,
@@ -430,12 +755,18 @@ const Game = {
       });
     }
     this.drawLighting(ctx);
+    this.drawGimmickFx(ctx);
     this.drawGhost(ctx);
     this.drawPopups(ctx);
 
     // Hurt vignette
     if (this.hurtFlash > 0) {
       ctx.fillStyle = `rgba(255,30,20,${this.hurtFlash * 0.9})`;
+      ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
+    }
+    // Nuclear detonation whiteout
+    if (this.nukeFlash > 0) {
+      ctx.fillStyle = `rgba(255,250,235,${Math.min(1, this.nukeFlash * 1.6)})`;
       ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
     }
 
@@ -501,6 +832,7 @@ const Game = {
     const y0 = Math.max(0, Math.floor(this.cam.y)), y1 = Math.min(C.WORLD_H - 1, Math.ceil(this.cam.y + C.VIEW_H / T));
     this._caveTiles = [];
     this._steamTiles = [];
+    this._magnetVis = [];
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
@@ -534,6 +866,9 @@ const Game = {
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
         else if (id === 4) tex = Sprites.dirt[band][v];        // gas is indistinguishable from dirt
+        else if (id === 6) { tex = Sprites.magnetiteTex[band]; this._magnetVis.push({ x, y }); }
+        else if (id === 7) tex = Sprites.sandTex[band];
+        else if (id === 8) tex = Sprites.nukeTex[band];
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
@@ -816,6 +1151,200 @@ const Game = {
     ctx.restore();
   },
 
+  // Gimmick effects render above the lighting layer — they all emit light:
+  // magnetite fields, armed warheads, the worm, and the inversion shimmer
+  drawGimmickFx(ctx) {
+    const T = C.TILE;
+
+    // Magnetite fields: pulsing violet halo + slowly orbiting spark ring
+    if (this._magnetVis && this._magnetVis.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const m of this._magnetVis) {
+        const sx = (m.x + 0.5 - this.cam.x) * T;
+        const sy = (m.y + 0.5 - this.cam.y) * T;
+        const R = C.MAGNETITE.radius * T;
+        const pulse = 0.55 + 0.45 * Math.sin(this.time * 2.4 + m.x * 1.3 + m.y);
+        const g = ctx.createRadialGradient(sx, sy, T * 0.2, sx, sy, R);
+        g.addColorStop(0, `rgba(181,108,255,${0.16 * pulse})`);
+        g.addColorStop(0.65, `rgba(140,80,255,${0.07 * pulse})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx - R, sy - R, R * 2, R * 2);
+        // Field boundary: faint dashed ring so the player can read the radius
+        ctx.strokeStyle = `rgba(200,150,255,${0.22 + 0.15 * pulse})`;
+        ctx.lineWidth = Math.max(1, T * 0.035);
+        ctx.setLineDash([T * 0.25, T * 0.35]);
+        ctx.lineDashOffset = -this.time * T * 0.6;
+        ctx.beginPath();
+        ctx.arc(sx, sy, R, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Orbiting sparks
+        for (let i = 0; i < 3; i++) {
+          const a = this.time * (1.1 + i * 0.3) + (i / 3) * Math.PI * 2 + m.x;
+          const rr = R * (0.5 + 0.16 * i);
+          ctx.fillStyle = `rgba(225,190,255,${0.5 * pulse})`;
+          ctx.beginPath();
+          ctx.arc(sx + Math.cos(a) * rr, sy + Math.sin(a) * rr * 0.9, T * 0.05, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Armed warheads: hot red pulse and an expanding alarm ring, faster as
+    // the fuse shortens
+    if (this.armedNukes.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const n of this.armedNukes) {
+        const sx = (n.x + 0.5 - this.cam.x) * T;
+        const sy = (n.y + 0.5 - this.cam.y) * T;
+        if (sx < -T * 8 || sx > C.VIEW_W + T * 8 || sy < -T * 8 || sy > C.VIEW_H + T * 8) continue;
+        const urgency = 1 - Math.max(0, n.t) / C.NUKE.fuse;
+        const pulse = 0.5 + 0.5 * Math.sin(this.time * (6 + urgency * 14));
+        const g = ctx.createRadialGradient(sx, sy, T * 0.1, sx, sy, T * 2.2);
+        g.addColorStop(0, `rgba(255,60,30,${0.4 * pulse + 0.2 * urgency})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(sx - T * 2.2, sy - T * 2.2, T * 4.4, T * 4.4);
+        const ringT = (this.time * (0.8 + urgency * 1.6)) % 1;
+        ctx.strokeStyle = `rgba(255,90,60,${(1 - ringT) * 0.6})`;
+        ctx.lineWidth = Math.max(1.5, T * 0.05);
+        ctx.beginPath();
+        ctx.arc(sx, sy, T * (0.4 + ringT * 3), 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    this.drawWorm(ctx);
+
+    // Control-inversion shimmer: rippling violet vignette while magnetized
+    if (this.magnetActive) {
+      const p = 0.6 + 0.4 * Math.sin(this.time * 9);
+      ctx.save();
+      const vg = ctx.createRadialGradient(
+        C.VIEW_W / 2, C.VIEW_H / 2, Math.min(C.VIEW_W, C.VIEW_H) * 0.3,
+        C.VIEW_W / 2, C.VIEW_H / 2, Math.max(C.VIEW_W, C.VIEW_H) * 0.72);
+      vg.addColorStop(0, 'rgba(140,60,255,0)');
+      vg.addColorStop(1, `rgba(150,70,255,${0.16 + 0.1 * p})`);
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
+      ctx.restore();
+    }
+  },
+
+  // The worm: a chain of glowing segments ending in a chewing maw
+  drawWorm(ctx) {
+    const w = this.worm;
+    if (!w || !w.segPos.length) return;
+    const T = C.TILE;
+    const hx = (w.x - this.cam.x) * T, hy = (w.y - this.cam.y) * T;
+    if (hx < -T * 14 || hx > C.VIEW_W + T * 14 || hy < -T * 14 || hy > C.VIEW_H + T * 14) return;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, w.fade);
+
+    const pts = [{ x: w.x, y: w.y }, ...w.segPos];
+
+    // Toxic glow bleeding through the dark
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < pts.length; i++) {
+      const sx = (pts[i].x - this.cam.x) * T, sy = (pts[i].y - this.cam.y) * T;
+      const g = ctx.createRadialGradient(sx, sy, T * 0.2, sx, sy, T * 1.7);
+      g.addColorStop(0, `rgba(120,255,80,${i === 0 ? 0.16 : 0.09})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(sx - T * 1.7, sy - T * 1.7, T * 3.4, T * 3.4);
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Body, tail to head, so the head overlaps
+    for (let i = pts.length - 1; i >= 1; i--) {
+      const sx = (pts[i].x - this.cam.x) * T, sy = (pts[i].y - this.cam.y) * T;
+      const r = T * (0.95 - (i / pts.length) * 0.42);
+      const undul = Math.sin(this.time * 6 - i * 0.9) * r * 0.06;
+      const bg = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3 + undul, r * 0.15, sx, sy + undul, r);
+      bg.addColorStop(0, '#3d5c28');
+      bg.addColorStop(0.6, '#243d16');
+      bg.addColorStop(1, '#101f0a');
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(sx, sy + undul, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Glowing band between segments
+      ctx.strokeStyle = `rgba(140,255,90,${0.35 + 0.2 * Math.sin(this.time * 5 + i)})`;
+      ctx.lineWidth = Math.max(1.5, r * 0.14);
+      ctx.beginPath();
+      ctx.arc(sx, sy + undul, r * 0.82, 0, Math.PI * 2);
+      ctx.stroke();
+      // Bristles
+      ctx.strokeStyle = 'rgba(20,35,10,0.7)';
+      ctx.lineWidth = Math.max(1, r * 0.08);
+      for (const s of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(sx + s * r * 0.7, sy + undul + r * 0.55);
+        ctx.lineTo(sx + s * r * 0.95, sy + undul + r * 0.95);
+        ctx.stroke();
+      }
+    }
+
+    // Head: 2 tiles wide, mandibles chewing
+    const hr = T * 0.98;
+    const ang = w.heading || 0;
+    ctx.translate(hx, hy);
+    ctx.rotate(ang);
+    const hg = ctx.createRadialGradient(-hr * 0.3, -hr * 0.3, hr * 0.15, 0, 0, hr);
+    hg.addColorStop(0, '#4a6e30');
+    hg.addColorStop(0.6, '#2c4a1a');
+    hg.addColorStop(1, '#14260c');
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, hr, hr * 0.92, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Armored head plates
+    ctx.strokeStyle = 'rgba(15,30,8,0.8)';
+    ctx.lineWidth = Math.max(1.5, hr * 0.07);
+    for (const off of [-0.35, 0.05]) {
+      ctx.beginPath();
+      ctx.arc(hr * off, 0, hr * 0.8, -Math.PI * 0.45, Math.PI * 0.45);
+      ctx.stroke();
+    }
+    // Chewing mandibles: two serrated jaws scissoring open and shut
+    const jaw = Math.abs(Math.sin(w.chew)) * 0.55 + 0.12;
+    ctx.fillStyle = '#1a2c10';
+    ctx.strokeStyle = 'rgba(140,255,90,0.4)';
+    ctx.lineWidth = Math.max(1, hr * 0.05);
+    for (const s of [-1, 1]) {
+      ctx.save();
+      ctx.rotate(s * jaw);
+      ctx.beginPath();
+      ctx.moveTo(hr * 0.45, s * hr * 0.1);
+      ctx.quadraticCurveTo(hr * 1.35, s * hr * 0.28, hr * 1.5, s * hr * 0.02);
+      // Serrated inner edge
+      ctx.lineTo(hr * 1.28, s * hr * 0.14);
+      ctx.lineTo(hr * 1.08, s * hr * 0.1);
+      ctx.lineTo(hr * 0.88, s * hr * 0.2);
+      ctx.lineTo(hr * 0.6, s * hr * 0.18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Cluster of glowing eyes
+    ctx.fillStyle = '#ffb028';
+    ctx.shadowColor = '#ff8a20';
+    ctx.shadowBlur = hr * 0.3;
+    for (const [ex, ey, er] of [[0.28, -0.42, 0.11], [0.45, -0.22, 0.085], [0.28, 0.42, 0.11], [0.45, 0.22, 0.085]]) {
+      ctx.beginPath();
+      ctx.arc(hr * ex, hr * ey, hr * er, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  },
+
   // Ghost renders above the lighting layer — spectres glow in the dark
   drawGhost(ctx) {
     const g = this.ghost;
@@ -834,10 +1363,13 @@ const Game = {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    // Aura: cold spectral blue, shifting to firelight as it burns
+    // Aura: cold spectral blue — violet for the tomb guardian — shifting to
+    // firelight as it burns
     ctx.globalCompositeOperation = 'lighter';
     let gg = ctx.createRadialGradient(gx, gy, T * 0.1, gx, gy, T * 1.15);
-    gg.addColorStop(0, `rgba(${Math.round(160 + 95 * burn)},${Math.round(215 - 90 * burn)},${Math.round(255 - 195 * burn)},${0.32 + 0.2 * burn})`);
+    gg.addColorStop(0, g.cursed
+      ? `rgba(${Math.round(200 + 55 * burn)},${Math.round(120 - 30 * burn)},${Math.round(255 - 195 * burn)},${0.36 + 0.2 * burn})`
+      : `rgba(${Math.round(160 + 95 * burn)},${Math.round(215 - 90 * burn)},${Math.round(255 - 195 * burn)},${0.32 + 0.2 * burn})`);
     gg.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gg;
     ctx.fillRect(gx - T * 1.25, gy - T * 1.25, T * 2.5, T * 2.5);
@@ -846,7 +1378,8 @@ const Game = {
     // Shroud: leans hungrily toward the pod, chars as it burns
     const lean = Math.atan2(Player.y - g.y, Player.x - g.x);
     const lx = Math.cos(lean) * T * 0.05;
-    const topR = Math.round(225 - 140 * burn), topG = Math.round(243 - 165 * burn), topB = Math.round(255 - 190 * burn);
+    const baseR = g.cursed ? 220 : 225, baseG = g.cursed ? 175 : 243;
+    const topR = Math.round(baseR - 140 * burn), topG = Math.round(baseG - 165 * burn), topB = Math.round(255 - 190 * burn);
     gg = ctx.createLinearGradient(gx, gy - T * 0.5, gx, gy + T * 0.55);
     gg.addColorStop(0, `rgba(${topR},${topG},${topB},0.92)`);
     gg.addColorStop(1, `rgba(${Math.round(140 - 80 * burn)},${Math.round(180 - 110 * burn)},${Math.round(225 - 160 * burn)},0.1)`);
@@ -1070,6 +1603,8 @@ const Game = {
       lava: 'Molten rock: excellent for minerals, terrible for hulls.',
       gas: 'An invisible gas pocket found its spark.',
       explosive: 'Standing next to your own blast radius is not recommended.',
+      nuke: 'Fifty-megaton problems require more than a mining hull.',
+      worm: 'It was hungry. You were there. The math was simple.',
       boss: 'Your contract has been terminated.',
       laser: 'Your contract has been terminated.',
       cane: 'Your contract has been terminated.',

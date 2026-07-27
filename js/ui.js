@@ -256,6 +256,44 @@ const UI = {
       ctx.restore();
     }
 
+    // Depth-gimmick event banner (magnet field, pyramid, warhead, worm…)
+    if (Game.alertT > 0) {
+      const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));
+      ctx.save();
+      ctx.globalAlpha = pulse * Math.min(1, Game.alertT / 0.4);
+      ctx.textAlign = 'center';
+      let fs = Math.round(26 * U);
+      ctx.font = `bold ${fs}px Verdana`;
+      // Shrink to fit long messages on narrow screens
+      const tw = ctx.measureText(Game.alertMsg).width;
+      if (tw > C.VIEW_W * 0.94) {
+        fs = Math.max(12, Math.floor(fs * (C.VIEW_W * 0.94) / tw));
+        ctx.font = `bold ${fs}px Verdana`;
+      }
+      ctx.shadowColor = Game.alertColor;
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = Game.alertColor;
+      ctx.fillText(Game.alertMsg, C.VIEW_W / 2, C.VIEW_H * 0.54);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // Armed warhead countdown: stays up until the fuse resolves
+    if (Game.armedNukes && Game.armedNukes.length) {
+      const soonest = Game.armedNukes.reduce((m, n) => Math.min(m, n.t), Infinity);
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(Game.time * (6 + (1 - soonest / C.NUKE.fuse) * 10)));
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.45 * pulse;
+      ctx.textAlign = 'center';
+      ctx.font = `bold ${Math.round(24 * U)}px Verdana`;
+      ctx.shadowColor = '#ff2010';
+      ctx.shadowBlur = 22;
+      ctx.fillStyle = '#ff5540';
+      ctx.fillText(`☢ WARHEAD ARMED — ${Math.max(0, soonest).toFixed(1)}s`, C.VIEW_W / 2, C.VIEW_H * 0.3);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
     // Low fuel warning: pulsing center-screen banner
     if (Game.fuelWarnT > 0) {
       const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));

@@ -67,6 +67,8 @@ const C = {
     treasure: { name: 'Buried Treasure',    value: 5000,  min: 1000, freq: 0.8, color: '#ffd76e' },
     skeleton: { name: 'Martian Skeleton',   value: 10000, min: 1000, freq: 0.6, color: '#d8f0d8' },
     artifact: { name: 'Religious Artifact', value: 50000, min: 1000, freq: 0.4, color: '#c98af5' },
+    // Never random-rolled (freq 0): placed only in pyramid treasure chambers
+    relic:    { name: "Pharaoh's Bounty",   value: 150000, min: 999999, freq: 0, color: '#ffd23e' },
   },
 
   // --- Hazards ---
@@ -84,6 +86,22 @@ const C = {
   STEAM: { min: 800, boostPerSizeFt: 250, color: '#9fd8e8' },
   // Gas can hurt badly but never one-shot: capped at this fraction of max hull
   GAS_DMG_CAP: 0.7,
+
+  // --- Depth gimmicks: a new surprise every 1,000 ft ---
+  // Magnetite lodestones from ~-1,000 ft: entering the visible field inverts
+  // all controls until you leave (or drill the stone out).
+  MAGNETITE: { min: 1000, chancePerRow: 0.1, radius: 3.4 },
+  // Buried pyramids from ~-2,000 ft: sandstone shells (slower to drill),
+  // hollow chambers, a treasure at the heart — and a curse on whoever takes it.
+  PYRAMID: { minFt: 2000, maxFt: 6500, count: 5, sandHardness: 2.5 },
+  // Dormant warheads from ~-4,000 ft. Drilling any tile beside one arms it:
+  // flee the blast, or drill the warhead itself before the fuse runs out to
+  // salvage it for a payout. Blasts chain-arm other warheads they uncover.
+  NUKE: { min: 4000, count: 5, fuse: 6, chainFuse: 0.8, blastRadius: 5, dmgRadius: 7.5, maxDmg: 150, salvage: 60000 },
+  // The worm from ~-5,000 ft: two tiles wide, chews its own tunnel toward the
+  // pod at a fixed rate — half the stock drill's 2 tiles/sec, never faster no
+  // matter what drill the player owns. Only explosives can kill it.
+  WORM: { min: 5000, speedSolid: 1.0, speedOpen: 1.6, biteDmg: 25, biteCd: 1.2, bounty: 40000, lifetime: 55 },
 
   // --- Upgrades (Autobuy 2000). Price ladder 750/2k/5k/20k/100k/500k. ---
   // Buying a fuel tank fills it; buying a hull fully repairs.

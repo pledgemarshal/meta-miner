@@ -3,9 +3,9 @@
   "configurations": [
     {
       "name": "motherload",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8642"],
-      "port": 8642
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": ["-ExecutionPolicy", "Bypass", "-File", "C:\\Users\\h2ous\\OneDrive\\Desktop\\Claude\\Motherload\\serve.ps1"],
+      "port": 8899
     }
   ]
 }

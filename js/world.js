@@ -21,8 +21,10 @@ const World = {
       { key: 'empty' }, { key: 'dirt' }, { key: 'stone' },
       { key: 'lava', lava: true }, { key: 'gas', gas: true },
       { key: 'steam', steam: true },
+      { key: 'magnetite', magnet: true }, { key: 'sand', sand: true },
+      { key: 'nuke', nuke: true },
     ];
-    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5 };
+    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8 };
     for (const key of Object.keys(C.MINERALS)) {
       this.kindIndex[key] = this.tileKinds.length;
       this.tileKinds.push({ key, mineral: C.MINERALS[key] });
@@ -144,6 +146,61 @@ const World = {
         }
       }
     }
+
+    // Magnetite lodestones: lone tiles scattered from ~-1,000 ft whose field
+    // inverts the pod's controls (handled in Game.updateMagnet)
+    const magRow = C.feetToRow(C.MAGNETITE.min);
+    for (let y = magRow; y < bottom - 2; y++) {
+      if (rand() >= C.MAGNETITE.chancePerRow) continue;
+      const x = 2 + Math.floor(rand() * (W - 4));
+      if (this.grid[y * W + x] === 1) this.grid[y * W + x] = 6;
+    }
+
+    // Buried pyramids: sandstone shells with hollow chambers and a treasure
+    // (plus its curse) at the heart. Spread one per depth slice.
+    this.pyramids = [];
+    const pTop = C.feetToRow(C.PYRAMID.minFt), pBot = C.feetToRow(C.PYRAMID.maxFt);
+    for (let n = 0; n < C.PYRAMID.count; n++) {
+      const cy = pTop + Math.floor(((n + rand()) / C.PYRAMID.count) * (pBot - pTop));
+      const cx = 6 + Math.floor(rand() * (W - 12));
+      this.stampPyramid(cx, cy);
+      this.pyramids.push({ x: cx, y: cy });
+    }
+
+    // Dormant nuclear warheads sleeping in the deep rock
+    this.nukes = [];
+    const nukeRow = C.feetToRow(C.NUKE.min);
+    for (let n = 0; n < C.NUKE.count; n++) {
+      for (let tries = 0; tries < 40; tries++) {
+        const y = nukeRow + Math.floor(rand() * (bottom - 3 - nukeRow));
+        const x = 2 + Math.floor(rand() * (W - 4));
+        if (this.grid[y * W + x] !== 1) continue;
+        this.grid[y * W + x] = 8;
+        this.nukes.push({ x, y });
+        break;
+      }
+    }
+  },
+
+  // A pyramid: 11 tiles wide at the base, 6 tall, 2-thick sandstone walls
+  // around a hollow tomb. The relic waits at the center of the floor row,
+  // flanked by goldium grave goods.
+  stampPyramid(cx, cy) {
+    const W = C.WORLD_W;
+    const put = (x, y, id) => {
+      if (x <= 0 || x >= W - 1 || y <= 2 || y >= C.GROUND_BOTTOM_ROW - 1) return;
+      this.grid[y * W + x] = id;
+    };
+    for (let r = 0; r <= 5; r++) {
+      const y = cy - 5 + r;
+      for (let dx = -r; dx <= r; dx++) {
+        const interior = r >= 2 && Math.abs(dx) <= r - 2;
+        put(cx + dx, y, interior ? 0 : 7);
+      }
+    }
+    put(cx, cy, this.kindIndex.relic);
+    put(cx - 2, cy, this.kindIndex.goldium);
+    put(cx + 2, cy, this.kindIndex.goldium);
   },
 
   inBounds(x, y) { return x >= 0 && x < C.WORLD_W && y >= 0 && y < C.WORLD_H; },
@@ -171,16 +228,21 @@ const World = {
   },
 
   // Blast a square area (explosives clear everything except boundary stone).
+  // Warheads shrug off the blast — they get ARMED instead, and are returned
+  // so the caller can start their fuses.
   blast(cx, cy, radius) {
+    const armed = [];
     for (let y = cy - radius; y <= cy + radius; y++) {
       for (let x = cx - radius; x <= cx + radius; x++) {
         if (!this.inBounds(x, y) || y < 0) continue;
         if (x === 0 || x === C.WORLD_W - 1 || y >= C.WORLD_H - 2) continue;
         // The impassable floor resists blasting (except the gap column)
         if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X) continue;
+        if (this.grid[y * C.WORLD_W + x] === 8) { armed.push({ x, y }); continue; }
         this.clear(x, y);
       }
     }
+    return armed;
   },
 
   // Marsquake: collapse dug tunnels — refill with plain dirt (no ore respawn)

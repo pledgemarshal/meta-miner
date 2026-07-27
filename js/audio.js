@@ -108,7 +108,27 @@ const Audio = {
       case 'fireball': this.noise(0.3, 0.25, 1000); this.tone(260, 0.3, 'sawtooth', 0.12, 90); break;
       case 'save':     this.tone(587, 0.1, 'sine', 0.13); this.tone(880, 0.16, 'sine', 0.13, null, 0.09); break;
       case 'drill':    this.startDrill(); break;
+      // --- Depth gimmicks ---
+      case 'magnet':   this.tone(320, 0.35, 'sine', 0.12, 950); this.tone(160, 0.45, 'sine', 0.09, 70, 0.06); break;
+      case 'discover': this.tone(392, 0.5, 'triangle', 0.12); this.tone(494, 0.5, 'triangle', 0.1, null, 0.25); this.tone(587, 0.9, 'triangle', 0.12, null, 0.5); this.noise(1.2, 0.06, 500); break;
+      case 'curse':    this.tone(140, 1.6, 'sawtooth', 0.14, 60); this.tone(220, 1.3, 'sine', 0.1, 90, 0.2); this.noise(1.4, 0.18, 700); break;
+      case 'nukeArm':  this.tone(1500, 0.12, 'square', 0.18); this.tone(1500, 0.12, 'square', 0.18, null, 0.2); this.tone(700, 0.4, 'sawtooth', 0.12, 250, 0.35); break;
+      case 'defuse':   [660, 880, 1175].forEach((f, i) => this.tone(f, 0.12, 'triangle', 0.14, null, i * 0.09)); break;
+      case 'nukeBlast':
+        this.noise(0.25, 0.5, 4000);                                  // initial crack
+        this.tone(55, 1.6, 'sawtooth', 0.4, 18);                      // deep core boom
+        this.noise(1.8, 0.55, 450);                                   // main roar
+        this.noise(2.4, 0.3, 180, 0.5);                               // long dying rumble
+        this.tone(28, 2.0, 'sine', 0.3, 16, 0.2);
+        break;
+      case 'chomp':    this.noise(0.12, 0.35, 900); this.tone(150, 0.16, 'square', 0.2, 55); this.tone(85, 0.22, 'sawtooth', 0.16, 40, 0.06); break;
+      case 'wormRoar': this.tone(70, 1.3, 'sawtooth', 0.24, 32); this.noise(1.3, 0.24, 300); this.tone(115, 0.9, 'square', 0.07, 50, 0.15); break;
     }
+  },
+
+  // Warhead countdown beep: pitch and urgency handed in by the caller
+  beep(pitch, vol) {
+    this.tone(pitch, 0.07, 'square', vol || 0.16);
   },
 
   startDrill() {
@@ -224,36 +244,134 @@ const Audio = {
     this.windNode.f2.frequency.value = 380 + 620 * intensity;
   },
 
-  // Track rumble: quiet low rolling noise while driving on the ground
+  // Track clatter: mechanical rolling rumble with rhythmic link-slap whose
+  // rate follows ground speed, over a low engine body
   treadNode: null,
   setTreads(intensity) {
     if (intensity <= 0.02 || this.muted) {
       if (this.treadNode) {
-        try { this.treadNode.src.stop(); } catch (e) {}
+        try {
+          this.treadNode.src.stop();
+          this.treadNode.lfo.stop();
+          this.treadNode.osc.stop();
+        } catch (e) {}
         this.treadNode = null;
       }
       return;
     }
     if (!this.ensure()) return;
     if (!this.treadNode) {
+      // Pre-softened noise so the rumble is throaty rather than hissy
       const len = this.ctx.sampleRate * 2;
       const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = last * 0.8 + (Math.random() * 2 - 1) * 0.2;
+        d[i] = last * 2.8;
+      }
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.loop = true;
       const f = this.ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = 220;
+      f.type = 'lowpass'; f.frequency.value = 300; f.Q.value = 1.1;
       const g = this.ctx.createGain();
       g.gain.value = 0;
+      // Link-slap: a fast square LFO chops the rumble into track clacks
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'square'; lfo.frequency.value = 9;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 0.07;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      // Low drivetrain body underneath
+      const osc = this.ctx.createOscillator();
+      osc.type = 'triangle'; osc.frequency.value = 46;
+      const oscG = this.ctx.createGain();
+      oscG.gain.value = 0;
       src.connect(f); f.connect(g); g.connect(this.master);
-      src.start();
-      this.treadNode = { src, f, g };
+      osc.connect(oscG); oscG.connect(this.master);
+      src.start(); lfo.start(); osc.start();
+      this.treadNode = { src, f, g, lfo, osc, oscG };
     }
-    this.treadNode.g.gain.value = 0.1 * intensity;
-    this.treadNode.f.frequency.value = 180 + 160 * intensity;
+    // Twice the old volume, and everything speeds up with the pod
+    this.treadNode.g.gain.value = 0.2 * intensity;
+    this.treadNode.oscG.gain.value = 0.06 * intensity;
+    this.treadNode.f.frequency.value = 220 + 260 * intensity;
+    this.treadNode.lfo.frequency.value = 6 + 9 * intensity;
+    this.treadNode.osc.frequency.value = 40 + 22 * intensity;
+  },
+
+  // Deep burrowing rumble while the worm is near: slow ground-shaking noise
+  rumbleNode: null,
+  setRumble(intensity) {
+    if (intensity <= 0.02 || this.muted) {
+      if (this.rumbleNode) {
+        try { this.rumbleNode.src.stop(); this.rumbleNode.lfo.stop(); } catch (e) {}
+        this.rumbleNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.rumbleNode) {
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = last * 0.92 + (Math.random() * 2 - 1) * 0.08;
+        d[i] = last * 5;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 130; f.Q.value = 1.2;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      // Slow surging so it feels like something pushing through rock
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 0.7;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 40;
+      lfo.connect(lfoG); lfoG.connect(f.frequency);
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start(); lfo.start();
+      this.rumbleNode = { src, f, g, lfo };
+    }
+    this.rumbleNode.g.gain.value = 0.3 * intensity;
+  },
+
+  // Electric hum while the pod sits inside a magnetite field
+  magnetNode: null,
+  setMagnet(intensity) {
+    if (intensity <= 0.02 || this.muted) {
+      if (this.magnetNode) {
+        try { this.magnetNode.osc.stop(); this.magnetNode.osc2.stop(); this.magnetNode.lfo.stop(); } catch (e) {}
+        this.magnetNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.magnetNode) {
+      // Two close-detuned oscillators beat against each other — classic mains hum
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sawtooth'; osc.frequency.value = 55;
+      const osc2 = this.ctx.createOscillator();
+      osc2.type = 'sine'; osc2.frequency.value = 57.5;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 420;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 5;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 0.025;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      osc.connect(f); osc2.connect(f); f.connect(g); g.connect(this.master);
+      osc.start(); osc2.start(); lfo.start();
+      this.magnetNode = { osc, osc2, g, lfo };
+    }
+    this.magnetNode.g.gain.value = 0.07 * intensity;
   },
 
   // Geyser roar while the water surge carries the pod: churning filtered noise
