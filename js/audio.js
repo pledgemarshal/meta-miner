@@ -445,39 +445,78 @@ const Audio = {
     this.magnetNode.g.gain.value = 0.07 * intensity;
   },
 
-  // Microwave Cannon: a taut electric whine with a magnetron throb underneath
+  // Microwave Cannon: a real kitchen-microwave hum — deep 60 Hz mains drone
+  // with its 120 Hz harmonic and a cycling fan whir — plus a focused,
+  // vibrato-shimmering high tone so it still reads as an energy beam
   microwaveNode: null,
   setMicrowave(intensity) {
     if (intensity <= 0.02 || this.muted) {
       if (this.microwaveNode) {
-        try { this.microwaveNode.osc.stop(); this.microwaveNode.osc2.stop(); this.microwaveNode.lfo.stop(); } catch (e) {}
+        const n = this.microwaveNode;
+        try { n.hum.stop(); n.hum2.stop(); n.fan.stop(); n.fanLfo.stop(); n.beam.stop(); n.beamVib.stop(); } catch (e) {}
         this.microwaveNode = null;
       }
       return;
     }
     if (!this.ensure()) return;
     if (!this.microwaveNode) {
-      const osc = this.ctx.createOscillator();
-      osc.type = 'sawtooth'; osc.frequency.value = 1150;
-      const osc2 = this.ctx.createOscillator();
-      osc2.type = 'square'; osc2.frequency.value = 96;
-      const f = this.ctx.createBiquadFilter();
-      f.type = 'lowpass'; f.frequency.value = 2400; f.Q.value = 2;
+      const t0 = this.ctx.currentTime;
       const g = this.ctx.createGain();
-      g.gain.value = 0;
-      const o2g = this.ctx.createGain();
-      o2g.gain.value = 0.35;
-      // Magnetron throb: fast tremolo on the whine
-      const lfo = this.ctx.createOscillator();
-      lfo.type = 'sine'; lfo.frequency.value = 27;
-      const lfoG = this.ctx.createGain();
-      lfoG.gain.value = 0.018;
-      lfo.connect(lfoG); lfoG.connect(g.gain);
-      osc.connect(f); osc2.connect(o2g); o2g.connect(f); f.connect(g); g.connect(this.master);
-      osc.start(); osc2.start(); lfo.start();
-      this.microwaveNode = { osc, osc2, g, lfo };
+      g.gain.setValueAtTime(0, t0);
+      g.gain.linearRampToValueAtTime(1, t0 + 0.18);   // spool-up instead of a hard click
+      g.connect(this.master);
+
+      // Mains hum: 60 Hz fundamental + softer 120 Hz harmonic (the classic drone)
+      const hum = this.ctx.createOscillator();
+      hum.type = 'sine'; hum.frequency.value = 60;
+      const humG = this.ctx.createGain();
+      humG.gain.value = 0.16;
+      const hum2 = this.ctx.createOscillator();
+      hum2.type = 'sine'; hum2.frequency.value = 120;
+      const hum2G = this.ctx.createGain();
+      hum2G.gain.value = 0.07;
+      hum.connect(humG); humG.connect(g);
+      hum2.connect(hum2G); hum2G.connect(g);
+
+      // Fan/magnetron whir: soft looping noise through a mid bandpass, with a
+      // slow rotor wobble on the volume
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = last * 0.9 + (Math.random() * 2 - 1) * 0.1;
+        d[i] = last * 4;
+      }
+      const fan = this.ctx.createBufferSource();
+      fan.buffer = buf; fan.loop = true;
+      const fanF = this.ctx.createBiquadFilter();
+      fanF.type = 'bandpass'; fanF.frequency.value = 520; fanF.Q.value = 0.7;
+      const fanG = this.ctx.createGain();
+      fanG.gain.value = 0.1;
+      const fanLfo = this.ctx.createOscillator();
+      fanLfo.type = 'sine'; fanLfo.frequency.value = 4.3;
+      const fanLfoG = this.ctx.createGain();
+      fanLfoG.gain.value = 0.03;
+      fanLfo.connect(fanLfoG); fanLfoG.connect(fanG.gain);
+      fan.connect(fanF); fanF.connect(fanG); fanG.connect(g);
+
+      // Beam shimmer: a thin, singing high tone with gentle vibrato riding on
+      // top — the "focused energy" layer
+      const beam = this.ctx.createOscillator();
+      beam.type = 'sine'; beam.frequency.value = 1980;
+      const beamG = this.ctx.createGain();
+      beamG.gain.value = 0.016;
+      const beamVib = this.ctx.createOscillator();
+      beamVib.type = 'sine'; beamVib.frequency.value = 6.5;
+      const beamVibG = this.ctx.createGain();
+      beamVibG.gain.value = 22;
+      beamVib.connect(beamVibG); beamVibG.connect(beam.frequency);
+      beam.connect(beamG); beamG.connect(g);
+
+      hum.start(); hum2.start(); fan.start(); fanLfo.start(); beam.start(); beamVib.start();
+      this.microwaveNode = { g, hum, hum2, fan, fanLfo, beam, beamVib };
     }
-    this.microwaveNode.g.gain.value = 0.055 * intensity;
   },
 
   // Geyser roar while the water surge carries the pod: churning filtered noise

@@ -373,11 +373,17 @@ const Game = {
       needed = C.MICROWAVE.heatWorm;
       w.cooked = (w.cooked || 0) + dt;          // cumulative — its only weakness
       w.zapT = 0.15;
-      if (Math.random() < dt * 20) {
+      // Steam and sparks boiling off the whole body, heavier as it cooks
+      const boilRate = 26 + 30 * (w.cooked / C.MICROWAVE.heatWorm);
+      if (Math.random() < dt * boilRate) {
+        const segs = [{ x: w.x, y: w.y }, ...(w.segPos || [])];
+        const p = segs[Math.floor(Math.random() * segs.length)];
         Particles.spawn({
-          x: cx + (Math.random() - 0.5), y: cy + (Math.random() - 0.5),
-          vx: (Math.random() - 0.5) * 2, vy: -2 - Math.random() * 2,
-          life: 0.5, size: 0.1, color: Math.random() < 0.5 ? '#e8f8ff' : '#ffb04a', glow: true,
+          x: p.x + (Math.random() - 0.5) * 1.4, y: p.y + (Math.random() - 0.5) * 1.4,
+          vx: (Math.random() - 0.5) * 2, vy: -2.5 - Math.random() * 2.5,
+          life: 0.6 + Math.random() * 0.4, size: 0.11,
+          color: Math.random() < 0.55 ? '#e8f8ff' : (Math.random() < 0.5 ? '#ffb04a' : '#ff7a2f'),
+          glow: true, gravity: -1,
         });
       }
       this.mwBeam = { tx, ty, heat: w.cooked, needed, kind };
@@ -1283,17 +1289,18 @@ const Game = {
       ctx.lineWidth = Math.max(1.5, fs * 0.09);
       Sprites.rr(ctx, px - boxW / 2, boxY, boxW, boxH, fs * 0.4);
       ctx.stroke();
-      // Keycap: a chunky "E" key
+      // Keycap: a chunky "E" key, glyph dead-centered in the cap
       const kx = px - boxW / 2 + fs * 0.55, ky = boxY + (boxH - keyS) / 2;
       ctx.fillStyle = `rgba(255,217,160,${0.85 + 0.15 * pulse})`;
       Sprites.rr(ctx, kx, ky, keyS, keyS, fs * 0.25);
       ctx.fill();
       ctx.fillStyle = '#1a1408';
       ctx.font = `bold ${Math.round(fs * 1.05)}px Verdana`;
-      ctx.fillText('E', kx + keyS / 2, ky + keyS * 0.56);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('E', kx + keyS / 2, ky + keyS / 2 + fs * 0.06);   // slight optical drop
       // Building name
       ctx.font = `bold ${fs}px Verdana`;
-      ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffd9a0';
       ctx.fillText(label, kx + keyS + fs * 0.5 + textW / 2, boxY + boxH / 2);
       ctx.textBaseline = 'alphabetic';
@@ -1730,25 +1737,44 @@ const Game = {
     }
     ctx.globalCompositeOperation = 'source-over';
 
-    // Body, tail to head, so the head overlaps
+    // Body, tail to head, so the head overlaps. Cooking sears the hide from
+    // toxic green to blistered red-orange, with a white-hot rim while the
+    // beam is actually on it.
+    const mix2 = (a, b2, t2) => Math.round(a + (b2 - a) * t2);
     for (let i = pts.length - 1; i >= 1; i--) {
       const sx = (pts[i].x - this.cam.x) * T, sy = (pts[i].y - this.cam.y) * T;
       const r = T * (0.95 - (i / pts.length) * 0.42);
       const undul = Math.sin(this.time * 6 - i * 0.9) * r * 0.06;
       const bg = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3 + undul, r * 0.15, sx, sy + undul, r);
-      bg.addColorStop(0, '#3d5c28');
-      bg.addColorStop(0.6, '#243d16');
-      bg.addColorStop(1, '#101f0a');
+      bg.addColorStop(0, `rgb(${mix2(61, 200, cookFrac)},${mix2(92, 70, cookFrac)},${mix2(40, 28, cookFrac)})`);
+      bg.addColorStop(0.6, `rgb(${mix2(36, 140, cookFrac)},${mix2(61, 42, cookFrac)},${mix2(22, 16, cookFrac)})`);
+      bg.addColorStop(1, `rgb(${mix2(16, 70, cookFrac)},${mix2(31, 20, cookFrac)},${mix2(10, 8, cookFrac)})`);
       ctx.fillStyle = bg;
       ctx.beginPath();
       ctx.arc(sx, sy + undul, r, 0, Math.PI * 2);
       ctx.fill();
-      // Glowing band between segments
-      ctx.strokeStyle = `rgba(140,255,90,${0.35 + 0.2 * Math.sin(this.time * 5 + i)})`;
+      // Glowing band between segments: green venom → molten ember as it cooks
+      ctx.strokeStyle = `rgba(${mix2(140, 255, cookFrac)},${mix2(255, 140, cookFrac)},${mix2(90, 40, cookFrac)},${0.35 + 0.2 * Math.sin(this.time * 5 + i)})`;
       ctx.lineWidth = Math.max(1.5, r * 0.14);
       ctx.beginPath();
       ctx.arc(sx, sy + undul, r * 0.82, 0, Math.PI * 2);
       ctx.stroke();
+      // Sizzling white-hot rim + blister spots while the beam is on it
+      if (zapped) {
+        const flick = 0.5 + 0.5 * Math.sin(this.time * 31 + i * 2.7);
+        ctx.strokeStyle = `rgba(255,240,200,${0.35 + 0.4 * flick})`;
+        ctx.lineWidth = Math.max(1.5, r * 0.09);
+        ctx.beginPath();
+        ctx.arc(sx, sy + undul, r * 0.98, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = `rgba(255,${180 + Math.round(60 * flick)},80,${0.5 * flick})`;
+        for (let bnum = 0; bnum < 2; bnum++) {
+          const ba = this.time * 3 + i * 2.1 + bnum * 3;
+          ctx.beginPath();
+          ctx.arc(sx + Math.cos(ba) * r * 0.5, sy + undul + Math.sin(ba) * r * 0.5, r * 0.14, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
       // Bristles
       ctx.strokeStyle = 'rgba(20,35,10,0.7)';
       ctx.lineWidth = Math.max(1, r * 0.08);
@@ -1813,6 +1839,32 @@ const Game = {
     }
     ctx.shadowBlur = 0;
     ctx.restore();
+
+    // Cook meter: once it has taken any heat, show exactly how done it is
+    if ((w.cooked || 0) > 0.15 && !w.leaving) {
+      const mw2 = T * 2.3, mh = T * 0.22;
+      const mx = hx - mw2 / 2, my = hy - T * 1.75;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, w.fade) * (zapped ? 1 : 0.75);
+      ctx.fillStyle = 'rgba(10,10,14,0.8)';
+      Sprites.rr(ctx, mx, my, mw2, mh, mh * 0.4);
+      ctx.fill();
+      const grad = ctx.createLinearGradient(mx, 0, mx + mw2, 0);
+      grad.addColorStop(0, '#ffb04a');
+      grad.addColorStop(1, '#ff5520');
+      ctx.fillStyle = grad;
+      Sprites.rr(ctx, mx + 2, my + 2, Math.max(mh * 0.5, (mw2 - 4) * cookFrac), mh - 4, (mh - 4) * 0.4);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,180,110,${zapped ? 0.5 + 0.4 * Math.sin(this.time * 20) : 0.45})`;
+      ctx.lineWidth = Math.max(1, T * 0.02);
+      Sprites.rr(ctx, mx, my, mw2, mh, mh * 0.4);
+      ctx.stroke();
+      ctx.font = `bold ${Math.max(11, Math.round(T * 0.19))}px Verdana`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ffd9a0';
+      ctx.fillText(`COOKING ${Math.round(cookFrac * 100)}%`, hx, my - T * 0.12);
+      ctx.restore();
+    }
   },
 
   // Ghost renders above the lighting layer — spectres glow in the dark
