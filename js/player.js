@@ -244,8 +244,8 @@ const Player = {
   tryDrill(tx, ty, dir) {
     if (ty < 0 || !World.isSolid(tx, ty)) return;
     if (!World.isDrillable(tx, ty)) return;    // stone: drill just skitters off
-    const feet = C.rowToFeet(ty);
-    const harden = 1 + (feet / 7300) * C.DRILL_DEPTH_HARDEN;
+    const band = Sprites.bandForRow(ty);
+    const harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
     const time = (C.DRILL_BASE_TIME * harden) / this.drillSpeed();
     this.drilling = { x: tx, y: ty, dir, progress: 0, time: Math.max(0.1, time) };
     this.fallStartY = null;

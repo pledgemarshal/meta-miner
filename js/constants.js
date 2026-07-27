@@ -39,7 +39,9 @@ const C = {
 
   // --- Drilling ---
   DRILL_BASE_TIME: 0.5,        // seconds per tile with stock drill at surface
-  DRILL_DEPTH_HARDEN: 2.2,     // extra time multiplier by the bottom (soil hardens)
+  // Each visibly darker soil band drills 25% slower than the one above it
+  // (compounding), so deeper strata push the player toward drill upgrades.
+  BAND_DRILL_PENALTY: 0.25,
 
   // --- Start state ---
   START_MONEY: 20,

@@ -241,6 +241,21 @@ const UI = {
       ix += 58 * U;
     }
 
+    // Dense strata warning: pulsing banner just like the fuel alert
+    if (Game.rockWarnT > 0) {
+      const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));
+      ctx.save();
+      ctx.globalAlpha = pulse * Math.min(1, Game.rockWarnT / 0.4);
+      ctx.textAlign = 'center';
+      ctx.font = `bold ${Math.round(26 * U)}px Verdana`;
+      ctx.shadowColor = '#8a5a20';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = '#e8b06a';
+      ctx.fillText('ROCK DENSE! 25% SLOWER DRILLING!', C.VIEW_W / 2, C.VIEW_H * 0.47);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
     // Low fuel warning: pulsing center-screen banner
     if (Game.fuelWarnT > 0) {
       const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));

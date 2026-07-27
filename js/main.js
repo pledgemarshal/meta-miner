@@ -13,6 +13,8 @@ const Game = {
   hurtFlash: 0,
   fuelWarnT: 0,          // "FUEL LOW!" banner timer
   _prevFuelFrac: 1,
+  rockWarnT: 0,          // "ROCK DENSE!" banner timer
+  _maxBand: 0,           // deepest soil band announced this run
   ghost: null,           // at most one spectral visitor at a time
   ghostStage: 0,         // 0: none yet, 1: met at -500 ft, 2: met at -1,000 ft (random after)
   popups: [],            // floating "+$" texts
@@ -303,6 +305,8 @@ const Game = {
     this.ghost = null;
     this.ghostStage = 0;
     this.popups.length = 0;
+    this._maxBand = 0;
+    this.rockWarnT = 0;
   },
 
   onPlayerDeath(cause) {
@@ -357,6 +361,15 @@ const Game = {
       Audio.play('denied');
     }
     this._prevFuelFrac = fuelFrac;
+
+    // Denser strata announcement: fires once per newly-entered darker soil band
+    if (this.rockWarnT > 0) this.rockWarnT -= dt;
+    const soilBand = Sprites.bandForRow(Math.max(0, Math.floor(Player.y)));
+    if (soilBand > this._maxBand && !Player.dead) {
+      this._maxBand = soilBand;
+      this.rockWarnT = 3.5;
+      Audio.play('clank');
+    }
 
     this.updateGhost(dt);
 
