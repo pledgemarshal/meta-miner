@@ -235,14 +235,25 @@ const Player = {
       this.damage(roll(C.LAVA.dmg1), 'lava');
       if (!this.dead) this.damage(roll(C.LAVA.dmg2), 'lava');
     } else if (kind.steam) {
-      // Boiling water erupts beneath the pod and launches it skyward (~100 ft)
-      Particles.burst(d.x + 0.5, d.y + 0.5, 28, { color: '#7fd4ef', speed: 7, life: 0.6, size: 0.12, gravity: 10 });
-      Particles.burst(d.x + 0.5, d.y + 0.2, 18, { color: '#e8f8ff', speed: 3, life: 1.0, size: 0.17, gravity: -2.5 });
+      // Boiling water erupts from the pocket. Drilled from above: geyser launch
+      // (~100 ft up). Drilled from the side: the jet blasts the pod sideways.
+      const launch = Math.sqrt(2 * C.GRAVITY * (C.STEAM.boostFt / C.FEET_PER_TILE));
       Audio.play('steam');
       Game.shake(0.5);
-      Game.toast('Steam pocket — geyser launch!');
-      this.vy = -Math.sqrt(2 * C.GRAVITY * (C.STEAM.boostFt / C.FEET_PER_TILE));
-      this.boostT = 1.6;               // geyser ride ignores the ascent speed cap
+      if (d.dir === 'left' || d.dir === 'right') {
+        const push = d.dir === 'left' ? 1 : -1;     // shoved away from the pocket
+        this.vx = push * launch;
+        this.vy = Math.min(this.vy, -2);            // slight lift off the floor
+        Game.toast('Steam pocket — side blast!');
+        Particles.burst(d.x + 0.5, d.y + 0.5, 26, { color: '#7fd4ef', speed: 5, life: 0.6, size: 0.12, vx: push * 7, gravity: 8 });
+        Particles.burst(d.x + 0.5, d.y + 0.3, 14, { color: '#e8f8ff', speed: 2.5, life: 0.9, size: 0.16, vx: push * 4, gravity: -2 });
+      } else {
+        Game.toast('Steam pocket — geyser launch!');
+        this.vy = -launch;
+        Particles.burst(d.x + 0.5, d.y + 0.5, 28, { color: '#7fd4ef', speed: 7, life: 0.6, size: 0.12, gravity: 10 });
+        Particles.burst(d.x + 0.5, d.y + 0.2, 18, { color: '#e8f8ff', speed: 3, life: 1.0, size: 0.17, gravity: -2.5 });
+      }
+      this.boostT = 1.6;               // the blast ride ignores the ascent speed cap
       this.fallStartY = null;
     } else if (kind.gas) {
       // Invisible gas pocket: detonates like dynamite with a green blast.

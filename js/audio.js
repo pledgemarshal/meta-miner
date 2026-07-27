@@ -163,32 +163,45 @@ const Audio = {
   setWind(intensity) {
     if (intensity <= 0.02 || this.muted) {
       if (this.windNode) {
-        try { this.windNode.src.stop(); } catch (e) {}
+        try { this.windNode.src.stop(); this.windNode.lfo.stop(); } catch (e) {}
         this.windNode = null;
       }
       return;
     }
     if (!this.ensure()) return;
     if (!this.windNode) {
+      // Smooth breeze: noise through two gentle lowpasses (no hissy band), with a
+      // slow LFO swirling the cutoff so it breathes like rushing air
       const len = this.ctx.sampleRate * 2;
       const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        // Pre-soften the noise itself (simple one-pole smoothing)
+        last = last * 0.82 + (Math.random() * 2 - 1) * 0.18;
+        d[i] = last * 3;
+      }
       const src = this.ctx.createBufferSource();
       src.buffer = buf;
       src.loop = true;
-      const f = this.ctx.createBiquadFilter();
-      f.type = 'bandpass';
-      f.frequency.value = 500;
-      f.Q.value = 0.5;
+      const f1 = this.ctx.createBiquadFilter();
+      f1.type = 'lowpass'; f1.frequency.value = 400; f1.Q.value = 0.8;
+      const f2 = this.ctx.createBiquadFilter();
+      f2.type = 'lowpass'; f2.frequency.value = 600; f2.Q.value = 0.6;
       const g = this.ctx.createGain();
       g.gain.value = 0;
-      src.connect(f); f.connect(g); g.connect(this.master);
-      src.start();
-      this.windNode = { src, f, g };
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 1.1;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 110;
+      lfo.connect(lfoG); lfoG.connect(f1.frequency);
+      src.connect(f1); f1.connect(f2); f2.connect(g); g.connect(this.master);
+      src.start(); lfo.start();
+      this.windNode = { src, f1, f2, g, lfo };
     }
-    this.windNode.g.gain.value = 0.16 * intensity;
-    this.windNode.f.frequency.value = 380 + 720 * intensity;
+    this.windNode.g.gain.value = 0.3 * intensity;
+    this.windNode.f1.frequency.value = 240 + 480 * intensity;
+    this.windNode.f2.frequency.value = 380 + 620 * intensity;
   },
 
   // Track rumble: quiet low rolling noise while driving on the ground
@@ -219,8 +232,7 @@ const Audio = {
       src.start();
       this.treadNode = { src, f, g };
     }
-    // Deliberately subtle — just enough that driving isn't silent
-    this.treadNode.g.gain.value = 0.05 * intensity;
+    this.treadNode.g.gain.value = 0.1 * intensity;
     this.treadNode.f.frequency.value = 180 + 160 * intensity;
   },
 };
