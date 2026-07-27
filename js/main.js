@@ -38,6 +38,7 @@ const Game = {
     this.ctx = this.canvas.getContext('2d');
     this.resize();
     UI.init();
+    Audio.loadVolumes();
     Audio.initMusic();
     this.mouse = { x: C.VIEW_W * 0.5, y: C.VIEW_H * 0.4 };
     this.canvas.addEventListener('mousemove', e => {
@@ -132,6 +133,7 @@ const Game = {
         }
         case 'Escape':
           if (UI.isOpen()) UI.close();
+          else UI.pauseMenu();      // world & fuel pause while any panel is open
           break;
         case 'KeyF': Player.useItem('fuelTank'); break;
         case 'KeyR': Player.useItem('nanobots'); break;
@@ -1009,6 +1011,7 @@ const Game = {
     this._caveTiles = [];
     this._steamTiles = [];
     this._magnetVis = [];
+    this._gasVis = [];
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
@@ -1041,7 +1044,7 @@ const Game = {
         if (id === 1) tex = Sprites.dirt[band][v];
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
-        else if (id === 4) tex = Sprites.gasTex[band];         // gas is visible now — fairness over stealth
+        else if (id === 4) { tex = Sprites.gasTex[band]; this._gasVis.push({ x, y }); }   // gas is visible now — fairness over stealth
         else if (id === 6) { tex = Sprites.magnetiteTex[band]; this._magnetVis.push({ x, y }); }
         else if (id === 7) tex = Sprites.sandTex[band];
         else if (id === 8) tex = Sprites.nukeTex[band];
@@ -1257,18 +1260,43 @@ const Game = {
       const sx = (b.x - this.cam.x) * T;
       Sprites.drawBuilding(ctx, key, sx, groundY, this.time);
     }
-    // Interaction prompt
+    // Interaction prompt: big keycap + name, pulsing so it can't be missed
     const cur = Shops.current();
     if (cur && this.state === 'play' && !UI.isOpen()) {
       const b = C.BUILDINGS[cur];
       const px = (b.x + b.w / 2 - this.cam.x) * T;
-      ctx.font = 'bold 13px Verdana';
+      const label = `${b.name.split(' ')[0]} ${b.name.split(' ')[1] || ''}`.trim();
+      const fs = Math.max(17, Math.round(T * 0.3));
+      const keyS = fs * 1.45;
+      ctx.font = `bold ${fs}px Verdana`;
       ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(10,10,16,0.8)';
-      Sprites.rr(ctx, px - 70, groundY - T * 3.6, 140, 24, 6);
+      const textW = ctx.measureText(label).width;
+      const boxW = keyS + textW + fs * 1.7;
+      const boxH = keyS + fs * 0.55;
+      const boxY = groundY - T * 4.35;
+      const pulse = 0.7 + 0.3 * Math.sin(this.time * 4);
+      // Backdrop
+      ctx.fillStyle = 'rgba(10,10,16,0.85)';
+      Sprites.rr(ctx, px - boxW / 2, boxY, boxW, boxH, fs * 0.4);
       ctx.fill();
+      ctx.strokeStyle = `rgba(255,178,71,${0.5 + 0.4 * pulse})`;
+      ctx.lineWidth = Math.max(1.5, fs * 0.09);
+      Sprites.rr(ctx, px - boxW / 2, boxY, boxW, boxH, fs * 0.4);
+      ctx.stroke();
+      // Keycap: a chunky "E" key
+      const kx = px - boxW / 2 + fs * 0.55, ky = boxY + (boxH - keyS) / 2;
+      ctx.fillStyle = `rgba(255,217,160,${0.85 + 0.15 * pulse})`;
+      Sprites.rr(ctx, kx, ky, keyS, keyS, fs * 0.25);
+      ctx.fill();
+      ctx.fillStyle = '#1a1408';
+      ctx.font = `bold ${Math.round(fs * 1.05)}px Verdana`;
+      ctx.fillText('E', kx + keyS / 2, ky + keyS * 0.56);
+      // Building name
+      ctx.font = `bold ${fs}px Verdana`;
+      ctx.textBaseline = 'middle';
       ctx.fillStyle = '#ffd9a0';
-      ctx.fillText(`E — ${b.name.split(' ')[0]} ${b.name.split(' ')[1] || ''}`, px, groundY - T * 3.6 + 12);
+      ctx.fillText(label, kx + keyS + fs * 0.5 + textW / 2, boxY + boxH / 2);
+      ctx.textBaseline = 'alphabetic';
     }
   },
 
@@ -1397,6 +1425,35 @@ const Game = {
         ctx.beginPath();
         ctx.arc(sx, sy, T * (0.4 + ringT * 3), 0, Math.PI * 2);
         ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Gas pockets exhale slow curling wisps of vapor
+    if (this._gasVis && this._gasVis.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const gt of this._gasVis) {
+        const h = ((gt.x * 92821) ^ (gt.y * 68917)) >>> 0;
+        const seed = (h % 1000) / 1000;
+        for (let i = 0; i < 2; i++) {
+          // Each wisp loops: born at the tile, drifting up ~1.3 tiles, swelling
+          // and thinning out as it goes
+          const cyc = (this.time * (0.28 + seed * 0.12) + seed * 7 + i * 0.5) % 1;
+          const wx = (gt.x + 0.5 - this.cam.x) * T + Math.sin(this.time * 1.6 + seed * 9 + i * 3 + cyc * 5) * T * 0.22;
+          const wy = (gt.y + 0.55 - this.cam.y) * T - cyc * T * 1.3;
+          const r = T * (0.1 + cyc * 0.22);
+          const a = Math.sin(cyc * Math.PI) * 0.16;
+          ctx.fillStyle = `rgba(140,235,100,${a})`;
+          ctx.beginPath();
+          ctx.arc(wx, wy, r, 0, Math.PI * 2);
+          ctx.fill();
+          // A dimmer trailing puff for a curling look
+          ctx.fillStyle = `rgba(120,215,90,${a * 0.6})`;
+          ctx.beginPath();
+          ctx.arc(wx - Math.sin(this.time * 1.6 + seed * 9 + i * 3 + cyc * 5) * T * 0.12, wy + T * 0.14, r * 0.7, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       ctx.restore();
     }

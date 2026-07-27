@@ -9,6 +9,34 @@ const Audio = {
   drillNode: null,
   musicTimer: null,
 
+  // --- User volume settings (0..1), persisted separately from the save ---
+  sfxVol: 1,
+  musicVol: 1,
+  VOL_KEY: 'motherload-remake-volume',
+
+  loadVolumes() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this.VOL_KEY) || '{}');
+      if (typeof v.sfx === 'number') this.sfxVol = Math.max(0, Math.min(1, v.sfx));
+      if (typeof v.music === 'number') this.musicVol = Math.max(0, Math.min(1, v.music));
+    } catch (e) {}
+  },
+
+  saveVolumes() {
+    try { localStorage.setItem(this.VOL_KEY, JSON.stringify({ sfx: this.sfxVol, music: this.musicVol })); } catch (e) {}
+  },
+
+  setSfxVol(v) {
+    this.sfxVol = Math.max(0, Math.min(1, v));
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5 * this.sfxVol;
+    this.saveVolumes();
+  },
+
+  setMusicVol(v) {
+    this.musicVol = Math.max(0, Math.min(1, v));
+    this.saveVolumes();
+  },
+
   // Note: this object shadows window.Audio, so the element is created via DOM
   music: null,
   initMusic() {
@@ -26,9 +54,10 @@ const Audio = {
     if (this.music && this.music.paused && !this.muted) this.music.play().catch(() => {});
   },
 
-  // Louder on the title screen, a quiet companion while mining
+  // Louder on the title screen, a quiet companion while mining;
+  // scaled by the user's music volume setting
   setMusicLevel(v) {
-    if (this.music) this.music.volume += (v - this.music.volume) * 0.08;
+    if (this.music) this.music.volume += (v * this.musicVol - this.music.volume) * 0.08;
   },
 
   ensure() {
@@ -36,7 +65,7 @@ const Audio = {
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = this.muted ? 0 : 0.5 * this.sfxVol;
       this.master.connect(this.ctx.destination);
     } catch (e) { return false; }
     return true;
@@ -49,7 +78,7 @@ const Audio = {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5 * this.sfxVol;
     if (this.music) {
       this.music.muted = this.muted;
       if (!this.muted) this.startMusic();

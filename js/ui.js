@@ -92,6 +92,84 @@ const UI = {
     return p;
   },
 
+  // --- Pause menu (Esc): resume, options, clear saves ---
+  pauseMenu(confirmClear) {
+    this.panel({
+      title: 'Paused',
+      sub: 'The Martian soil will wait.',
+      rows: [
+        { name: 'Resume', detail: 'Back to digging', button: { label: 'Resume', onClick: () => this.close() } },
+        { name: 'Options', detail: 'Sound & music volume', button: { label: 'Options', onClick: () => this.optionsMenu() } },
+        {
+          name: 'Clear Saves',
+          detail: confirmClear ? 'This erases ALL saved progress. Are you sure?' : 'Erase saved progress and start fresh',
+          button: {
+            label: confirmClear ? 'Yes, erase it' : 'Clear',
+            onClick: () => {
+              if (!confirmClear) { this.pauseMenu(true); return; }
+              try { localStorage.removeItem(C.SAVE_KEY); } catch (e) {}
+              Audio.play('clank');
+              this.toast('Save data erased — next death or title visit starts fresh');
+              this.pauseMenu(false);
+            },
+          },
+        },
+      ],
+      hint: 'Esc — resume',
+    });
+  },
+
+  optionsMenu() {
+    const body = document.createElement('div');
+    const slider = (label, value, onInput) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const left = document.createElement('div');
+      left.className = 'grow';
+      const n = document.createElement('div');
+      n.className = 'name';
+      n.textContent = label;
+      const pct = document.createElement('div');
+      pct.className = 'detail';
+      pct.textContent = Math.round(value * 100) + '%';
+      left.appendChild(n);
+      left.appendChild(pct);
+      const s = document.createElement('input');
+      s.type = 'range';
+      s.min = 0; s.max = 100; s.value = Math.round(value * 100);
+      s.style.width = '170px';
+      s.style.accentColor = '#ffb347';
+      s.style.cursor = 'pointer';
+      s.addEventListener('input', () => {
+        pct.textContent = s.value + '%';
+        onInput(s.value / 100);
+      });
+      row.appendChild(left);
+      row.appendChild(s);
+      body.appendChild(row);
+      return s;
+    };
+    let blipT = 0;
+    slider('Sound effects', Audio.sfxVol, v => {
+      Audio.setSfxVol(v);
+      // A throttled blip so the level can be judged by ear
+      if (performance.now() - blipT > 250) { blipT = performance.now(); Audio.play('buy'); }
+    });
+    slider('Music', Audio.musicVol, v => {
+      Audio.setMusicVol(v);
+      if (Audio.music) Audio.music.volume = Math.min(1, Math.max(0, Audio.music.volume));
+    });
+    this.panel({
+      title: 'Options',
+      sub: 'Volumes are remembered between sessions. N still mutes everything.',
+      body,
+      rows: [
+        { name: 'Back', button: { label: 'Back', onClick: () => this.pauseMenu() } },
+      ],
+      hint: 'Esc — resume game',
+    });
+  },
+
   // Transmission dialog with a procedural portrait
   transmission(t, onDone) {
     this.close();
