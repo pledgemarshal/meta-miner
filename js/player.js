@@ -33,6 +33,7 @@ const Player = {
     this.teleporting = 0;
     this.fallStartY = null;
     this.treadPhase = 0;
+    this.maxDepth = 0;
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -117,6 +118,7 @@ const Player = {
       if (Math.random() < dt * 30) Particles.dust(tx, ty - 0.2, dustCol);
       if (Math.random() < dt * 10) Particles.sparks(tx, ty);
       if (d.progress >= 1) this.finishDrill();
+      this.maxDepth = Math.max(this.maxDepth || 0, this.depthFeet());
       return;
     }
 
@@ -148,6 +150,9 @@ const Player = {
     this.vy += C.GRAVITY * dt;
     this.vx -= this.vx * C.AIR_DRAG * dt;
     if (this.vy > C.MAX_FALL) this.vy = C.MAX_FALL;
+    // Ascent is capped at 100 ft/s
+    const maxUp = C.MAX_ASCENT_FPS / C.FEET_PER_TILE;
+    if (this.vy < -maxUp) this.vy = -maxUp;
 
     // Track fall start for distance-based damage
     if (this.vy > 0.5 && this.fallStartY === null) this.fallStartY = this.y;
@@ -157,6 +162,9 @@ const Player = {
 
     // Treads roll only while actually driving on the ground
     if (this.onGround) this.treadPhase = (this.treadPhase || 0) + this.vx * dt;
+
+    // Personal depth record
+    this.maxDepth = Math.max(this.maxDepth || 0, this.depthFeet());
 
     // --- Start drilling? Grounded + direction key toward a drillable tile ---
     if (this.onGround && !thrustUp) {
@@ -345,6 +353,7 @@ const Player = {
   serialize() {
     return {
       money: this.money, fuel: this.fuel, hull: this.hull,
+      maxDepth: this.maxDepth || 0,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -355,6 +364,7 @@ const Player = {
     this.money = d.money;
     this.fuel = d.fuel;
     this.hull = d.hull;
+    this.maxDepth = d.maxDepth || 0;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

@@ -193,7 +193,7 @@ const UI = {
     ctx.textBaseline = 'middle';
 
     // Backdrop strip
-    const stripH = 66 * U;
+    const stripH = 82 * U;
     const grad = ctx.createLinearGradient(0, 0, 0, stripH);
     grad.addColorStop(0, 'rgba(8,9,14,0.82)');
     grad.addColorStop(1, 'rgba(8,9,14,0)');
@@ -227,6 +227,7 @@ const UI = {
     ctx.font = `${Math.round(11 * U)}px Verdana`;
     ctx.fillStyle = '#9a958a';
     ctx.fillText('SCORE ' + Game.score.toLocaleString(), C.VIEW_W - pad, 58 * U);
+    ctx.fillText('MAX DEPTH: -' + Math.round(P.maxDepth || 0).toLocaleString() + ' ft', C.VIEW_W - pad, 74 * U);
 
     // Item quickbar
     ctx.textAlign = 'left';

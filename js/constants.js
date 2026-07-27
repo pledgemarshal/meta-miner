@@ -22,6 +22,7 @@ const C = {
   SIDE_ACCEL: 16,
   AIR_DRAG: 1.6,
   MAX_FALL: 22,                 // terminal velocity (~600 ft fall to reach max dmg)
+  MAX_ASCENT_FPS: 100,          // upward speed cap in feet per second
   WEIGHT_SLOW: 0.55,            // fraction of thrust lost at max cargo weight
 
   // --- Fall damage (distance in feet -> HP). Softened from the original: safe up to ~50 ft. ---
