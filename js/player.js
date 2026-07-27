@@ -71,6 +71,7 @@ const Player = {
     this.drilling = null;
     Audio.stop('drill');
     Audio.setWind(0);
+    Audio.setTreads(0);
     Audio.thrustOff();
     Audio.play('explode');
     Particles.explosion(this.x, this.y, 1.8);
@@ -106,6 +107,7 @@ const Player = {
     // --- Drilling in progress: pod eases into the target tile ---
     if (this.drilling) {
       Audio.setWind(0);
+      Audio.setTreads(0);
       const d = this.drilling;
       d.progress += dt / d.time;
       this.fuel = Math.max(0, this.fuel - C.FUEL_DRILL_PER_SEC * dt);
@@ -172,6 +174,8 @@ const Player = {
 
     // Treads roll only while actually driving on the ground
     if (this.onGround) this.treadPhase = (this.treadPhase || 0) + this.vx * dt;
+    // Quiet track rumble scaled to ground speed
+    Audio.setTreads(this.onGround ? Math.min(1, Math.abs(this.vx) / 5) : 0);
 
     // Personal depth record
     this.maxDepth = Math.max(this.maxDepth || 0, this.depthFeet());

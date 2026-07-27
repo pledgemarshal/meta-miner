@@ -161,7 +161,7 @@ const Audio = {
   // Falling wind rush: looping filtered noise whose volume/pitch track fall speed
   windNode: null,
   setWind(intensity) {
-    if (intensity <= 0.02 || this.muted || !this.ctx) {
+    if (intensity <= 0.02 || this.muted) {
       if (this.windNode) {
         try { this.windNode.src.stop(); } catch (e) {}
         this.windNode = null;
@@ -189,5 +189,38 @@ const Audio = {
     }
     this.windNode.g.gain.value = 0.16 * intensity;
     this.windNode.f.frequency.value = 380 + 720 * intensity;
+  },
+
+  // Track rumble: quiet low rolling noise while driving on the ground
+  treadNode: null,
+  setTreads(intensity) {
+    if (intensity <= 0.02 || this.muted) {
+      if (this.treadNode) {
+        try { this.treadNode.src.stop(); } catch (e) {}
+        this.treadNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.treadNode) {
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 220;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start();
+      this.treadNode = { src, f, g };
+    }
+    // Deliberately subtle — just enough that driving isn't silent
+    this.treadNode.g.gain.value = 0.05 * intensity;
+    this.treadNode.f.frequency.value = 180 + 160 * intensity;
   },
 };
