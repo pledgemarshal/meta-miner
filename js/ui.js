@@ -181,7 +181,7 @@ const UI = {
     const caller = document.createElement('div');
     caller.className = 'caller';
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 56;
+    canvas.width = canvas.height = 100;
     canvas.className = 'portrait';
     this.drawPortrait(canvas, t.portrait);
     caller.appendChild(canvas);
@@ -221,6 +221,7 @@ const UI = {
     }
     ctx.save();
     ctx.translate(S / 2, S / 2);
+    ctx.scale(S / 56, S / 56);   // face geometry is authored at 56px
     if (kind === 'natas') {
       ctx.fillStyle = '#b03830';
       ctx.beginPath(); ctx.arc(0, 4, 14, 0, Math.PI * 2); ctx.fill();
