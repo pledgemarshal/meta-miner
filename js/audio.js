@@ -158,6 +158,12 @@ const Audio = {
         this.noise(0.018, 0.32, 6500);
         if (Math.random() < 0.3) this.noise(0.014, 0.22, 7500, 0.03);   // occasional double-tick
         break;
+      // Something superheated bursting apart under the microwave beam
+      case 'mwPop':
+        this.noise(0.35, 0.4, 1800);
+        this.tone(600, 0.25, 'sine', 0.16, 120);
+        this.tone(1400, 0.12, 'square', 0.08, 400, 0.03);
+        break;
       case 'wormRoar': this.tone(70, 1.3, 'sawtooth', 0.24, 32); this.noise(1.3, 0.24, 300); this.tone(115, 0.9, 'square', 0.07, 50, 0.15); break;
     }
   },
@@ -408,6 +414,41 @@ const Audio = {
       this.magnetNode = { osc, osc2, g, lfo };
     }
     this.magnetNode.g.gain.value = 0.07 * intensity;
+  },
+
+  // Microwave Cannon: a taut electric whine with a magnetron throb underneath
+  microwaveNode: null,
+  setMicrowave(intensity) {
+    if (intensity <= 0.02 || this.muted) {
+      if (this.microwaveNode) {
+        try { this.microwaveNode.osc.stop(); this.microwaveNode.osc2.stop(); this.microwaveNode.lfo.stop(); } catch (e) {}
+        this.microwaveNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.microwaveNode) {
+      const osc = this.ctx.createOscillator();
+      osc.type = 'sawtooth'; osc.frequency.value = 1150;
+      const osc2 = this.ctx.createOscillator();
+      osc2.type = 'square'; osc2.frequency.value = 96;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 2400; f.Q.value = 2;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      const o2g = this.ctx.createGain();
+      o2g.gain.value = 0.35;
+      // Magnetron throb: fast tremolo on the whine
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 27;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 0.018;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      osc.connect(f); osc2.connect(o2g); o2g.connect(f); f.connect(g); g.connect(this.master);
+      osc.start(); osc2.start(); lfo.start();
+      this.microwaveNode = { osc, osc2, g, lfo };
+    }
+    this.microwaveNode.g.gain.value = 0.055 * intensity;
   },
 
   // Geyser roar while the water surge carries the pod: churning filtered noise

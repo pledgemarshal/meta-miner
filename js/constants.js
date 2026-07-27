@@ -105,9 +105,19 @@ const C = {
           cloudLife: 8, falloutLife: 120, shockRadius: 14 },
   // The worm from ~-5,000 ft: two tiles wide, chews its own tunnel toward the
   // pod at a fixed rate — half the stock drill's 2 tiles/sec, never faster no
-  // matter what drill the player owns. Only explosives can kill it. It loses
-  // the trail if the pod gets 500+ ft away, and never hunts above -500 ft.
+  // matter what drill the player owns. ONLY the Microwave Cannon hurts it —
+  // explosives just annoy it. It loses the trail if the pod gets 500+ ft away,
+  // and never hunts above -500 ft.
   WORM: { min: 5000, speedSolid: 1.0, speedOpen: 1.6, biteDmg: 25, biteCd: 1.2, bounty: 40000, lifetime: 55, leashFt: 500, ceilingFt: 500 },
+
+  // --- Microwave Cannon: unlocked by Mr. Natas' transmission at -4,000 ft ---
+  // Hold the mouse button to cook the tile under the cursor (anywhere on
+  // screen, one-tile focus). Heating times in seconds per target type:
+  // warheads arm, lodestones boil then burst, springs boil then burst (1-tile
+  // blast), ghosts burn (stacks with the flashlight), and the worm cooks —
+  // its ONLY weakness. Heat on rocks/springs resets if you switch targets;
+  // worm heat is cumulative.
+  MICROWAVE: { heatNuke: 0.6, heatMagnet: 2, heatSteam: 2, heatWorm: 10 },
 
   // --- Upgrades (Autobuy 2000). Price ladder 750/2k/5k/20k/100k/500k. ---
   // Buying a fuel tank fills it; buying a hull fully repairs.
@@ -213,6 +223,7 @@ const C = {
     { depth: 2500 },
     { depth: 3100 },
     { depth: 3500, bonus: 25000 },
+    { depth: 4000 },   // Microwave Cannon unlock
     { depth: 4100 },
     { depth: 4500 },
     { depth: 6200 },

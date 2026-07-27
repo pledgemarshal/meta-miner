@@ -48,6 +48,12 @@ const Story = {
       portrait: 'natas',
       text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas — if you see green vapor seeping from the soil, do NOT put your drill in it.\n\nAlso: your altimeter is only rated to six thousand feet. Company policy is FIRM — do not dig past six thousand. Am I understood?',
     },
+    4000: {
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      unlock: 'microwave',
+      text: 'Contractor — a delicate matter. Certain… Cold War enthusiasm, ours and the other side\'s, left dormant nuclear warheads buried at this depth. Legal insists I tell you NOT to drill into them.\n\nInstead, I have remotely activated your pod\'s MICROWAVE CANNON. Click to fire it. Heat a warhead from a comfortable distance and it will arm itself — you may then observe the "safe disposal" from afar. The cannon also boils lodestones, springs, spectres… and larger things. Do experiment.',
+    },
     4100: {
       from: 'Digging Pod #3422-2',
       portrait: 'miner',
@@ -103,6 +109,11 @@ const Story = {
         Player.money += bonus;
         UI.toast(`Bonus wired: +$${bonus.toLocaleString()}`);
         Audio.play('sell');
+      }
+      if (s.unlock === 'microwave' && !Player.hasMicrowave) {
+        Player.hasMicrowave = true;
+        UI.toast('MICROWAVE CANNON online — hold CLICK to fire');
+        Audio.play('repair');
       }
       Game.resumeFromDialog();
     });

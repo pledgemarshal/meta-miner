@@ -988,6 +988,54 @@ const Sprites = {
     ctx.fillStyle = 'rgba(255,210,80,0.2)';
     ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.07, 0, P2); ctx.fill();
 
+    // ---- Microwave Cannon: a parabolic dish popped out of the roof, tracking
+    // the cursor. Only present once Mr. Natas activates it at -4,000 ft. ----
+    if (t.microwave && t.aim != null) {
+      const aim = t.facing < 0 ? Math.PI - t.aim : t.aim;
+      ctx.save();
+      ctx.translate(-T * 0.18, -T * 0.46);
+      // Telescoping mast up out of the hull
+      ctx.fillStyle = '#2c3036';
+      ctx.fillRect(-T * 0.03, T * 0.02, T * 0.06, T * 0.12);
+      ctx.fillStyle = '#3a3f46';
+      ctx.beginPath(); ctx.arc(0, 0, T * 0.055, 0, P2); ctx.fill();
+      ctx.rotate(aim);
+      // Waveguide arm
+      ctx.fillStyle = '#4a4f57';
+      ctx.fillRect(0, -T * 0.025, T * 0.1, T * 0.05);
+      // Parabolic dish (side profile: an open arc facing along the aim)
+      ctx.fillStyle = '#8b9097';
+      ctx.beginPath();
+      ctx.moveTo(T * 0.1, -T * 0.13);
+      ctx.quadraticCurveTo(T * 0.02, 0, T * 0.1, T * 0.13);
+      ctx.lineTo(T * 0.13, T * 0.11);
+      ctx.quadraticCurveTo(T * 0.065, 0, T * 0.13, -T * 0.11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = Math.max(1, T * 0.014);
+      ctx.stroke();
+      // Feed horn on struts at the focal point
+      ctx.strokeStyle = '#2c3036';
+      ctx.beginPath();
+      ctx.moveTo(T * 0.1, -T * 0.12); ctx.lineTo(T * 0.2, 0);
+      ctx.moveTo(T * 0.1, T * 0.12); ctx.lineTo(T * 0.2, 0);
+      ctx.stroke();
+      ctx.fillStyle = t.mwFiring ? '#ffdf8a' : '#53575d';
+      ctx.beginPath(); ctx.arc(T * 0.2, 0, T * 0.028, 0, P2); ctx.fill();
+      // Hot glow while firing
+      if (t.mwFiring) {
+        ctx.globalCompositeOperation = 'lighter';
+        const mg = ctx.createRadialGradient(T * 0.16, 0, 1, T * 0.16, 0, T * 0.22);
+        mg.addColorStop(0, 'rgba(255,220,140,0.7)');
+        mg.addColorStop(1, 'rgba(255,180,90,0)');
+        ctx.fillStyle = mg;
+        ctx.fillRect(-T * 0.1, -T * 0.25, T * 0.5, T * 0.5);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+      ctx.restore();
+    }
+
     // ---- Swivel flashlight on the dome, aimed at the cursor ----
     if (t.aim != null) {
       // The context may be mirrored; fold that into the local angle

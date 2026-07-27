@@ -35,6 +35,7 @@ const Player = {
     this.treadPhase = 0;
     this.maxDepth = 0;
     this.flush = null;
+    this.hasMicrowave = false;
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -77,6 +78,7 @@ const Player = {
     Audio.setGeyser(0);
     Audio.setRumble(0);
     Audio.setMagnet(0);
+    Audio.setMicrowave(0);
     Audio.thrustOff();
     Audio.play('explode');
     Particles.explosion(this.x, this.y, 1.8);
@@ -488,6 +490,7 @@ const Player = {
     return {
       money: this.money, fuel: this.fuel, hull: this.hull,
       maxDepth: this.maxDepth || 0,
+      hasMicrowave: this.hasMicrowave || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -499,6 +502,7 @@ const Player = {
     this.fuel = d.fuel;
     this.hull = d.hull;
     this.maxDepth = d.maxDepth || 0;
+    this.hasMicrowave = !!d.hasMicrowave;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },
