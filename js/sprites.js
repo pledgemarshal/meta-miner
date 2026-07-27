@@ -504,7 +504,7 @@ const Sprites = {
     const T = C.TILE, P2 = Math.PI * 2;
     ctx.save();
     ctx.translate(px, py);
-    if (t.teleporting) {
+    if (t.teleporting > 0) {
       ctx.globalAlpha = Math.max(0, Math.min(1, t.teleporting / 1.2));
       ctx.scale(1, 0.4 + 0.6 * ctx.globalAlpha);
     }

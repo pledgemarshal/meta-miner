@@ -88,6 +88,7 @@ const Player = {
     if (this.teleporting > 0) {
       this.teleporting -= dt;
       if (this.teleporting <= 0) {
+        this.teleporting = 0;      // exactly zero — a negative residue left the pod invisible
         const b = C.BUILDINGS.fuel;
         this.x = b.x + b.w + 1.5;
         this.y = -0.5;
