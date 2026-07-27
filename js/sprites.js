@@ -51,10 +51,12 @@ const Sprites = {
     this.magnetiteTex = [];
     this.sandTex = [];
     this.nukeTex = [];
+    this.gasTex = [];
     for (let b = 0; b < this.BANDS; b++) {
       this.magnetiteTex.push(this.makeMagnetite(b, S));
       this.sandTex.push(this.makeSand(b, S));
       this.nukeTex.push(this.makeNuke(b, S));
+      this.gasTex.push(this.makeGas(b, S));
     }
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
@@ -424,6 +426,50 @@ const Sprites = {
   },
 
   // mix() returns an rgb() string; this variant returns a hex for alpha()
+  // Gas pocket: no longer disguised as dirt — sickly green-stained soil with
+  // vapor bubbles seeping out, clearly visible and avoidable
+  makeGas(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    ctx.drawImage(this.dirt[band][4], 0, 0);
+    // Mottled toxic staining soaked through the soil
+    for (let i = 0; i < 7; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = S * (0.14 + this.rand() * 0.24);
+      const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
+      g.addColorStop(0, `rgba(110,205,80,${0.22 + this.rand() * 0.14})`);
+      g.addColorStop(1, 'rgba(80,160,60,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, S, S);
+    }
+    // Cracks venting vapor
+    ctx.strokeStyle = 'rgba(150,235,110,0.5)';
+    ctx.lineWidth = Math.max(1.5, S * 0.02);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const x = S * (0.2 + this.rand() * 0.6), y = S * (0.25 + this.rand() * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(x - S * 0.07, y + S * 0.06);
+      ctx.lineTo(x, y - S * 0.04);
+      ctx.lineTo(x + S * 0.06, y + S * 0.03);
+      ctx.stroke();
+    }
+    // Rising bubbles
+    for (let i = 0; i < 8; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 1.5 + this.rand() * 3.5;
+      ctx.strokeStyle = `rgba(170,245,130,${0.3 + this.rand() * 0.3})`;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Soft center glow so it reads even in deep darkness
+    const gl = ctx.createRadialGradient(S / 2, S / 2, S * 0.05, S / 2, S / 2, S * 0.55);
+    gl.addColorStop(0, 'rgba(140,230,100,0.14)');
+    gl.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gl;
+    ctx.fillRect(0, 0, S, S);
+    return c;
+  },
+
   // Magnetite lodestone: a jagged near-black iron mass shot through with
   // glowing violet crystal veins — clearly not a normal rock
   makeMagnetite(band, S) {

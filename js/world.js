@@ -1,5 +1,5 @@
 // World generation & tile queries.
-// Tile ids: 0 empty, 1 dirt, 2 stone (undrillable), 3 lava, 4 gas (invisible — draws as dirt),
+// Tile ids: 0 empty, 1 dirt, 2 stone (undrillable), 3 lava, 4 gas (visible green-stained soil),
 // then minerals, then artifacts.
 
 const World = {

@@ -74,7 +74,8 @@ const C = {
   // --- Hazards ---
   // Lava: visible red tiles from ~-3,000 ft. Two damage rolls (~58 and ~41 base ±2), radiator reduces.
   LAVA: { min: 3000, freq: 7, dmg1: 58, dmg2: 41, color: '#ff7a2f' },
-  // Gas: INVISIBLE (renders exactly like dirt) from ~-4,750 ft, ramping hard.
+  // Gas: visible green-stained tiles from ~-4,750 ft, ramping hard.
+  // (Originally invisible like the 2004 game — changed for fairness.)
   // Damage = ((depth + 3000) / 15) * (1 - radiator), ±1.
   GAS: { min: 4750, common: 4950, maxFreq: 60 },
   // Stones/boulders: undrillable, from ~-1,500 ft, more common with depth.

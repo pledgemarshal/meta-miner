@@ -903,7 +903,7 @@ const Game = {
         if (id === 1) tex = Sprites.dirt[band][v];
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
-        else if (id === 4) tex = Sprites.dirt[band][v];        // gas is indistinguishable from dirt
+        else if (id === 4) tex = Sprites.gasTex[band];         // gas is visible now — fairness over stealth
         else if (id === 6) { tex = Sprites.magnetiteTex[band]; this._magnetVis.push({ x, y }); }
         else if (id === 7) tex = Sprites.sandTex[band];
         else if (id === 8) tex = Sprites.nukeTex[band];
@@ -916,6 +916,12 @@ const Game = {
         if (id === 3) {
           const pulse = 0.25 + 0.2 * Math.sin(this.time * 3 + x * 1.7 + y * 2.3);
           ctx.fillStyle = `rgba(255,160,40,${pulse})`;
+          ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+        }
+        // Gas breathes a slow toxic-green pulse
+        if (id === 4) {
+          const pulse = 0.08 + 0.07 * Math.sin(this.time * 1.8 + x * 2.1 + y * 1.6);
+          ctx.fillStyle = `rgba(120,230,90,${pulse})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
         }
       }
@@ -2072,7 +2078,7 @@ const Game = {
       fuel: 'The reactor ran dry — and mining pods do not glide.',
       fall: 'The ground arrived faster than the brakes did.',
       lava: 'Molten rock: excellent for minerals, terrible for hulls.',
-      gas: 'An invisible gas pocket found its spark.',
+      gas: 'The green vapor was not a suggestion.',
       explosive: 'Standing next to your own blast radius is not recommended.',
       nuke: 'Fifty-megaton problems require more than a mining hull.',
       worm: 'It was hungry. You were there. The math was simple.',

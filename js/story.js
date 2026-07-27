@@ -46,7 +46,7 @@ const Story = {
     3500: {
       from: 'Mr. Natas — Natas Mining Corp.',
       portrait: 'natas',
-      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas no sensor can see.\n\nAlso: your altimeter is only rated to six thousand feet. Company policy is FIRM — do not dig past six thousand. Am I understood?',
+      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas — if you see green vapor seeping from the soil, do NOT put your drill in it.\n\nAlso: your altimeter is only rated to six thousand feet. Company policy is FIRM — do not dig past six thousand. Am I understood?',
     },
     4100: {
       from: 'Digging Pod #3422-2',
