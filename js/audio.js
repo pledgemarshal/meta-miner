@@ -255,4 +255,44 @@ const Audio = {
     this.treadNode.g.gain.value = 0.1 * intensity;
     this.treadNode.f.frequency.value = 180 + 160 * intensity;
   },
+
+  // Geyser roar while the water surge carries the pod: churning filtered noise
+  // with a fast watery warble on the cutoff
+  geyserNode: null,
+  setGeyser(intensity) {
+    if (intensity <= 0.02 || this.muted) {
+      if (this.geyserNode) {
+        try { this.geyserNode.src.stop(); this.geyserNode.lfo.stop(); } catch (e) {}
+        this.geyserNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.geyserNode) {
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) {
+        last = last * 0.7 + (Math.random() * 2 - 1) * 0.3;
+        d[i] = last * 2.4;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = 800; f.Q.value = 1.1;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      const lfo = this.ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 5.5;
+      const lfoG = this.ctx.createGain();
+      lfoG.gain.value = 320;
+      lfo.connect(lfoG); lfoG.connect(f.frequency);
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start(); lfo.start();
+      this.geyserNode = { src, f, g, lfo };
+    }
+    this.geyserNode.g.gain.value = 0.24 * intensity;
+  },
 };

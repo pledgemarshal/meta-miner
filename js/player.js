@@ -74,6 +74,7 @@ const Player = {
     Audio.stop('drill');
     Audio.setWind(0);
     Audio.setTreads(0);
+    Audio.setGeyser(0);
     Audio.thrustOff();
     Audio.play('explode');
     Particles.explosion(this.x, this.y, 1.8);
@@ -105,6 +106,9 @@ const Player = {
       }
       return;
     }
+
+    // Geyser roar plays exactly while the surge is carrying the pod
+    Audio.setGeyser(this.flush ? 1 : 0);
 
     // --- Being flushed through the tunnels by a steam surge ---
     if (this.flush) {

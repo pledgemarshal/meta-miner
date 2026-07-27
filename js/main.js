@@ -340,9 +340,9 @@ const Game = {
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeMag = 0;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
-    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.thrustOff(); return; }
+    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.thrustOff(); return; }
     // Shop menus pause the world (and the fuel drain), as in the original
-    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.thrustOff(); return; }
+    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.thrustOff(); return; }
 
     Player.update(dt, this.input);
     Boss.update(dt);
