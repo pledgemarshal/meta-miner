@@ -211,8 +211,10 @@ const Game = {
     }
 
     // Slow pursuit with a spectral wobble (ghosts ignore walls).
-    // The tomb guardian is twice as fast and hungrier.
-    const spd = g.cursed ? 2.6 : 1.3;
+    // The tomb guardian is twice as fast and hungrier. Both cower in the
+    // flashlight beam: 25% slower while lit.
+    let spd = g.cursed ? 2.6 : 1.3;
+    if (g.lit) spd *= 0.75;
     const dx = Player.x - g.x, dy = Player.y - g.y;
     const dist = Math.hypot(dx, dy) || 1;
     g.x += (dx / dist) * spd * dt + Math.sin(g.age * 2.1 + g.seed) * 0.4 * dt;
