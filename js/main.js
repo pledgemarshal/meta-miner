@@ -1281,52 +1281,123 @@ const Game = {
     for (const m of this.nukeClouds) {
       const cx = (m.x - this.cam.x) * T;
       const baseY = (m.y - this.cam.y) * T;
-      if (cx < -T * 10 || cx > C.VIEW_W + T * 10 || baseY < -T * 14 || baseY > C.VIEW_H + T * 14) continue;
+      if (cx < -T * 12 || cx > C.VIEW_W + T * 12 || baseY < -T * 16 || baseY > C.VIEW_H + T * 16) continue;
       const t = m.age / C.NUKE.cloudLife;                       // 0..1 lifetime
-      const heat = Math.max(0, 1 - m.age / 2.2);                // orange fire fading to smoke
-      const fade = t > 0.7 ? (1 - t) / 0.3 : 1;                 // dissipate over the last ~2.4 s
-      const rise = Math.min(1, m.age / 2.8);                    // column climbs then hangs
-      const capY = baseY - rise * T * 5.2;
-      const billow = i => 0.85 + 0.3 * Math.sin(this.time * 1.7 + m.seed + i * 2.1);
+      const heat = Math.max(0, 1 - m.age / 2.4);                // orange fire fading to smoke
+      const fade = t > 0.68 ? (1 - t) / 0.32 : 1;               // dissipate over the last ~2.5 s
+      const rise = 1 - Math.pow(1 - Math.min(1, m.age / 3), 2); // fast climb, easing to a hang
+      const capY = baseY - rise * T * 5.6;
+      const capW = T * (1.9 + t * 1.4 + rise * 0.5);            // cap keeps spreading
+      // Deterministic per-puff variation + slow roiling animation
+      const h01 = i => (Math.sin(m.seed * 12.9898 + i * 78.233) * 43758.5453) % 1 * 0.5 + 0.5;
+      const billow = i => 0.82 + 0.3 * Math.sin(this.time * 1.5 + m.seed + i * 2.1) + h01(i) * 0.12;
+      // One shaded smoke puff: lit from the fireball early, from above later,
+      // with a heavy dark underside so the cloud reads as a volume
+      const puff = (px, py, r, shade, hotness) => {
+        const hl = 0.32 * r;
+        const g = ctx.createRadialGradient(px - hl * 0.4, py - hl, r * 0.12, px, py, r);
+        const base = 72 * shade;
+        const rr = Math.round(base + 18 + (185 - base) * hotness);
+        const gg2 = Math.round(base + 12 + (92 - base) * hotness);
+        const bb = Math.round(base + 6 - 12 * hotness);
+        g.addColorStop(0, `rgba(${rr + 38},${gg2 + 32},${bb + 30},0.58)`);
+        g.addColorStop(0.55, `rgba(${rr},${gg2},${bb},0.5)`);
+        g.addColorStop(0.85, `rgba(${Math.round(rr * 0.35)},${Math.round(gg2 * 0.35)},${Math.round(bb * 0.4)},0.45)`);
+        g.addColorStop(1, 'rgba(12,9,8,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+      };
 
       ctx.save();
-      ctx.globalAlpha = fade * 0.85;
+      ctx.globalAlpha = fade * 0.92;
 
-      // Stem: overlapping smoke puffs from ground to cap
-      for (let i = 0; i < 7; i++) {
-        const f = i / 6;
-        const py = baseY + (capY - baseY) * f;
-        const r = T * (1.15 - f * 0.35) * billow(i);
-        const sway = Math.sin(this.time * 1.2 + m.seed + f * 3) * T * 0.18 * f;
-        const g = ctx.createRadialGradient(cx + sway, py, r * 0.15, cx + sway, py, r);
-        const smoke = 110 - f * 20;
-        g.addColorStop(0, `rgba(${smoke + 40 + 145 * heat},${smoke + 30 + 60 * heat},${smoke - 10},${0.5})`);
-        g.addColorStop(1, 'rgba(60,55,50,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(cx + sway - r, py - r, r * 2, r * 2);
-      }
-      // Cap: a wide crown of puffs, slowly spreading as it ages
-      const capW = T * (2.1 + t * 1.1);
+      // Dark mass behind the whole cloud so the puffs read against a silhouette
+      const sil = ctx.createRadialGradient(cx, capY + T * 0.6, T * 0.4, cx, capY + T * 0.8, T * 3.6);
+      sil.addColorStop(0, 'rgba(24,18,15,0.62)');
+      sil.addColorStop(0.7, 'rgba(20,15,13,0.4)');
+      sil.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sil;
+      ctx.fillRect(cx - T * 3.6, capY - T * 3, T * 7.2, T * 7.6);
+      const sil2 = ctx.createRadialGradient(cx, (baseY + capY) / 2, T * 0.2, cx, (baseY + capY) / 2, T * 2.2);
+      sil2.addColorStop(0, 'rgba(24,18,15,0.55)');
+      sil2.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sil2;
+      ctx.fillRect(cx - T * 2.2, baseY - T * 6.5, T * 4.4, Math.abs(baseY - capY) + T * 3);
+
+      // Ground surge: a low, wide dust roll hugging the crater
+      const surgeW = T * (2.6 + Math.min(1, m.age / 1.5) * 2.2);
       for (let i = -3; i <= 3; i++) {
-        const px = cx + (i / 3) * capW * 0.8;
-        const lift = -Math.cos((i / 3) * Math.PI * 0.5) * T * 0.9;
-        const r = T * (1.25 - Math.abs(i) * 0.16) * billow(i + 10);
-        const g = ctx.createRadialGradient(px, capY + lift, r * 0.15, px, capY + lift, r);
-        const smoke = 120;
-        g.addColorStop(0, `rgba(${smoke + 30 + 135 * heat},${smoke + 20 + 55 * heat},${smoke - 15},0.55)`);
-        g.addColorStop(1, 'rgba(70,65,58,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(px - r, capY + lift - r, r * 2, r * 2);
+        const px = cx + (i / 3) * surgeW * 0.8;
+        const r = T * (0.75 - Math.abs(i) * 0.1) * billow(i + 30);
+        puff(px, baseY + T * 0.15 - r * 0.2, r, 0.75, heat * 0.25);
       }
-      // Hot glowing core while young
+
+      // Stem: tapered turbulent column — wider at the base, necking up to the cap
+      for (let i = 0; i < 9; i++) {
+        const f = i / 8;
+        const py = baseY - T * 0.3 + (capY - baseY) * f;
+        const taper = 1.05 - f * 0.42;
+        const sway = Math.sin(this.time * 1.1 + m.seed + f * 3.2) * T * 0.22 * f;
+        // paired side puffs give the column a churning edge
+        for (const s of [-1, 0, 1]) {
+          const r = T * taper * (s === 0 ? 0.62 : 0.42) * billow(i * 3 + s);
+          puff(cx + sway + s * T * taper * 0.38, py, r, 0.85 - f * 0.15, heat * (0.25 + f * 0.5));
+        }
+      }
+
+      // Condensation skirt: the flat ring partway up the stem — the signature
+      const skirtY = baseY + (capY - baseY) * 0.55;
+      ctx.globalAlpha = fade * 0.5;
+      ctx.beginPath();
+      ctx.ellipse(cx + Math.sin(this.time * 1.1 + m.seed + 1.7) * T * 0.1, skirtY,
+        T * (1.5 + t * 0.5) * (0.9 + 0.08 * Math.sin(this.time * 2 + m.seed)), T * 0.34, 0, 0, Math.PI * 2);
+      const sg = ctx.createRadialGradient(cx, skirtY - T * 0.2, T * 0.2, cx, skirtY, T * 1.9);
+      sg.addColorStop(0, 'rgba(190,182,170,0.5)');
+      sg.addColorStop(0.8, 'rgba(120,112,104,0.24)');
+      sg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sg;
+      ctx.fill();
+      ctx.globalAlpha = fade * 0.92;
+
+      // Cap: dome of big rolling puffs...
+      for (let i = -4; i <= 4; i++) {
+        const f = i / 4;
+        const px = cx + f * capW * 0.82;
+        const lift = -Math.cos(f * Math.PI * 0.5) * T * 1.05;
+        const r = T * (1.3 - Math.abs(f) * 0.42) * billow(i + 10);
+        puff(px, capY + lift, r, 1, heat * (0.55 + 0.35 * (1 - Math.abs(f))));
+      }
+      // ...with a darker under-curl rolling back beneath the rim
+      for (let i = -3; i <= 3; i++) {
+        const f = i / 3;
+        const px = cx + f * capW * 0.68;
+        const r = T * (0.62 - Math.abs(f) * 0.14) * billow(i + 20);
+        puff(px, capY + T * 0.55 - Math.abs(f) * T * 0.12, r, 0.55, heat * 0.3);
+      }
+      // Crown puffs boiling out of the top
+      for (let i = -1; i <= 1; i++) {
+        const px = cx + i * capW * 0.3 + Math.sin(this.time * 1.4 + m.seed + i * 2) * T * 0.12;
+        const r = T * (0.78 - Math.abs(i) * 0.14) * billow(i + 40);
+        puff(px, capY - T * (1.1 - Math.abs(i) * 0.3), r, 1.05, heat * 0.7);
+      }
+
+      // Fireball glow inside the young cap, bleeding through the smoke
       if (heat > 0.02) {
         ctx.globalCompositeOperation = 'lighter';
-        const g = ctx.createRadialGradient(cx, capY, T * 0.2, cx, capY, T * 2.4);
-        g.addColorStop(0, `rgba(255,190,80,${0.5 * heat})`);
-        g.addColorStop(0.5, `rgba(255,120,40,${0.25 * heat})`);
+        const g = ctx.createRadialGradient(cx, capY + T * 0.2, T * 0.15, cx, capY + T * 0.2, T * 2.6);
+        g.addColorStop(0, `rgba(255,215,120,${0.55 * heat})`);
+        g.addColorStop(0.4, `rgba(255,130,45,${0.32 * heat})`);
         g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(cx - T * 2.4, capY - T * 2.4, T * 4.8, T * 4.8);
+        ctx.fillRect(cx - T * 2.6, capY - T * 2.4, T * 5.2, T * 5.2);
+        // Embers flickering up the stem
+        const eg = ctx.createRadialGradient(cx, baseY - T * 1.2, T * 0.1, cx, baseY - T * 1.2, T * 1.5);
+        eg.addColorStop(0, `rgba(255,150,50,${0.3 * heat})`);
+        eg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = eg;
+        ctx.fillRect(cx - T * 1.5, baseY - T * 2.7, T * 3, T * 3);
         ctx.globalCompositeOperation = 'source-over';
       }
       ctx.restore();
@@ -1672,43 +1743,94 @@ const Game = {
     ctx.fillRect(gx - T * 1.3, gy - T * 1.3, T * 2.6, T * 2.6);
     ctx.globalCompositeOperation = 'source-over';
 
-    // Bandage-wrapped body tapering into tattered linen rags
+    // Mummy body: a dark spectral core glimpsed between stacked bandage
+    // wraps, ending not in a hem but in strips unwinding into thin air
     const lx = Math.cos(lean) * T * 0.05;
-    ctx.fillStyle = linen;
+    const bodyTop = gy - T * 0.02, bodyBot = gy + T * 0.4;
+    const halfAt = f => T * (0.3 - f * 0.09);                  // torso tapers downward
+    // Void core, fading out below — the wraps are all that holds it together
+    const vg = ctx.createLinearGradient(gx, bodyTop, gx, bodyBot + T * 0.18);
+    vg.addColorStop(0, `rgba(${18 + 50 * burn},12,8,0.85)`);
+    vg.addColorStop(0.75, `rgba(${14 + 40 * burn},9,6,0.5)`);
+    vg.addColorStop(1, 'rgba(8,5,4,0)');
+    ctx.fillStyle = vg;
     ctx.beginPath();
-    ctx.moveTo(gx + lx - T * 0.27, gy + T * 0.02);
-    ctx.lineTo(gx + lx + T * 0.27, gy + T * 0.02);
-    const bot = gy + T * 0.5;
-    ctx.lineTo(gx + lx + T * 0.24, bot - T * 0.14);
-    const rags = 5;
-    for (let i = rags; i >= 0; i--) {
-      const rxp = gx + lx - T * 0.24 + (i / rags) * T * 0.48;
-      const drop = bot + Math.sin(g.age * 7 + i * 2.4) * T * 0.05 + (i % 2 ? -T * 0.12 : T * 0.03);
-      ctx.lineTo(rxp + T * 0.045, drop);
-      ctx.lineTo(rxp - T * 0.02, drop - T * 0.09);
-    }
+    ctx.moveTo(gx + lx - halfAt(0), bodyTop);
+    ctx.quadraticCurveTo(gx + lx - halfAt(0.5) - T * 0.03, gy + T * 0.2, gx + lx - halfAt(1), bodyBot);
+    ctx.lineTo(gx + lx + halfAt(1), bodyBot);
+    ctx.quadraticCurveTo(gx + lx + halfAt(0.5) + T * 0.03, gy + T * 0.2, gx + lx + halfAt(0), bodyTop);
     ctx.closePath();
     ctx.fill();
-    // Wrap seams
-    ctx.strokeStyle = `rgba(${Math.round(160 - 90 * burn)},${Math.round(146 - 85 * burn)},${Math.round(118 - 70 * burn)},0.7)`;
-    ctx.lineWidth = Math.max(1, T * 0.02);
-    for (let i = 0; i < 3; i++) {
-      const wy = gy + T * (0.08 + i * 0.13);
+    // Grave-light leaking through the gaps in the wrappings
+    ctx.globalCompositeOperation = 'lighter';
+    const leak = ctx.createRadialGradient(gx + lx, gy + T * 0.18, T * 0.02, gx + lx, gy + T * 0.18, T * 0.3);
+    leak.addColorStop(0, `rgba(255,205,95,${0.3 * (1 - burn * 0.7)})`);
+    leak.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = leak;
+    ctx.fillRect(gx + lx - T * 0.3, gy - T * 0.12, T * 0.6, T * 0.6);
+    ctx.globalCompositeOperation = 'source-over';
+    // Stacked bandage bands — sagging strips with dark gaps between them,
+    // frayed ends poking out on alternating sides
+    const BANDS = 5;
+    for (let i = 0; i < BANDS; i++) {
+      const f = (i + 0.5) / BANDS;
+      const wy = bodyTop + (bodyBot - bodyTop) * f + Math.sin(g.age * 3 + i * 1.9) * T * 0.012;
+      const hw = halfAt(f) + T * 0.015;
+      const bh = T * 0.062;
+      const sag = (i % 2 ? 1 : -1) * T * 0.025;
+      ctx.fillStyle = linen;
       ctx.beginPath();
-      ctx.moveTo(gx + lx - T * 0.25, wy);
-      ctx.quadraticCurveTo(gx + lx, wy + T * 0.04, gx + lx + T * 0.25, wy - T * 0.02);
+      ctx.moveTo(gx + lx - hw, wy - bh / 2 + sag);
+      ctx.quadraticCurveTo(gx + lx, wy - bh / 2 - sag, gx + lx + hw, wy - bh / 2 + sag * 0.6);
+      ctx.lineTo(gx + lx + hw, wy + bh / 2 + sag * 0.6);
+      ctx.quadraticCurveTo(gx + lx, wy + bh / 2 - sag, gx + lx - hw, wy + bh / 2 + sag);
+      ctx.closePath();
+      ctx.fill();
+      // Shadowed lower edge so each wrap reads as its own strip
+      ctx.strokeStyle = `rgba(${Math.round(150 - 90 * burn)},${Math.round(135 - 80 * burn)},${Math.round(105 - 65 * burn)},0.55)`;
+      ctx.lineWidth = Math.max(1, T * 0.014);
+      ctx.beginPath();
+      ctx.moveTo(gx + lx - hw, wy + bh / 2 + sag);
+      ctx.quadraticCurveTo(gx + lx, wy + bh / 2 - sag, gx + lx + hw, wy + bh / 2 + sag * 0.6);
+      ctx.stroke();
+      // Frayed tab sticking out
+      const s = i % 2 ? 1 : -1;
+      ctx.fillStyle = linen;
+      ctx.beginPath();
+      ctx.moveTo(gx + lx + s * hw, wy - bh / 2);
+      ctx.lineTo(gx + lx + s * (hw + T * 0.05), wy + Math.sin(g.age * 5 + i) * T * 0.02);
+      ctx.lineTo(gx + lx + s * hw, wy + bh / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // One diagonal cross-wrap over the chest
+    ctx.strokeStyle = linen;
+    ctx.lineWidth = Math.max(1.5, T * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(gx + lx - halfAt(0.1), bodyTop + T * 0.05);
+    ctx.lineTo(gx + lx + halfAt(0.7), gy + T * 0.3);
+    ctx.stroke();
+    // Unwinding strips where legs should be: broad bandage ribbons drifting
+    // apart, each tapering into a wisp
+    ctx.lineCap = 'round';
+    for (const [sx0, len, ph] of [[-0.7, 0.42, 0], [0.05, 0.55, 2.1], [0.75, 0.36, 4.2]]) {
+      const startX = gx + lx + sx0 * halfAt(1) * 0.9;
+      const wave = Math.sin(g.age * 2.6 + ph);
+      ctx.strokeStyle = `rgba(${Math.round(228 - 140 * burn)},${Math.round(216 - 145 * burn)},${Math.round(188 - 140 * burn)},${0.8 - Math.abs(sx0) * 0.25})`;
+      ctx.lineWidth = Math.max(2, T * 0.065);
+      ctx.beginPath();
+      ctx.moveTo(startX, bodyBot - T * 0.04);
+      ctx.quadraticCurveTo(
+        startX + wave * T * 0.16 + sx0 * T * 0.1, bodyBot + T * len * 0.55,
+        startX - wave * T * 0.18 + sx0 * T * 0.2 - lx * 2, bodyBot + T * len + Math.sin(g.age * 3.4 + ph) * T * 0.05);
+      ctx.stroke();
+      // Tapering tip
+      ctx.lineWidth = Math.max(1, T * 0.028);
+      ctx.beginPath();
+      ctx.moveTo(startX - wave * T * 0.18 + sx0 * T * 0.2 - lx * 2, bodyBot + T * len + Math.sin(g.age * 3.4 + ph) * T * 0.05);
+      ctx.lineTo(startX - wave * T * 0.3 + sx0 * T * 0.26 - lx * 2, bodyBot + T * (len + 0.12) + Math.cos(g.age * 3 + ph) * T * 0.05);
       ctx.stroke();
     }
-    // A loose bandage streaming behind
-    ctx.strokeStyle = linen;
-    ctx.lineWidth = Math.max(1.5, T * 0.045);
-    ctx.beginPath();
-    ctx.moveTo(gx + lx - T * 0.24, gy + T * 0.18);
-    ctx.quadraticCurveTo(
-      gx - T * 0.55 - Math.cos(g.age * 1.5) * T * 0.12,
-      gy + T * 0.1 + Math.sin(g.age * 4) * T * 0.12,
-      gx - T * (0.6 + 0.12 * Math.sin(g.age * 2.2)), gy + T * 0.34);
-    ctx.stroke();
 
     // Broad golden collar
     ctx.fillStyle = goldDim;
