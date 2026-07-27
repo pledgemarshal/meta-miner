@@ -283,18 +283,43 @@ const Player = {
       this.damage(roll(C.LAVA.dmg1), 'lava');
       if (!this.dead) this.damage(roll(C.LAVA.dmg2), 'lava');
     } else if (kind.steam) {
-      // The pressurized pool bursts and flushes the pod back through the open
-      // tunnel — away from the pocket, steering around corners, for ~200 ft.
+      // Popping any tile bursts the WHOLE connected pool; the surge distance
+      // scales with the pool's size — 250 ft per tile of its longest side.
+      const group = [[d.x, d.y]];
+      const seenT = new Set([d.x + ',' + d.y]);
+      const stack = [[d.x, d.y]];
+      while (stack.length) {
+        const [gx, gy] = stack.pop();
+        for (const [nx, ny] of [[gx + 1, gy], [gx - 1, gy], [gx, gy + 1], [gx, gy - 1]]) {
+          const key = nx + ',' + ny;
+          if (seenT.has(key)) continue;
+          if (World.get(nx, ny) === World.kindIndex.steam) {
+            seenT.add(key);
+            group.push([nx, ny]);
+            stack.push([nx, ny]);
+            World.clear(nx, ny);
+          }
+        }
+      }
+      let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+      for (const [gx, gy] of group) {
+        minX = Math.min(minX, gx); maxX = Math.max(maxX, gx);
+        minY = Math.min(minY, gy); maxY = Math.max(maxY, gy);
+      }
+      const dim = Math.min(4, Math.max(maxX - minX + 1, maxY - minY + 1));
+      const surgeFt = dim * C.STEAM.boostPerSizeFt;
       Audio.play('steam');
-      Game.shake(0.5);
-      Game.toast('Steam pocket — pressure surge!');
+      Game.shake(0.35 + dim * 0.15);
+      Game.toast(`Steam pocket — ${surgeFt.toLocaleString()} ft pressure surge!`);
       let fdx = 0, fdy = 0;
       if (d.dir === 'left') fdx = 1;
       else if (d.dir === 'right') fdx = -1;
       else fdy = -1;
-      this.flush = { dx: fdx, dy: fdy, lastDx: fdx, remaining: C.STEAM.boostFt };
+      this.flush = { dx: fdx, dy: fdy, lastDx: fdx, remaining: surgeFt };
       this.fallStartY = null;
-      Particles.burst(d.x + 0.5, d.y + 0.5, 26, { color: '#7fd4ef', speed: 5, life: 0.6, size: 0.12, vx: fdx * 7, vy: fdy * 7, gravity: 8 });
+      for (const [gx, gy] of group) {
+        Particles.burst(gx + 0.5, gy + 0.5, 8, { color: '#7fd4ef', speed: 4.5, life: 0.55, size: 0.11, vx: fdx * 5, vy: fdy * 5, gravity: 8 });
+      }
       Particles.burst(d.x + 0.5, d.y + 0.3, 14, { color: '#e8f8ff', speed: 2.5, life: 0.9, size: 0.16, vx: fdx * 4, vy: fdy * 4, gravity: -2 });
     } else if (kind.gas) {
       // Invisible gas pocket: detonates like dynamite with a green blast.

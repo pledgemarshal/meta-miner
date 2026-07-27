@@ -123,18 +123,22 @@ const World = {
       }
     }
 
-    // Steam pockets: roundish pools ~4x4 tiles, stamped as circles after the
-    // main pass so the whole pool exists regardless of scan order
+    // Steam pockets: pools sized 1x1 up to 4x4, stamped after the main pass so
+    // each pool exists whole regardless of scan order
     const minRow = C.feetToRow(C.STEAM.min);
-    const pockets = Math.floor((bottom - minRow) / 16);
+    const pockets = Math.floor((bottom - minRow) / 14);
     for (let n = 0; n < pockets; n++) {
+      const size = 1 + Math.floor(rand() * 4);
       const cy = minRow + 2 + Math.floor(rand() * (bottom - minRow - 8));
-      const cx = 3 + Math.floor(rand() * (W - 6));
-      for (let y = cy - 2; y <= cy + 1; y++) {
-        for (let x = cx - 2; x <= cx + 1; x++) {
+      const cx = 2 + Math.floor(rand() * (W - 4 - size));
+      for (let y = cy; y < cy + size; y++) {
+        for (let x = cx; x < cx + size; x++) {
           if (x <= 0 || x >= W - 1 || y <= 2 || y >= bottom - 1) continue;
-          const ddx = x - (cx - 0.5), ddy = y - (cy - 0.5);
-          if (ddx * ddx + ddy * ddy > 4.4) continue;      // clip corners → round pool
+          if (size === 4) {
+            // The big pools get clipped corners so they read as round
+            const ddx = x - (cx + 1.5), ddy = y - (cy + 1.5);
+            if (ddx * ddx + ddy * ddy > 4.4) continue;
+          }
           if (this.grid[y * W + x] === 2) continue;        // leave boulders be
           this.grid[y * W + x] = 5;
         }

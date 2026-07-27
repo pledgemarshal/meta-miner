@@ -75,10 +75,11 @@ const C = {
   GAS: { min: 4750, common: 4950, maxFreq: 60 },
   // Stones/boulders: undrillable, from ~-1,500 ft, more common with depth.
   STONE: { min: 1500, freq: 22 },
-  // Steam pockets: roundish ~4x4 pools of boiling groundwater from ~-800 ft.
-  // Drilling one flushes the pod 200 ft through the open tunnel, steering
-  // around corners. No damage — pure plumbing.
-  STEAM: { min: 800, boostFt: 200, color: '#9fd8e8' },
+  // Steam pockets: pools of boiling groundwater from ~-800 ft, sized 1x1 up to
+  // roundish 4x4. Drilling any tile pops the whole pool and flushes the pod
+  // through the open tunnel, steering around corners — 250 ft per tile of pool
+  // size (1x1: 250, 2x2: 500, 3x3: 750, 4x4: 1,000). No damage — pure plumbing.
+  STEAM: { min: 800, boostPerSizeFt: 250, color: '#9fd8e8' },
   // Gas can hurt badly but never one-shot: capped at this fraction of max hull
   GAS_DMG_CAP: 0.7,
 
