@@ -75,9 +75,10 @@ const C = {
   GAS: { min: 4750, common: 4950, maxFreq: 60 },
   // Stones/boulders: undrillable, from ~-1,500 ft, more common with depth.
   STONE: { min: 1500, freq: 22 },
-  // Steam pockets: boiling groundwater from ~-800 ft. Drilling one erupts a
-  // geyser that launches the pod ~100 ft upward. No damage — pure physics.
-  STEAM: { min: 800, freq: 5, boostFt: 100, color: '#9fd8e8' },
+  // Steam pockets: roundish ~4x4 pools of boiling groundwater from ~-800 ft.
+  // Drilling one flushes the pod 200 ft through the open tunnel, steering
+  // around corners. No damage — pure plumbing.
+  STEAM: { min: 800, boostFt: 200, color: '#9fd8e8' },
   // Gas can hurt badly but never one-shot: capped at this fraction of max hull
   GAS_DMG_CAP: 0.7,
 

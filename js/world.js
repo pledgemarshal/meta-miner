@@ -84,12 +84,6 @@ const World = {
           if (r < acc) { this.grid[i] = 2; continue; }
         }
 
-        // Steam pockets from ~-800 ft
-        if (feet >= C.STEAM.min) {
-          acc += C.STEAM.freq;
-          if (r < acc) { this.grid[i] = 5; continue; }
-        }
-
         // Lava pockets from ~-3,000 ft
         if (feet >= C.LAVA.min) {
           acc += C.LAVA.freq * (0.5 + 0.5 * depthT);
@@ -126,6 +120,24 @@ const World = {
         if (placed) continue;
 
         this.grid[i] = 1;   // dirt
+      }
+    }
+
+    // Steam pockets: roundish pools ~4x4 tiles, stamped as circles after the
+    // main pass so the whole pool exists regardless of scan order
+    const minRow = C.feetToRow(C.STEAM.min);
+    const pockets = Math.floor((bottom - minRow) / 16);
+    for (let n = 0; n < pockets; n++) {
+      const cy = minRow + 2 + Math.floor(rand() * (bottom - minRow - 8));
+      const cx = 3 + Math.floor(rand() * (W - 6));
+      for (let y = cy - 2; y <= cy + 1; y++) {
+        for (let x = cx - 2; x <= cx + 1; x++) {
+          if (x <= 0 || x >= W - 1 || y <= 2 || y >= bottom - 1) continue;
+          const ddx = x - (cx - 0.5), ddy = y - (cy - 0.5);
+          if (ddx * ddx + ddy * ddy > 4.4) continue;      // clip corners → round pool
+          if (this.grid[y * W + x] === 2) continue;        // leave boulders be
+          this.grid[y * W + x] = 5;
+        }
       }
     }
   },

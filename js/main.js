@@ -67,7 +67,7 @@ const Game = {
     C.TEX = Math.min(256, C.TILE * 2);
     this.canvas.width = w;
     this.canvas.height = h;
-    this._caveA = this._caveB = this._lightC = null;   // offscreen layers must match the viewport
+    this._caveA = this._caveB = this._lightC = this._steamA = null;   // offscreen layers must match the viewport
     Sprites.init();
   },
 
@@ -487,6 +487,7 @@ const Game = {
     const x0 = Math.floor(this.cam.x), x1 = Math.ceil(this.cam.x + C.VIEW_W / T);
     const y0 = Math.max(0, Math.floor(this.cam.y)), y1 = Math.min(C.WORLD_H - 1, Math.ceil(this.cam.y + C.VIEW_H / T));
     this._caveTiles = [];
+    this._steamTiles = [];
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
@@ -509,12 +510,17 @@ const Game = {
           continue;
         }
         const v = World.variant[y * C.WORLD_W + x];
+        if (id === 5) {
+          // Water pools: dirt behind, round blobs drawn in drawSteamPass()
+          ctx.drawImage(Sprites.dirt[band][v % Sprites.VARIANTS], sx, sy, T + 0.5, T + 0.5);
+          this._steamTiles.push({ x, y });
+          continue;
+        }
         let tex;
         if (id === 1) tex = Sprites.dirt[band][v];
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
         else if (id === 4) tex = Sprites.dirt[band][v];        // gas is indistinguishable from dirt
-        else if (id === 5) tex = Sprites.steamBase;
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
@@ -526,17 +532,12 @@ const Game = {
           ctx.fillStyle = `rgba(255,160,40,${pulse})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
         }
-        // Steam pockets churn with a cool shimmer
-        if (id === 5) {
-          const pulse = 0.12 + 0.12 * Math.sin(this.time * 4.5 + x * 2.3 + y * 1.4);
-          ctx.fillStyle = `rgba(200,245,255,${pulse})`;
-          ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
-        }
       }
     }
 
     this.drawSoilClouds(ctx, x0, x1, y0, y1);
     this.drawCavePass(ctx);
+    this.drawSteamPass(ctx);
 
     // Surface grass line
     if (this.cam.y < 2) {
@@ -566,6 +567,48 @@ const Game = {
       }
       ctx.restore();
     }
+  },
+
+  // Water pools render as a union of overlapping circles through an offscreen
+  // mask, so a pool reads as one rounded body of water instead of square tiles.
+  drawSteamPass(ctx) {
+    const tiles = this._steamTiles;
+    if (!tiles || !tiles.length) return;
+    const T = C.TILE;
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    if (!this._steamA || this._steamA.width !== W || this._steamA.height !== H) {
+      this._steamA = document.createElement('canvas');
+      this._steamA.width = W;
+      this._steamA.height = H;
+    }
+    const a = this._steamA.getContext('2d');
+    a.globalCompositeOperation = 'source-over';
+    a.clearRect(0, 0, W, H);
+    a.fillStyle = '#000';
+    for (const t of tiles) {
+      const sx = (t.x + 0.5 - this.cam.x) * T;
+      const sy = (t.y + 0.5 - this.cam.y) * T;
+      a.beginPath();
+      a.ellipse(sx, sy, T * 0.72, T * 0.72, 0, 0, Math.PI * 2);
+      a.fill();
+    }
+    // Water texture, world-anchored with a slow vertical slosh
+    const pat = a.createPattern(Sprites.steamBase, 'repeat');
+    if (pat && pat.setTransform) {
+      const s = T / C.TEX;
+      pat.setTransform(new DOMMatrix([s, 0, 0, s, -this.cam.x * T, -this.cam.y * T + Math.sin(this.time * 1.8) * T * 0.05]));
+    }
+    a.globalCompositeOperation = 'source-in';
+    a.fillStyle = pat || '#2e88a0';
+    a.fillRect(0, 0, W, H);
+
+    ctx.drawImage(this._steamA, 0, 0);
+    // Gentle churning sheen
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.07 + 0.06 * Math.sin(this.time * 4);
+    ctx.drawImage(this._steamA, 0, 0);
+    ctx.restore();
   },
 
   // Large soft tonal clouds anchored to world coordinates. They span several

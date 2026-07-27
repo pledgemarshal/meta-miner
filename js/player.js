@@ -34,6 +34,7 @@ const Player = {
     this.fallStartY = null;
     this.treadPhase = 0;
     this.maxDepth = 0;
+    this.flush = null;
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -69,6 +70,7 @@ const Player = {
     if (this.dead) return;
     this.dead = true;
     this.drilling = null;
+    this.flush = null;
     Audio.stop('drill');
     Audio.setWind(0);
     Audio.setTreads(0);
@@ -102,6 +104,52 @@ const Player = {
         Particles.burst(this.x, this.y, 20, { color: '#7de0ff', speed: 5, life: 0.7, size: 0.1, glow: true });
       }
       return;
+    }
+
+    // --- Being flushed through the tunnels by a steam surge ---
+    if (this.flush) {
+      const f = this.flush;
+      const speed = 15;
+      const px2 = Math.floor(this.x), py2 = Math.floor(this.y);
+      // Steer along the open passage: turn at corners instead of stopping
+      const aheadX = Math.floor(this.x + f.dx * 0.7), aheadY = Math.floor(this.y + f.dy * 0.7);
+      if (World.isSolid(aheadX, aheadY)) {
+        let turns;
+        if (f.dx !== 0) { f.lastDx = f.dx; turns = [[0, -1], [0, 1]]; }
+        else if (f.lastDx) turns = [[f.lastDx, 0], [-f.lastDx, 0]];
+        else turns = [[1, 0], [-1, 0]];
+        let turned = false;
+        for (const [tx2, ty2] of turns) {
+          if (!World.isSolid(px2 + tx2, py2 + ty2)) { f.dx = tx2; f.dy = ty2; turned = true; break; }
+        }
+        if (!turned) this.flush = null;                 // dead end — surge dissipates
+      }
+      if (this.flush) {
+        this.vx = f.dx * speed;
+        this.vy = f.dy * speed;
+        // Ride the middle of the passage for clean cornering
+        if (f.dx !== 0) this.y += (py2 + 0.5 - this.y) * Math.min(1, dt * 8);
+        else this.x += (px2 + 0.5 - this.x) * Math.min(1, dt * 8);
+        this.moveAndCollide(dt);
+        f.remaining -= speed * C.FEET_PER_TILE * dt;
+        // Spray carrying the pod along
+        if (Math.random() < dt * 50) {
+          Particles.spawn({
+            x: this.x - f.dx * 0.5 + (Math.random() - 0.5) * 0.4,
+            y: this.y - f.dy * 0.5 + (Math.random() - 0.5) * 0.4,
+            vx: -f.dx * 3 + (Math.random() - 0.5) * 2,
+            vy: -f.dy * 3 + (Math.random() - 0.5) * 2,
+            life: 0.5, size: 0.11,
+            color: Math.random() < 0.6 ? '#7fd4ef' : '#e8f8ff', gravity: 6,
+          });
+        }
+        if (f.remaining <= 0 || this.y < -1) this.flush = null;
+        if (!this.flush) { this.vy = Math.min(this.vy, 0); this.vx *= 0.4; this.fallStartY = null; }
+        Audio.setWind(0);
+        Audio.setTreads(0);
+        this.maxDepth = Math.max(this.maxDepth || 0, this.depthFeet());
+        return;
+      }
     }
 
     // --- Drilling in progress: pod eases into the target tile ---
@@ -235,26 +283,19 @@ const Player = {
       this.damage(roll(C.LAVA.dmg1), 'lava');
       if (!this.dead) this.damage(roll(C.LAVA.dmg2), 'lava');
     } else if (kind.steam) {
-      // Boiling water erupts from the pocket. Drilled from above: geyser launch
-      // (~100 ft up). Drilled from the side: the jet blasts the pod sideways.
-      const launch = Math.sqrt(2 * C.GRAVITY * (C.STEAM.boostFt / C.FEET_PER_TILE));
+      // The pressurized pool bursts and flushes the pod back through the open
+      // tunnel — away from the pocket, steering around corners, for ~200 ft.
       Audio.play('steam');
       Game.shake(0.5);
-      if (d.dir === 'left' || d.dir === 'right') {
-        const push = d.dir === 'left' ? 1 : -1;     // shoved away from the pocket
-        this.vx = push * launch;
-        this.vy = Math.min(this.vy, -2);            // slight lift off the floor
-        Game.toast('Steam pocket — side blast!');
-        Particles.burst(d.x + 0.5, d.y + 0.5, 26, { color: '#7fd4ef', speed: 5, life: 0.6, size: 0.12, vx: push * 7, gravity: 8 });
-        Particles.burst(d.x + 0.5, d.y + 0.3, 14, { color: '#e8f8ff', speed: 2.5, life: 0.9, size: 0.16, vx: push * 4, gravity: -2 });
-      } else {
-        Game.toast('Steam pocket — geyser launch!');
-        this.vy = -launch;
-        Particles.burst(d.x + 0.5, d.y + 0.5, 28, { color: '#7fd4ef', speed: 7, life: 0.6, size: 0.12, gravity: 10 });
-        Particles.burst(d.x + 0.5, d.y + 0.2, 18, { color: '#e8f8ff', speed: 3, life: 1.0, size: 0.17, gravity: -2.5 });
-      }
-      this.boostT = 1.6;               // the blast ride ignores the ascent speed cap
+      Game.toast('Steam pocket — pressure surge!');
+      let fdx = 0, fdy = 0;
+      if (d.dir === 'left') fdx = 1;
+      else if (d.dir === 'right') fdx = -1;
+      else fdy = -1;
+      this.flush = { dx: fdx, dy: fdy, lastDx: fdx, remaining: C.STEAM.boostFt };
       this.fallStartY = null;
+      Particles.burst(d.x + 0.5, d.y + 0.5, 26, { color: '#7fd4ef', speed: 5, life: 0.6, size: 0.12, vx: fdx * 7, vy: fdy * 7, gravity: 8 });
+      Particles.burst(d.x + 0.5, d.y + 0.3, 14, { color: '#e8f8ff', speed: 2.5, life: 0.9, size: 0.16, vx: fdx * 4, vy: fdy * 4, gravity: -2 });
     } else if (kind.gas) {
       // Invisible gas pocket: detonates like dynamite with a green blast.
       // Damage scales with depth but is capped so it can never one-shot a full hull.

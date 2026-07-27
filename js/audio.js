@@ -136,24 +136,44 @@ const Audio = {
 
   thrustOn() {
     if (!this.ensure() || this.muted || this.thrustNode) return;
+    // Rocket rumble: pre-softened noise pushed low, a bass oscillator underneath,
+    // and a fast flutter on the volume for that combustion roar
     const len = this.ctx.sampleRate * 2;
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      last = last * 0.86 + (Math.random() * 2 - 1) * 0.14;
+      d[i] = last * 3.2;
+    }
     const src = this.ctx.createBufferSource();
     src.buffer = buf; src.loop = true;
     const f = this.ctx.createBiquadFilter();
-    f.type = 'bandpass'; f.frequency.value = 400; f.Q.value = 0.7;
+    f.type = 'lowpass'; f.frequency.value = 240; f.Q.value = 0.9;
     const g = this.ctx.createGain();
-    g.gain.value = 0.08;
+    g.gain.value = 0.16;
+    // Low-end body
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sawtooth'; osc.frequency.value = 52;
+    const oscF = this.ctx.createBiquadFilter();
+    oscF.type = 'lowpass'; oscF.frequency.value = 130;
+    const oscG = this.ctx.createGain();
+    oscG.gain.value = 0.055;
+    // Combustion flutter
+    const lfo = this.ctx.createOscillator();
+    lfo.type = 'sine'; lfo.frequency.value = 13;
+    const lfoG = this.ctx.createGain();
+    lfoG.gain.value = 0.045;
+    lfo.connect(lfoG); lfoG.connect(g.gain);
     src.connect(f); f.connect(g); g.connect(this.master);
-    src.start();
-    this.thrustNode = { src, g };
+    osc.connect(oscF); oscF.connect(oscG); oscG.connect(this.master);
+    src.start(); osc.start(); lfo.start();
+    this.thrustNode = { src, g, osc, lfo };
   },
 
   thrustOff() {
     if (this.thrustNode) {
-      try { this.thrustNode.src.stop(); } catch (e) {}
+      try { this.thrustNode.src.stop(); this.thrustNode.osc.stop(); this.thrustNode.lfo.stop(); } catch (e) {}
       this.thrustNode = null;
     }
   },
