@@ -20,8 +20,9 @@ const World = {
     this.tileKinds = [
       { key: 'empty' }, { key: 'dirt' }, { key: 'stone' },
       { key: 'lava', lava: true }, { key: 'gas', gas: true },
+      { key: 'steam', steam: true },
     ];
-    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4 };
+    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5 };
     for (const key of Object.keys(C.MINERALS)) {
       this.kindIndex[key] = this.tileKinds.length;
       this.tileKinds.push({ key, mineral: C.MINERALS[key] });
@@ -81,6 +82,12 @@ const World = {
         if (feet >= C.STONE.min) {
           acc += C.STONE.freq * (0.4 + 0.6 * depthT);
           if (r < acc) { this.grid[i] = 2; continue; }
+        }
+
+        // Steam pockets from ~-800 ft
+        if (feet >= C.STEAM.min) {
+          acc += C.STEAM.freq;
+          if (r < acc) { this.grid[i] = 5; continue; }
         }
 
         // Lava pockets from ~-3,000 ft

@@ -340,9 +340,9 @@ const Game = {
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeMag = 0;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
-    if (this.state !== 'play') { Particles.update(dt); return; }
+    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.thrustOff(); return; }
     // Shop menus pause the world (and the fuel drain), as in the original
-    if (UI.isOpen()) { Particles.update(dt); return; }
+    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.thrustOff(); return; }
 
     Player.update(dt, this.input);
     Boss.update(dt);
@@ -514,6 +514,7 @@ const Game = {
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
         else if (id === 4) tex = Sprites.dirt[band][v];        // gas is indistinguishable from dirt
+        else if (id === 5) tex = Sprites.steamBase;
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
@@ -523,6 +524,12 @@ const Game = {
         if (id === 3) {
           const pulse = 0.25 + 0.2 * Math.sin(this.time * 3 + x * 1.7 + y * 2.3);
           ctx.fillStyle = `rgba(255,160,40,${pulse})`;
+          ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+        }
+        // Steam pockets churn with a cool shimmer
+        if (id === 5) {
+          const pulse = 0.12 + 0.12 * Math.sin(this.time * 4.5 + x * 2.3 + y * 1.4);
+          ctx.fillStyle = `rgba(200,245,255,${pulse})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
         }
       }

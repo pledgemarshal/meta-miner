@@ -89,6 +89,7 @@ const Audio = {
       case 'shriek':   this.tone(1750, 0.55, 'sawtooth', 0.16, 280); this.tone(2300, 0.4, 'square', 0.08, 500, 0.05); this.noise(0.45, 0.2, 3500, 0.05); break;
       case 'ghostHit': this.tone(420, 0.5, 'sine', 0.14, 90); this.tone(330, 0.4, 'triangle', 0.1, 70, 0.1); this.noise(0.3, 0.15, 600, 0.05); break;
       case 'crackle':  this.noise(0.1, 0.08, 2800); this.noise(0.07, 0.06, 4000, 0.05); break;
+      case 'steam':    this.noise(0.9, 0.4, 5200); this.tone(240, 0.5, 'sine', 0.09, 520); this.tone(320, 0.3, 'sine', 0.07, 640, 0.15); break;
       case 'sell':     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.1, 'triangle', 0.14, null, i * 0.07)); break;
       case 'buy':      this.tone(784, 0.09, 'triangle', 0.15); this.tone(1175, 0.14, 'triangle', 0.13, null, 0.08); break;
       case 'denied':   this.tone(180, 0.18, 'square', 0.12, 120); break;
@@ -155,5 +156,38 @@ const Audio = {
       try { this.thrustNode.src.stop(); } catch (e) {}
       this.thrustNode = null;
     }
+  },
+
+  // Falling wind rush: looping filtered noise whose volume/pitch track fall speed
+  windNode: null,
+  setWind(intensity) {
+    if (intensity <= 0.02 || this.muted || !this.ctx) {
+      if (this.windNode) {
+        try { this.windNode.src.stop(); } catch (e) {}
+        this.windNode = null;
+      }
+      return;
+    }
+    if (!this.ensure()) return;
+    if (!this.windNode) {
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 500;
+      f.Q.value = 0.5;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      src.connect(f); f.connect(g); g.connect(this.master);
+      src.start();
+      this.windNode = { src, f, g };
+    }
+    this.windNode.g.gain.value = 0.16 * intensity;
+    this.windNode.f.frequency.value = 380 + 720 * intensity;
   },
 };

@@ -47,6 +47,7 @@ const Sprites = {
       this.dirtPattern[b] = pctx.createPattern(this.dirt[b][0], 'repeat');
     }
     this.lavaBase = this.makeLava(S);
+    this.steamBase = this.makeSteam(S);
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
       for (let b = 0; b < this.BANDS; b++) this.minerals[key].push(this.makeMineral(key, b, S));
@@ -221,6 +222,44 @@ const Sprites = {
       const r = S * (0.05 + this.rand() * 0.06);
       ctx.fillStyle = this.alpha(this.mixToHex(soil[0], soil[1], 0.5), 0.8);
       ctx.beginPath(); ctx.ellipse(px, py, r * 1.5, r, a, 0, Math.PI * 2); ctx.fill();
+    }
+    return c;
+  },
+
+  makeSteam(S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    // Boiling groundwater pocket: deep teal pool with bubbles and rising steam
+    const g = ctx.createLinearGradient(0, 0, 0, S);
+    g.addColorStop(0, '#1e5a6e'); g.addColorStop(0.5, '#2e88a0'); g.addColorStop(1, '#174a5c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    // Churning surface swirls
+    ctx.strokeStyle = 'rgba(200,240,250,0.4)';
+    ctx.lineWidth = 2.5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      const y = S * (0.2 + i * 0.2);
+      ctx.moveTo(0, y);
+      ctx.quadraticCurveTo(S * 0.25, y - S * 0.06, S * 0.5, y);
+      ctx.quadraticCurveTo(S * 0.75, y + S * 0.06, S, y);
+      ctx.stroke();
+    }
+    // Bubbles
+    for (let i = 0; i < 14; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 1.5 + this.rand() * 4;
+      ctx.strokeStyle = 'rgba(230,250,255,0.55)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    }
+    // Steam wisps at the top
+    ctx.fillStyle = 'rgba(235,250,255,0.2)';
+    for (let i = 0; i < 3; i++) {
+      const x = S * (0.15 + i * 0.32);
+      ctx.beginPath();
+      ctx.ellipse(x, S * 0.12, S * 0.1, S * 0.06, this.rand(), 0, Math.PI * 2);
+      ctx.fill();
     }
     return c;
   },

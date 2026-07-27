@@ -70,6 +70,8 @@ const Player = {
     this.dead = true;
     this.drilling = null;
     Audio.stop('drill');
+    Audio.setWind(0);
+    Audio.thrustOff();
     Audio.play('explode');
     Particles.explosion(this.x, this.y, 1.8);
     Game.shake(1.2);
@@ -103,6 +105,7 @@ const Player = {
 
     // --- Drilling in progress: pod eases into the target tile ---
     if (this.drilling) {
+      Audio.setWind(0);
       const d = this.drilling;
       d.progress += dt / d.time;
       this.fuel = Math.max(0, this.fuel - C.FUEL_DRILL_PER_SEC * dt);
@@ -150,9 +153,16 @@ const Player = {
     this.vy += C.GRAVITY * dt;
     this.vx -= this.vx * C.AIR_DRAG * dt;
     if (this.vy > C.MAX_FALL) this.vy = C.MAX_FALL;
-    // Ascent is capped at 100 ft/s
-    const maxUp = C.MAX_ASCENT_FPS / C.FEET_PER_TILE;
-    if (this.vy < -maxUp) this.vy = -maxUp;
+    // Ascent is capped at 100 ft/s — except while riding a steam geyser
+    this.boostT = Math.max(0, (this.boostT || 0) - dt);
+    if (this.boostT <= 0) {
+      const maxUp = C.MAX_ASCENT_FPS / C.FEET_PER_TILE;
+      if (this.vy < -maxUp) this.vy = -maxUp;
+    }
+
+    // Wind rush builds with fall speed
+    const windI = Math.max(0, (this.vy - 7) / (C.MAX_FALL - 7));
+    Audio.setWind(Math.min(1, windI));
 
     // Track fall start for distance-based damage
     if (this.vy > 0.5 && this.fallStartY === null) this.fallStartY = this.y;
@@ -220,10 +230,22 @@ const Player = {
       Game.shake(0.5);
       this.damage(roll(C.LAVA.dmg1), 'lava');
       if (!this.dead) this.damage(roll(C.LAVA.dmg2), 'lava');
+    } else if (kind.steam) {
+      // Boiling water erupts beneath the pod and launches it skyward (~100 ft)
+      Particles.burst(d.x + 0.5, d.y + 0.5, 28, { color: '#7fd4ef', speed: 7, life: 0.6, size: 0.12, gravity: 10 });
+      Particles.burst(d.x + 0.5, d.y + 0.2, 18, { color: '#e8f8ff', speed: 3, life: 1.0, size: 0.17, gravity: -2.5 });
+      Audio.play('steam');
+      Game.shake(0.5);
+      Game.toast('Steam pocket — geyser launch!');
+      this.vy = -Math.sqrt(2 * C.GRAVITY * (C.STEAM.boostFt / C.FEET_PER_TILE));
+      this.boostT = 1.6;               // geyser ride ignores the ascent speed cap
+      this.fallStartY = null;
     } else if (kind.gas) {
-      // Invisible gas pocket: detonates like dynamite with a green blast
+      // Invisible gas pocket: detonates like dynamite with a green blast.
+      // Damage scales with depth but is capped so it can never one-shot a full hull.
       const feet = C.rowToFeet(d.y);
-      const dmg = Math.max(1, Math.round(((feet + 3000) / 15) * (1 - this.heatResist()) + (Math.random() * 2 - 1)));
+      const raw = Math.round(((feet - 3000) / 15) * (1 - this.heatResist()) + (Math.random() * 2 - 1));
+      const dmg = Math.max(1, Math.min(raw, Math.floor(this.hullCap() * C.GAS_DMG_CAP)));
       World.blast(d.x, d.y, 1);
       Particles.explosion(d.x + 0.5, d.y + 0.5, 1.2);
       Particles.burst(d.x + 0.5, d.y + 0.5, 20, { color: '#9fe870', speed: 7, life: 0.5, size: 0.12, glow: true });
