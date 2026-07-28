@@ -37,6 +37,7 @@ const Player = {
     this.flush = null;
     this.hasMicrowave = false;
     this.mwLevel = 0;          // worm-meat power-ups: 0, 1, or 2 (maxed)
+    this.frost = 0;            // 0-100; drilling permafrost ice builds it — 100 = frozen solid
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -253,6 +254,7 @@ const Player = {
     const band = Sprites.bandForRow(ty);
     let harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
     if (World.get(tx, ty) === World.kindIndex.sand) harden *= C.PYRAMID.sandHardness;
+    if (World.get(tx, ty) === World.kindIndex.ice) harden *= C.ICE.drillMult;   // ice drills fast — the cost is frost
     const time = (C.DRILL_BASE_TIME * harden) / this.drillSpeed();
     this.drilling = { x: tx, y: ty, dir, progress: 0, time: Math.max(0.1, time) };
     this.fallStartY = null;
@@ -366,6 +368,19 @@ const Player = {
       Audio.play('gas');
       Game.shake(0.7);
       this.damage(dmg, 'gas');
+    } else if (kind.ice) {
+      // Ice shatters fast under the drill, but the meltwater flash-freezes
+      // onto the hull — the ICE bar creeps toward a total freeze
+      this.frost = Math.min(100, (this.frost || 0) + C.ICE.frostPerBlock);
+      Audio.play('iceBreak');
+      Particles.burst(d.x + 0.5, d.y + 0.5, 10, { color: '#cfeefc', speed: 4, life: 0.5, size: 0.09 });
+      Particles.burst(d.x + 0.5, d.y + 0.5, 6, { color: '#8fd0ee', speed: 2.5, life: 0.7, size: 0.07, glow: true });
+      if (this.frost >= 100 && !this.dead) {
+        Audio.play('shatter');
+        Particles.burst(this.x, this.y, 30, { color: '#cfeefc', speed: 6, life: 0.9, size: 0.12, glow: true });
+        this.die('frozen');
+        return;
+      }
     }
     this.vy = Math.min(this.vy, 1);
 
@@ -501,6 +516,7 @@ const Player = {
       maxDepth: this.maxDepth || 0,
       hasMicrowave: this.hasMicrowave || false,
       mwLevel: this.mwLevel || 0,
+      frost: this.frost || 0,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -514,6 +530,7 @@ const Player = {
     this.maxDepth = d.maxDepth || 0;
     this.hasMicrowave = !!d.hasMicrowave;
     this.mwLevel = d.mwLevel || 0;
+    this.frost = d.frost || 0;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

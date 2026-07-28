@@ -289,6 +289,13 @@ const UI = {
     // Cargo bar
     this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
       `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+    // Ice bar: appears once the pod carries any frost — red-flash near freezing
+    if ((P.frost || 0) > 0) {
+      const iceFrac = P.frost / 100;
+      const critical = iceFrac >= 0.75 && Math.sin(Game.time * 8) > 0;
+      this.bar(ctx, pad, 10 * U + 2 * (barH + gap * 0.6), barW, barH, iceFrac,
+        critical ? '#ff4530' : '#8fd8ff', `ICE ${Math.round(P.frost)}%`);
+    }
 
     // Money & depth
     ctx.textAlign = 'right';

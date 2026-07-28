@@ -60,6 +60,7 @@ const Sprites = {
       this.gasTex.push(this.makeGas(b, S));
       this.crackedTex.push(this.makeCracked(b, S));
     }
+    this.iceTex = this.makeIce(S);
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
       for (let b = 0; b < this.BANDS; b++) this.minerals[key].push(this.makeMineral(key, b, S));
@@ -469,6 +470,57 @@ const Sprites = {
     gl.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gl;
     ctx.fillRect(0, 0, S, S);
+    return c;
+  },
+
+  // Glacial ice block: pale blue depth-lit ice with internal fractures,
+  // trapped bubbles, and a frosted sparkle
+  makeIce(S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, S, S);
+    g.addColorStop(0, '#cfeefc');
+    g.addColorStop(0.45, '#8fd0ee');
+    g.addColorStop(1, '#4e94c4');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    // Deep internal glow
+    const dg = ctx.createRadialGradient(S * 0.4, S * 0.6, S * 0.05, S * 0.5, S * 0.5, S * 0.7);
+    dg.addColorStop(0, 'rgba(220,245,255,0.35)');
+    dg.addColorStop(1, 'rgba(40,90,140,0.25)');
+    ctx.fillStyle = dg;
+    ctx.fillRect(0, 0, S, S);
+    // Internal fracture planes
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = Math.max(1, S * 0.018);
+    for (let i = 0; i < 4; i++) {
+      const x0 = this.rand() * S, y0 = this.rand() * S;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + (this.rand() - 0.3) * S * 0.5, y0 + (this.rand() - 0.3) * S * 0.5);
+      ctx.lineTo(x0 + (this.rand() - 0.2) * S * 0.7, y0 + (this.rand() - 0.5) * S * 0.6);
+      ctx.stroke();
+    }
+    // Trapped air bubbles
+    for (let i = 0; i < 9; i++) {
+      ctx.fillStyle = `rgba(235,250,255,${0.25 + this.rand() * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(this.rand() * S, this.rand() * S, 1 + this.rand() * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Frosted bevel edges
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = Math.max(2, S * 0.04);
+    ctx.strokeRect(S * 0.02, S * 0.02, S * 0.96, S * 0.96);
+    // Sparkle glints
+    for (let i = 0; i < 4; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = S * (0.02 + this.rand() * 0.02);
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = Math.max(1, S * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
+      ctx.stroke();
+    }
     return c;
   },
 

@@ -193,6 +193,18 @@ const Audio = {
         this.tone(1568, 0.5, 'sine', 0.08, null, 0.42);
         this.noise(0.5, 0.06, 2500, 0.3);
         break;
+      // Ice cracking under the drill: bright glassy snap
+      case 'iceBreak':
+        this.noise(0.1, 0.3, 4500);
+        this.tone(1100, 0.12, 'triangle', 0.14, 400);
+        this.tone(1600, 0.08, 'sine', 0.1, 700, 0.04);
+        break;
+      // The pod flash-freezing solid: crystalline cascade
+      case 'shatter':
+        this.noise(0.5, 0.35, 3800);
+        [1400, 1100, 800, 500].forEach((f, i) => this.tone(f, 0.2, 'triangle', 0.12, f * 0.6, i * 0.09));
+        this.tone(90, 0.8, 'sine', 0.2, 40, 0.2);
+        break;
       // Rock groaning before it lets go
       case 'creak':
         this.tone(85, 0.7, 'sawtooth', 0.14, 48);

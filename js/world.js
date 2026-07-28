@@ -23,8 +23,9 @@ const World = {
       { key: 'steam', steam: true },
       { key: 'magnetite', magnet: true }, { key: 'sand', sand: true },
       { key: 'nuke', nuke: true }, { key: 'cracked', cracked: true },
+      { key: 'ice', ice: true },
     ];
-    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8, cracked: 9 };
+    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8, cracked: 9, ice: 10 };
     for (const key of Object.keys(C.MINERALS)) {
       this.kindIndex[key] = this.tileKinds.length;
       this.tileKinds.push({ key, mineral: C.MINERALS[key] });
@@ -97,6 +98,12 @@ const World = {
           const t = Math.min(1, (feet - C.GAS.min) / (C.DEPTH_MAX - C.GAS.min));
           acc += C.GAS.maxFreq * t * t;
           if (r < acc) { this.grid[i] = 4; continue; }
+        }
+
+        // Permafrost: ice blocks are common inside the frozen band
+        if (feet >= C.ICE.minFt && feet <= C.ICE.maxFt) {
+          acc += C.ICE.freq;
+          if (r < acc) { this.grid[i] = 10; continue; }
         }
 
         // Minerals by depth band (frequency fades out below fadeAt)

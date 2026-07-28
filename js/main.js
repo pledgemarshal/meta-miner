@@ -329,6 +329,8 @@ const Game = {
     this._caveinIntro = false;
     this.meat = [];
     this.podGlowT = 0;
+    this._iceIntro = false;
+    this._prevFrost = 0;
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -495,6 +497,21 @@ const Game = {
     const ty = Math.floor(this.cam.y + this.mouse.y / T);
     const cx = tx + 0.5, cy = ty + 0.5;
 
+    // Aim at YOURSELF to melt frost off the hull — a full bar takes
+    // C.ICE.meltSecs, faster with worm-meat power levels
+    if ((Player.frost || 0) > 0 && Math.hypot(cx - Player.x, cy - Player.y) < 1.1) {
+      Player.frost = Math.max(0, Player.frost - (100 / C.ICE.meltSecs) * rate * dt);
+      if (Math.random() < dt * 22) {
+        Particles.spawn({
+          x: Player.x + (Math.random() - 0.5) * 0.8, y: Player.y - 0.2 - Math.random() * 0.4,
+          vx: (Math.random() - 0.5) * 1.2, vy: -1.5 - Math.random() * 1.5,
+          life: 0.6, size: 0.09, color: '#e8f8ff', glow: true, gravity: -1,
+        });
+      }
+      this.mwBeam = { tx, ty, heat: 100 - Player.frost, needed: 100, kind: 'self' };
+      return;
+    }
+
     // The boss takes the beam too — steady searing damage in the arena
     if (Boss.active && !Boss.betweenForms
         && Math.hypot(cx - Boss.x, cy - (Boss.y - 1.8)) < 2.2 + (lvl >= 2 ? 0.8 : 0)) {
@@ -556,6 +573,7 @@ const Game = {
       if (id2 === World.kindIndex.steam) return ['steam', C.MICROWAVE.heatSteam];
       if (id2 === World.kindIndex.gas) return ['gas', C.MICROWAVE.heatGas];
       if (id2 === World.kindIndex.cracked) return ['crack', C.MICROWAVE.heatCrack];
+      if (id2 === World.kindIndex.ice) return ['ice', C.MICROWAVE.heatIce];
       return [null, 0];
     };
     const carried = {};
@@ -593,6 +611,11 @@ const Game = {
     } else if (kind === 'crack') {
       // Knock the loose rock down from a safe distance
       this.startCrumble(tx, ty);
+    } else if (kind === 'ice') {
+      // Melted in place — no frost, no shards, just steam
+      World.clear(tx, ty);
+      Audio.play('steam');
+      Particles.burst(cx, cy, Math.round(10 * boom), { color: '#e8f8ff', speed: 2.5, life: 0.7, size: 0.11, gravity: -2 });
     } else if (kind === 'gas') {
       // The vapor flashes over the moment the beam touches it — remote
       // detonation is the whole point, but standing close still hurts
@@ -1047,6 +1070,19 @@ const Game = {
     }
     this._prevFuelFrac = fuelFrac;
 
+    // Frost warnings: entering the permafrost band, and nearing a total freeze
+    const pf = Player.depthFeet();
+    if (!this._iceIntro && pf >= C.ICE.minFt && pf <= C.ICE.maxFt && !Player.dead) {
+      this._iceIntro = true;
+      this.warn('PERMAFROST! DRILLING ICE FROSTS THE POD!', '#8fd8ff');
+      Audio.play('iceBreak');
+    }
+    if ((Player.frost || 0) >= 75 && (this._prevFrost || 0) < 75 && !Player.dead) {
+      this.warn('FREEZING! MICROWAVE YOURSELF TO MELT THE ICE!', '#8fd8ff');
+      Audio.play('denied');
+    }
+    this._prevFrost = Player.frost || 0;
+
     // Denser strata announcement: fires once per newly-entered darker soil band
     if (this.rockWarnT > 0) this.rockWarnT -= dt;
     const soilBand = Sprites.bandForRow(Math.max(0, Math.floor(Player.y)));
@@ -1115,6 +1151,34 @@ const Game = {
         microwave: Player.hasMicrowave,
         mwFiring: !!this.mwBeam,
       });
+      // Frost creeping over the hull as the ICE bar fills
+      if ((Player.frost || 0) > 0) {
+        const fr = Player.frost / 100;
+        ctx.save();
+        ctx.globalAlpha = 0.2 + 0.55 * fr;
+        const ig = ctx.createLinearGradient(podX, podY - C.TILE * 0.45, podX, podY + C.TILE * 0.45);
+        ig.addColorStop(0, 'rgba(210,240,255,0.75)');
+        ig.addColorStop(0.55, 'rgba(150,210,245,0.4)');
+        ig.addColorStop(1, 'rgba(120,180,230,0.65)');
+        ctx.fillStyle = ig;
+        Sprites.rr(ctx, podX - C.TILE * 0.44, podY - C.TILE * 0.46, C.TILE * 0.88, C.TILE * 0.92, C.TILE * 0.16);
+        ctx.fill();
+        // Icicles growing from the underside once it's serious
+        if (fr > 0.3) {
+          ctx.fillStyle = 'rgba(200,235,255,0.85)';
+          for (let i = 0; i < 4; i++) {
+            const ix = podX - C.TILE * 0.3 + i * C.TILE * 0.2;
+            const il = C.TILE * (0.08 + 0.16 * fr) * (i % 2 ? 0.7 : 1);
+            ctx.beginPath();
+            ctx.moveTo(ix - C.TILE * 0.035, podY + C.TILE * 0.44);
+            ctx.lineTo(ix, podY + C.TILE * 0.44 + il);
+            ctx.lineTo(ix + C.TILE * 0.035, podY + C.TILE * 0.44);
+            ctx.closePath();
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
     }
     this.drawLighting(ctx);
     this.drawGimmickFx(ctx);
@@ -1199,6 +1263,13 @@ const Game = {
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
+      // Permafrost band: everything gets a cold blue cast, strongest mid-band
+      const rowFeet = C.rowToFeet(y);
+      let icyA = 0;
+      if (rowFeet >= C.ICE.minFt && rowFeet <= C.ICE.maxFt) {
+        const mid = (C.ICE.minFt + C.ICE.maxFt) / 2, half = (C.ICE.maxFt - C.ICE.minFt) / 2;
+        icyA = 0.05 + 0.09 * (1 - Math.abs(rowFeet - mid) / half);
+      }
       for (let x = Math.max(0, x0); x <= Math.min(C.WORLD_W - 1, x1); x++) {
         const id = World.get(x, y);
         const sx = (x - this.cam.x) * T;
@@ -1233,11 +1304,17 @@ const Game = {
         else if (id === 7) tex = Sprites.sandTex[band];
         else if (id === 8) tex = Sprites.nukeTex[band];
         else if (id === 9) tex = Sprites.crackedTex[band];
+        else if (id === 10) tex = Sprites.iceTex;
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
         }
         ctx.drawImage(tex, sx, sy, T + 0.5, T + 0.5);
+        // Cold cast over the permafrost band (ice blocks are already blue)
+        if (icyA > 0 && id !== 10) {
+          ctx.fillStyle = `rgba(150,205,255,${icyA})`;
+          ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+        }
         // Lava animated shimmer
         if (id === 3) {
           const pulse = 0.25 + 0.2 * Math.sin(this.time * 3 + x * 1.7 + y * 2.3);
@@ -2764,6 +2841,7 @@ const Game = {
       explosive: 'Standing next to your own blast radius is not recommended.',
       nuke: 'Fifty-megaton problems require more than a mining hull.',
       cavein: 'The ceiling remembered how gravity works.',
+      frozen: 'Flash-frozen. The pod makes an excellent monument.',
       worm: 'It was hungry. You were there. The math was simple.',
       boss: 'Your contract has been terminated.',
       laser: 'Your contract has been terminated.',

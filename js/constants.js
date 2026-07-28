@@ -124,7 +124,15 @@ const C = {
   // worm heat is cumulative.
   // heatGas is near-instant: microwaves + combustible vapor = immediate ignition;
   // heatCrack lets the cannon knock loose a cracked ceiling from a safe distance
-  MICROWAVE: { heatNuke: 0.6, heatMagnet: 2, heatSteam: 2, heatWorm: 10, heatGas: 0.15, heatCrack: 0.4 },
+  MICROWAVE: { heatNuke: 0.6, heatMagnet: 2, heatSteam: 2, heatWorm: 10, heatGas: 0.15, heatCrack: 0.4, heatIce: 0.8 },
+
+  // --- Permafrost band from -6,000 to -7,600 ft: the ground turns icy and
+  // ice blocks pepper the soil. Drilling an ice block adds frost to the pod
+  // (ICE bar in the HUD); at 100% the pod freezes solid and dies. Aim the
+  // Microwave Cannon at YOURSELF to melt off — a full bar takes meltSecs
+  // (faster with worm-meat power levels). Ice drills quickly, and the cannon
+  // can also melt ice tiles in the ground outright.
+  ICE: { minFt: 6000, maxFt: 7600, freq: 160, drillMult: 0.7, frostPerBlock: 10, meltSecs: 3 },
 
   // --- Cave-ins from ~-6,000 ft: visibly cracked tiles that crumble ~1 s
   // after the pod passes beneath them, dropping a damaging rock. Localized,
