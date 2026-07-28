@@ -227,6 +227,28 @@ const Audio = {
         this.tone(1400, 0.12, 'square', 0.08, 400, 0.03);
         break;
       case 'wormRoar': this.tone(70, 1.3, 'sawtooth', 0.24, 32); this.noise(1.3, 0.24, 300); this.tone(115, 0.9, 'square', 0.07, 50, 0.15); break;
+      case 'alarm':
+        // Two-tone security klaxon, three sweeps
+        for (let i = 0; i < 3; i++) {
+          this.tone(660, 0.22, 'square', 0.14, null, i * 0.5);
+          this.tone(495, 0.22, 'square', 0.14, null, i * 0.5 + 0.25);
+        }
+        break;
+      case 'servo': this.tone(240, 0.12, 'sawtooth', 0.05, 340); break;
+      case 'roboBoom':
+        // Metal coming apart: blast + ringing shrapnel
+        this.noise(0.6, 0.45, 1100);
+        this.tone(90, 0.5, 'sawtooth', 0.26, 30);
+        [2200, 1600, 2800].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.1, f * 0.6, 0.1 + i * 0.08));
+        break;
+      case 'empReady': this.tone(880, 0.1, 'sine', 0.14); this.tone(1320, 0.2, 'sine', 0.14, null, 0.1); break;
+      case 'empBlast':
+        // A world-flattening electric THUMP
+        this.noise(0.9, 0.5, 2600);
+        this.tone(1400, 0.7, 'sawtooth', 0.2, 90);
+        this.tone(60, 0.8, 'sine', 0.35, 28, 0.05);
+        for (let i = 0; i < 5; i++) this.noise(0.08, 0.16, 3600, 0.15 + i * 0.09);
+        break;
     }
   },
 

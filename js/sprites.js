@@ -61,6 +61,9 @@ const Sprites = {
       this.crackedTex.push(this.makeCracked(b, S));
     }
     this.iceTex = this.makeIce(S);
+    this.serverWallTex = this.makeServerWall(S);
+    this.serverRackTex = this.makeServerRack(S);
+    this.serverDoorTex = this.makeServerDoor(S);
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
       for (let b = 0; b < this.BANDS; b++) this.minerals[key].push(this.makeMineral(key, b, S));
@@ -521,6 +524,111 @@ const Sprites = {
       ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
       ctx.stroke();
     }
+    return c;
+  },
+
+  // Server-vault casing: brushed gunmetal plate, riveted, rimed with frost
+  makeServerWall(S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, S, S);
+    g.addColorStop(0, '#5a6270');
+    g.addColorStop(0.5, '#3c434f');
+    g.addColorStop(1, '#272c35');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    // Brushed-metal grain
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 14; i++) {
+      const y = this.rand() * S;
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(S, y + (this.rand() - 0.5) * 4); ctx.stroke();
+    }
+    // Panel border + cross seam
+    ctx.strokeStyle = 'rgba(10,12,16,0.8)';
+    ctx.lineWidth = Math.max(2, S * 0.045);
+    ctx.strokeRect(S * 0.03, S * 0.03, S * 0.94, S * 0.94);
+    ctx.lineWidth = Math.max(1, S * 0.02);
+    ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.05); ctx.lineTo(S * 0.5, S * 0.95); ctx.stroke();
+    // Corner rivets
+    ctx.fillStyle = '#8b95a3';
+    for (const [rx, ry] of [[0.12, 0.12], [0.88, 0.12], [0.12, 0.88], [0.88, 0.88]]) {
+      ctx.beginPath(); ctx.arc(S * rx, S * ry, S * 0.035, 0, Math.PI * 2); ctx.fill();
+    }
+    // Frost creeping in from the edges — the permafrost doing its job
+    ctx.fillStyle = 'rgba(200,235,255,0.18)';
+    for (let i = 0; i < 6; i++) {
+      const x = this.rand() * S, y = this.rand() < 0.5 ? this.rand() * S * 0.15 : S * (0.85 + this.rand() * 0.15);
+      ctx.beginPath(); ctx.arc(x, y, S * (0.04 + this.rand() * 0.06), 0, Math.PI * 2); ctx.fill();
+    }
+    return c;
+  },
+
+  // Server rack: dark cabinet, rows of blade slots, LED clusters (the live
+  // blinking is overlaid at draw time in drawTiles)
+  makeServerRack(S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    ctx.fillStyle = '#171a20';
+    ctx.fillRect(0, 0, S, S);
+    // Cabinet frame
+    ctx.strokeStyle = '#3c434f';
+    ctx.lineWidth = Math.max(2, S * 0.05);
+    ctx.strokeRect(S * 0.06, S * 0.02, S * 0.88, S * 0.96);
+    // Blade rows
+    for (let r = 0; r < 6; r++) {
+      const y = S * (0.08 + r * 0.15);
+      const g = ctx.createLinearGradient(0, y, 0, y + S * 0.11);
+      g.addColorStop(0, '#2a303a');
+      g.addColorStop(1, '#1c2129');
+      ctx.fillStyle = g;
+      ctx.fillRect(S * 0.12, y, S * 0.76, S * 0.11);
+      // Vent slits
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      for (let v = 0; v < 5; v++) ctx.fillRect(S * (0.16 + v * 0.1), y + S * 0.03, S * 0.05, S * 0.05);
+      // Static LED dots (green/amber) at the right edge of each blade
+      ctx.fillStyle = r % 2 ? '#39d867' : '#e8b53c';
+      ctx.beginPath(); ctx.arc(S * 0.84, y + S * 0.055, S * 0.018, 0, Math.PI * 2); ctx.fill();
+    }
+    return c;
+  },
+
+  // Sealed security door: heavy slab, hazard chevrons, a watchful red lamp
+  makeServerDoor(S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, S, 0);
+    g.addColorStop(0, '#4a515e');
+    g.addColorStop(0.5, '#666f7e');
+    g.addColorStop(1, '#3a404b');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, S, S);
+    // Recessed frame
+    ctx.strokeStyle = 'rgba(12,14,18,0.9)';
+    ctx.lineWidth = Math.max(2, S * 0.05);
+    ctx.strokeRect(S * 0.05, S * 0.05, S * 0.9, S * 0.9);
+    // Hazard chevrons across the middle
+    ctx.save();
+    ctx.beginPath(); ctx.rect(S * 0.08, S * 0.38, S * 0.84, S * 0.24); ctx.clip();
+    for (let i = -1; i < 7; i++) {
+      ctx.fillStyle = i % 2 ? '#e8b53c' : '#22252b';
+      ctx.beginPath();
+      ctx.moveTo(S * (i * 0.18), S * 0.62);
+      ctx.lineTo(S * (i * 0.18 + 0.18), S * 0.38);
+      ctx.lineTo(S * (i * 0.18 + 0.3), S * 0.38);
+      ctx.lineTo(S * (i * 0.18 + 0.12), S * 0.62);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    // Center seam — it splits open when the alarm trips
+    ctx.strokeStyle = 'rgba(10,12,16,0.85)';
+    ctx.lineWidth = Math.max(1, S * 0.025);
+    ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.07); ctx.lineTo(S * 0.5, S * 0.93); ctx.stroke();
+    // Red status lamp, top center
+    const lg = ctx.createRadialGradient(S * 0.5, S * 0.2, S * 0.01, S * 0.5, S * 0.2, S * 0.09);
+    lg.addColorStop(0, '#ff6a58');
+    lg.addColorStop(0.5, '#c22619');
+    lg.addColorStop(1, 'rgba(120,20,12,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.arc(S * 0.5, S * 0.2, S * 0.09, 0, Math.PI * 2); ctx.fill();
     return c;
   },
 
@@ -1014,6 +1122,64 @@ const Sprites = {
     ctx.fillStyle = 'rgba(70,45,25,0.5)';
     for (const [mx, my, mr] of [[-0.3, 0.22, 0.035], [-0.12, 0.25, 0.05], [0.2, 0.23, 0.03], [0.33, 0.25, 0.04]]) {
       ctx.beginPath(); ctx.ellipse(mx * T, my * T, mr * T * 1.4, mr * T, 0, 0, P2); ctx.fill();
+    }
+
+    // ---- EMP bay: twin doors on the front hull hiding the automaton head.
+    // t.empDoors 0..1 slides them open; t.empCharge 0..1 lights the eyes. ----
+    if (t.hasHead) {
+      const bx = -T * 0.13, by = -T * 0.04, bw = T * 0.28, bh = T * 0.24;
+      const open = t.empDoors || 0, charge = t.empCharge || 0;
+      // Recessed cavity behind the doors
+      if (open > 0.02) {
+        ctx.fillStyle = '#14161a';
+        this.rr(ctx, bx, by, bw, bh, T * 0.02);
+        ctx.fill();
+        // The trophy head, cradled in the dark
+        const hx = bx + bw / 2, hy = by + bh * 0.52, hr = T * 0.085;
+        ctx.fillStyle = '#454c58';
+        this.rr(ctx, hx - hr, hy - hr * 1.1, hr * 2, hr * 2.1, hr * 0.5);
+        ctx.fill();
+        ctx.fillStyle = '#22252b';
+        ctx.fillRect(hx - hr * 0.7, hy - hr * 0.35, hr * 1.4, hr * 0.6);
+        // Eyes wake with the charge
+        const glow = 0.15 + 0.85 * charge;
+        ctx.fillStyle = `rgba(255,${Math.round(80 - 40 * charge)},40,${glow})`;
+        ctx.beginPath(); ctx.arc(hx - hr * 0.36, hy - hr * 0.05, hr * 0.2, 0, P2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx + hr * 0.36, hy - hr * 0.05, hr * 0.2, 0, P2); ctx.fill();
+        if (charge > 0.1) {
+          ctx.globalCompositeOperation = 'lighter';
+          const eg = ctx.createRadialGradient(hx, hy, hr * 0.1, hx, hy, hr * (1.2 + charge * 2));
+          eg.addColorStop(0, `rgba(255,70,40,${0.35 * charge})`);
+          eg.addColorStop(1, 'rgba(255,70,40,0)');
+          ctx.fillStyle = eg;
+          ctx.fillRect(bx - T * 0.15, by - T * 0.15, bw + T * 0.3, bh + T * 0.3);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        // Fully charged: violent little arcs crawling over the bay
+        if (charge >= 1) {
+          ctx.strokeStyle = 'rgba(160,220,255,0.85)';
+          ctx.lineWidth = Math.max(1, T * 0.016);
+          for (let i = 0; i < 3; i++) {
+            let ax = bx + Math.random() * bw, ay = by + Math.random() * bh;
+            ctx.beginPath(); ctx.moveTo(ax, ay);
+            for (let s = 0; s < 3; s++) {
+              ax += (Math.random() - 0.5) * T * 0.16;
+              ay += (Math.random() - 0.5) * T * 0.16;
+              ctx.lineTo(ax, ay);
+            }
+            ctx.stroke();
+          }
+        }
+      }
+      // The sliding door panels (drawn last so they cover the cavity edges)
+      const slide = open * bw * 0.5;
+      ctx.fillStyle = '#b87d20';
+      ctx.strokeStyle = 'rgba(50,28,4,0.7)';
+      ctx.lineWidth = Math.max(1, T * 0.018);
+      this.rr(ctx, bx - slide, by, bw / 2, bh, T * 0.02);
+      ctx.fill(); ctx.stroke();
+      this.rr(ctx, bx + bw / 2 + slide, by, bw / 2, bh, T * 0.02);
+      ctx.fill(); ctx.stroke();
     }
 
     // Rear exhaust stack (glows while thrusting)
@@ -1611,6 +1777,157 @@ const Sprites = {
   hexA(hex, a) { return this.alpha(hex, a); },
 
   // --- Boss forms ---
+  // Security automaton: a gunmetal endoskeleton with burning red eyes and a
+  // laser pistol. r: {facing, walkPhase, flying, heat 0..1, dormant, aim,
+  // zapT, time}. As heat climbs the metal glows through orange toward white.
+  drawRobot(ctx, sx, sy, r) {
+    const T = C.TILE, P2 = Math.PI * 2;
+    const heat = Math.min(1, r.heat || 0);
+    ctx.save();
+    ctx.translate(sx, sy);
+    if (r.facing < 0) ctx.scale(-1, 1);
+    // Beam impact shudder
+    if (r.zapT > 0) ctx.translate((Math.random() - 0.5) * T * 0.06, (Math.random() - 0.5) * T * 0.06);
+
+    // Heat-shifted metal palette: gunmetal -> cherry -> white hot
+    const mixCh = (a, b) => Math.round(a + (b - a) * heat);
+    const metal = (base) => `rgb(${mixCh(base, 255)},${mixCh(Math.round(base * 0.85), 140 + 90 * heat)},${mixCh(Math.round(base * 0.95), 70)})`;
+    const dark = metal(58), mid = metal(96), light = metal(150);
+
+    // Soft shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(0, T * 0.46, T * 0.24, T * 0.05, 0, 0, P2); ctx.fill();
+
+    // Rocket flame when climbing
+    if (r.flying) {
+      ctx.globalCompositeOperation = 'lighter';
+      const fl = T * (0.18 + Math.random() * 0.1);
+      const fg = ctx.createLinearGradient(0, T * 0.3, 0, T * 0.3 + fl * 2);
+      fg.addColorStop(0, 'rgba(160,220,255,0.9)');
+      fg.addColorStop(0.5, 'rgba(255,180,80,0.7)');
+      fg.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(-T * 0.1, T * 0.28);
+      ctx.lineTo(0, T * 0.3 + fl * 2);
+      ctx.lineTo(T * 0.1, T * 0.28);
+      ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // Legs: pistoned struts with a mechanical gait
+    const ph = r.flying ? 0 : Math.sin(r.walkPhase || 0);
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = Math.max(2, T * 0.055);
+    ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      const swing = ph * s * (r.dormant ? 0 : 1);
+      const hipX = s * T * 0.07, kneeX = hipX + swing * T * 0.08, footX = hipX + swing * T * 0.14;
+      ctx.beginPath();
+      ctx.moveTo(hipX, T * 0.12);
+      ctx.lineTo(kneeX, T * 0.28);
+      ctx.lineTo(footX, T * 0.44);
+      ctx.stroke();
+      // Foot plate
+      ctx.fillStyle = mid;
+      ctx.fillRect(footX - T * 0.05, T * 0.42, T * 0.12, T * 0.045);
+    }
+
+    // Torso: ribbed chassis
+    let g = ctx.createLinearGradient(0, -T * 0.18, 0, T * 0.16);
+    g.addColorStop(0, light); g.addColorStop(0.55, mid); g.addColorStop(1, dark);
+    ctx.fillStyle = g;
+    this.rr(ctx, -T * 0.16, -T * 0.18, T * 0.32, T * 0.32, T * 0.05);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    this.rr(ctx, -T * 0.16, -T * 0.18, T * 0.32, T * 0.32, T * 0.05);
+    ctx.stroke();
+    // Rib slats
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    for (let i = 0; i < 3; i++) {
+      const y = -T * 0.1 + i * T * 0.08;
+      ctx.beginPath(); ctx.moveTo(-T * 0.12, y); ctx.lineTo(T * 0.12, y); ctx.stroke();
+    }
+    // Rocket backpack
+    ctx.fillStyle = dark;
+    this.rr(ctx, -T * 0.24, -T * 0.14, T * 0.09, T * 0.24, T * 0.03);
+    ctx.fill();
+    // Core lamp on the chest — heartbeat red, dead when dormant
+    const corePulse = r.dormant ? 0.12 : 0.5 + 0.5 * Math.sin((r.time || 0) * 5);
+    ctx.fillStyle = `rgba(255,60,40,${0.25 + 0.6 * corePulse})`;
+    ctx.beginPath(); ctx.arc(0, -T * 0.02, T * 0.035, 0, P2); ctx.fill();
+
+    // Skull: squared cranium, hard jaw, two burning eyes
+    g = ctx.createLinearGradient(0, -T * 0.42, 0, -T * 0.18);
+    g.addColorStop(0, light); g.addColorStop(1, mid);
+    ctx.fillStyle = g;
+    this.rr(ctx, -T * 0.12, -T * 0.42, T * 0.24, T * 0.2, T * 0.05);
+    ctx.fill();
+    ctx.fillStyle = dark;
+    ctx.fillRect(-T * 0.09, -T * 0.24, T * 0.18, T * 0.05);   // jaw grille
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const x = -T * 0.06 + i * T * 0.06;
+      ctx.beginPath(); ctx.moveTo(x, -T * 0.24); ctx.lineTo(x, -T * 0.19); ctx.stroke();
+    }
+    // Eyes
+    const eyeA = r.dormant ? 0.12 : 0.85 + 0.15 * Math.sin((r.time || 0) * 7);
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = `rgba(255,40,30,${eyeA})`;
+      ctx.beginPath(); ctx.arc(s * T * 0.055, -T * 0.33, T * 0.028, 0, P2); ctx.fill();
+      if (!r.dormant) {
+        ctx.globalCompositeOperation = 'lighter';
+        const egl = ctx.createRadialGradient(s * T * 0.055, -T * 0.33, 0, s * T * 0.055, -T * 0.33, T * 0.09);
+        egl.addColorStop(0, 'rgba(255,50,30,0.5)');
+        egl.addColorStop(1, 'rgba(255,50,30,0)');
+        ctx.fillStyle = egl;
+        ctx.fillRect(s * T * 0.055 - T * 0.09, -T * 0.42, T * 0.18, T * 0.18);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+
+    // Gun arm: shoulder joint, forearm, laser pistol tracking the pod
+    const aim = r.facing < 0 ? Math.PI - (r.aim || 0) : (r.aim || 0);
+    ctx.save();
+    ctx.translate(T * 0.12, -T * 0.12);
+    ctx.fillStyle = mid;
+    ctx.beginPath(); ctx.arc(0, 0, T * 0.05, 0, P2); ctx.fill();
+    ctx.rotate(r.dormant ? Math.PI / 2.3 : aim);
+    ctx.strokeStyle = mid;
+    ctx.lineWidth = Math.max(2, T * 0.05);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(T * 0.16, 0); ctx.stroke();
+    // Pistol: slab body + emitter
+    ctx.fillStyle = dark;
+    this.rr(ctx, T * 0.13, -T * 0.045, T * 0.16, T * 0.09, T * 0.02);
+    ctx.fill();
+    ctx.fillStyle = r.dormant ? '#3a2020' : '#ff4a30';
+    ctx.beginPath(); ctx.arc(T * 0.3, 0, T * 0.025, 0, P2); ctx.fill();
+    ctx.restore();
+
+    // Off arm swings with the gait
+    ctx.strokeStyle = mid;
+    ctx.lineWidth = Math.max(2, T * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(-T * 0.13, -T * 0.12);
+    ctx.lineTo(-T * 0.13 - ph * T * 0.07, T * 0.06);
+    ctx.stroke();
+
+    // Molten sheen: past half-cooked the seams glow and the surface shimmers
+    if (heat > 0.35) {
+      ctx.globalCompositeOperation = 'lighter';
+      const mg = ctx.createRadialGradient(0, -T * 0.1, T * 0.02, 0, -T * 0.05, T * 0.5);
+      mg.addColorStop(0, `rgba(255,200,120,${0.5 * (heat - 0.35)})`);
+      mg.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = mg;
+      ctx.fillRect(-T * 0.5, -T * 0.55, T, T * 1.1);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.restore();
+  },
+
   drawBoss(ctx, sx, sy, boss) {
     const T = C.TILE;
     ctx.save();

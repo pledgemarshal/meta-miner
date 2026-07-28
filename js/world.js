@@ -24,8 +24,10 @@ const World = {
       { key: 'magnetite', magnet: true }, { key: 'sand', sand: true },
       { key: 'nuke', nuke: true }, { key: 'cracked', cracked: true },
       { key: 'ice', ice: true },
+      { key: 'serverWall', serverWall: true }, { key: 'serverRack', serverRack: true },
+      { key: 'serverDoor', serverDoor: true },
     ];
-    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8, cracked: 9, ice: 10 };
+    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8, cracked: 9, ice: 10, serverWall: 11, serverRack: 12, serverDoor: 13 };
     for (const key of Object.keys(C.MINERALS)) {
       this.kindIndex[key] = this.tileKinds.length;
       this.tileKinds.push({ key, mineral: C.MINERALS[key] });
@@ -100,9 +102,10 @@ const World = {
           if (r < acc) { this.grid[i] = 4; continue; }
         }
 
-        // Permafrost: ice blocks are common inside the frozen band
-        if (feet >= C.ICE.minFt && feet <= C.ICE.maxFt) {
-          acc += C.ICE.freq;
+        // Permafrost: ice blocks are common inside the frozen band, sparser
+        // in the frozen-dirt reaches below it
+        if (feet >= C.ICE.minFt && feet <= C.ICE.deepMaxFt) {
+          acc += feet <= C.ICE.maxFt ? C.ICE.freq : C.ICE.deepFreq;
           if (r < acc) { this.grid[i] = 10; continue; }
         }
 
@@ -185,6 +188,15 @@ const World = {
       }
     }
 
+    // AI server rooms hidden in the deep permafrost, one per depth slice
+    this.serverRooms = [];
+    const sTop = C.feetToRow(C.SERVER.minFt), sBot = C.feetToRow(C.SERVER.maxFt);
+    for (let n = 0; n < C.SERVER.count; n++) {
+      const cy = sTop + Math.floor(((n + rand()) / C.SERVER.count) * (sBot - sTop));
+      const cx = 4 + Math.floor(rand() * (W - 8 - 9));
+      this.stampServerRoom(cx, cy, rand() < 0.5 ? 'left' : 'right');
+    }
+
     // Dormant nuclear warheads sleeping in the deep rock
     this.nukes = [];
     const nukeRow = C.feetToRow(C.NUKE.min);
@@ -221,6 +233,40 @@ const World = {
     put(cx + 2, cy, this.kindIndex.goldium);
   },
 
+  // A server room: 9x6 vault — metal casing one tile thick around a hollow
+  // 7x4 hall, racks standing on the floor with walking gaps, and a sealed
+  // door in one side wall. The door only opens when the alarm trips.
+  stampServerRoom(x0, y0, doorSide) {
+    const W = C.WORLD_W;
+    const w = 9, h = 6;
+    if (y0 + h >= C.GROUND_BOTTOM_ROW - 2) return;
+    // tiles: manifest of every casing/rack tile actually placed, so the alarm
+    // can notice ANY of them going missing (drill, blast, worm, EMP…)
+    const tiles = [];
+    const put = (x, y, id, track) => {
+      if (x <= 0 || x >= W - 1 || y <= 2 || y >= C.GROUND_BOTTOM_ROW - 1) return;
+      this.grid[y * W + x] = id;
+      if (track) tiles.push({ x, y });
+    };
+    for (let y = y0; y < y0 + h; y++) {
+      for (let x = x0; x < x0 + w; x++) {
+        const shell = x === x0 || x === x0 + w - 1 || y === y0 || y === y0 + h - 1;
+        put(x, y, shell ? this.kindIndex.serverWall : 0, shell);
+      }
+    }
+    // Racks along the floor: pairs with gaps so the hall stays walkable
+    const floorY = y0 + h - 2;
+    for (const dx of [1, 2, 4, 6, 7]) {
+      put(x0 + dx, floorY, this.kindIndex.serverRack, true);
+      if (dx === 2 || dx === 6) put(x0 + dx, floorY - 1, this.kindIndex.serverRack, true);
+    }
+    // Sealed door low in one side wall, where the automaton musters out
+    const doorX = doorSide === 'left' ? x0 : x0 + w - 1;
+    put(doorX, floorY, this.kindIndex.serverDoor);
+    // The door tile is not in the manifest — it opening is not a "breach"
+    this.serverRooms.push({ x0, y0, w, h, doorX, doorY: floorY, tiles, alarmed: false, robotDown: false });
+  },
+
   inBounds(x, y) { return x >= 0 && x < C.WORLD_W && y >= 0 && y < C.WORLD_H; },
 
   get(x, y) {
@@ -235,7 +281,8 @@ const World = {
 
   isDrillable(x, y) {
     const id = this.get(x, y);
-    return id !== 0 && id !== 2 && y >= 0;
+    // Stone skitters the drill off; the server door is sealed until its alarm opens it
+    return id !== 0 && id !== 2 && id !== this.kindIndex.serverDoor && y >= 0;
   },
 
   clear(x, y) {
@@ -256,6 +303,26 @@ const World = {
         if (x === 0 || x === C.WORLD_W - 1 || y >= C.WORLD_H - 2) continue;
         // The impassable floor resists blasting (except the gap column)
         if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X) continue;
+        const id = this.grid[y * C.WORLD_W + x];
+        if (id === 8) { armed.push({ x, y }); continue; }
+        if (id === this.kindIndex.serverDoor) continue;   // the sealed door shrugs off explosives
+        this.clear(x, y);
+      }
+    }
+    return armed;
+  },
+
+  // The EMP burst levels EVERYTHING in its radius — dirt, boulders, doors —
+  // except the world borders and the impassable floor. Warheads aren't
+  // destroyed: the pulse fries their electronics awake (returned to arm).
+  empBlast(cx, cy, radius) {
+    const armed = [];
+    for (let y = Math.floor(cy - radius); y <= Math.ceil(cy + radius); y++) {
+      for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
+        if (!this.inBounds(x, y) || y < 0) continue;
+        if (x === 0 || x === C.WORLD_W - 1 || y >= C.WORLD_H - 2) continue;
+        if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X) continue;
+        if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > radius) continue;
         if (this.grid[y * C.WORLD_W + x] === 8) { armed.push({ x, y }); continue; }
         this.clear(x, y);
       }

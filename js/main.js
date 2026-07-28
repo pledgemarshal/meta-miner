@@ -33,6 +33,15 @@ const Game = {
   _caveinIntro: false,
   meat: [],              // cooked worm meat drops: { x, y, vy }
   podGlowT: 0,           // level-up aura timer after eating meat
+  robots: [],            // security automatons on the hunt
+  roboLasers: [],        // slow dodgeable laser bolts: { x, y, vx, vy, life }
+  roboHeads: [],         // dropped automaton heads: { x, y, vy }
+  empHolding: false,     // Q held down
+  empCharge: 0,          // 0..1; fires at 1 on release
+  empDoors: 0,           // bay door open fraction (visual)
+  empWaves: [],          // expanding pulse rings: { x, y, age }
+  empFlash: 0,
+  _serverIntro: false,
   popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
@@ -144,7 +153,11 @@ const Game = {
         case 'KeyR': Player.useItem('nanobots'); break;
         case 'KeyX': Player.useItem('dynamite'); break;
         case 'KeyC': Player.useItem('plastic'); break;
-        case 'KeyQ': Player.useItem('teleporter'); break;
+        case 'KeyT': Player.useItem('teleporter'); break;
+        case 'KeyQ':
+          // Hold to charge the EMP burst (the teleporter moved to T for this)
+          if (Player.hasEmpHead) this.empHolding = true;
+          break;
         case 'KeyM': Player.useItem('transmitter'); break;
         case 'KeyN': UI.toast(Audio.toggleMute() ? 'Sound muted' : 'Sound on'); break;
       }
@@ -157,9 +170,12 @@ const Game = {
         ArrowRight: 'right', KeyD: 'right',
       };
       if (keymap[e.code]) this.input[keymap[e.code]] = false;
+      if (e.code === 'KeyQ') this.releaseEmp();
     });
     window.addEventListener('blur', () => {
       this.input.up = this.input.down = this.input.left = this.input.right = false;
+      this.empHolding = false;
+      this.empCharge = 0;
     });
   },
 
@@ -331,6 +347,15 @@ const Game = {
     this.podGlowT = 0;
     this._iceIntro = false;
     this._prevFrost = 0;
+    this.robots = [];
+    this.roboLasers = [];
+    this.roboHeads = [];
+    this.empHolding = false;
+    this.empCharge = 0;
+    this.empDoors = 0;
+    this.empWaves = [];
+    this.empFlash = 0;
+    this._serverIntro = false;
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -550,6 +575,38 @@ const Game = {
       }
       this.mwBeam = { tx, ty, heat: w.cooked, needed: C.MICROWAVE.heatWorm, kind: 'worm' };
       // Death handled in updateWorm so the bounty/burst logic stays in one place
+      return;
+    }
+
+    // Security automatons: the beam arcs violently off the chassis — sparks
+    // fly, the metal heats toward slag, and ~10 beam-seconds ends it
+    const robotR = 1.0 + (lvl >= 2 ? 0.8 : 0);
+    for (const r of this.robots) {
+      if (Math.hypot(r.x - cx, (r.y - 0.1) - cy) >= robotR) continue;
+      r.cooked += dt * rate;
+      r.zapT = 0.15;
+      if (r.dormant) r.dormant = false;   // cooking a sleeper wakes it VERY fast
+      const hf = r.cooked / C.ROBOT.cookTime;
+      // Violent arc-flash sparks
+      if (Math.random() < dt * (34 + 40 * hf)) {
+        Particles.spawn({
+          x: r.x + (Math.random() - 0.5) * 0.6, y: r.y - 0.15 + (Math.random() - 0.5) * 0.7,
+          vx: (Math.random() - 0.5) * 8, vy: -2 - Math.random() * 4,
+          life: 0.35, size: 0.08,
+          color: Math.random() < 0.5 ? '#cfe8ff' : '#fff7c0', glow: true, gravity: 10,
+        });
+      }
+      // Molten metal shedding once it's half gone
+      if (hf > 0.4 && Math.random() < dt * 20 * hf) {
+        Particles.spawn({
+          x: r.x + (Math.random() - 0.5) * 0.5, y: r.y + 0.3,
+          vx: (Math.random() - 0.5) * 0.8, vy: 1 + Math.random() * 1.5,
+          life: 0.6, size: 0.09,
+          color: Math.random() < 0.5 ? '#ffb04a' : '#ff7a2f', glow: true, gravity: 8,
+        });
+      }
+      if (Math.random() < dt * 9) Audio.play('crackle');
+      this.mwBeam = { tx, ty, heat: r.cooked, needed: C.ROBOT.cookTime, kind: 'robot' };
       return;
     }
 
@@ -963,6 +1020,348 @@ const Game = {
     this.spawnGhost({ cursed: true });
   },
 
+  // --- AI server rooms: vaults in the deep permafrost. Any casing tile lost
+  // (drill, blast, worm, EMP) trips the alarm — the door opens and a security
+  // automaton marches out after the pod. ---
+  updateServers(dt) {
+    const pf = Player.depthFeet();
+    if (!this._serverIntro && pf >= C.SERVER.minFt && !Player.dead) {
+      this._serverIntro = true;
+      this.warn('DEEP PERMAFROST… SOMETHING IS HUMMING IN THE ICE', '#8fd8ff');
+    }
+    for (const room of World.serverRooms || []) {
+      if (room.alarmed) continue;
+      for (const t of room.tiles) {
+        if (World.get(t.x, t.y) === 0) { this.triggerAlarm(room); break; }
+      }
+    }
+  },
+
+  // The drill only has to TOUCH the casing for the AI to notice
+  onServerBreach(x, y) {
+    for (const room of World.serverRooms || []) {
+      if (room.alarmed) continue;
+      if (x >= room.x0 && x < room.x0 + room.w && y >= room.y0 && y < room.y0 + room.h) {
+        this.triggerAlarm(room);
+      }
+    }
+  },
+
+  triggerAlarm(room) {
+    room.alarmed = true;
+    Audio.play('alarm');
+    this.warn('⚠ AI ALARM — SECURITY AUTOMATON DEPLOYED!', '#ff5540');
+    this.shake(0.5);
+    World.clear(room.doorX, room.doorY);
+    Particles.burst(room.doorX + 0.5, room.doorY + 0.5, 14, { color: '#8fd8ff', speed: 4, life: 0.6, size: 0.1, glow: true });
+    this.robots.push({
+      x: room.doorX + 0.5, y: room.doorY + 0.5, vx: 0, vy: 0,
+      facing: 1, walkPhase: 0, flying: false, dormant: false, aim: 0,
+      cooked: 0, zapT: 0, laserCd: 1.6, punchCd: 0.8, age: 0, room,
+    });
+  },
+
+  // Straight-line visibility check for the automaton's fire control
+  hasLineOfSight(x0, y0, x1, y1) {
+    const dist = Math.hypot(x1 - x0, y1 - y0);
+    const steps = Math.ceil(dist / 0.25);
+    for (let i = 1; i < steps; i++) {
+      const t = i / steps;
+      if (World.isSolid(Math.floor(x0 + (x1 - x0) * t), Math.floor(y0 + (y1 - y0) * t))) return false;
+    }
+    return true;
+  },
+
+  // Axis-separated tile collision for an automaton (narrower than the pod)
+  moveRobot(r, dt) {
+    const hw = 0.3, hh = 0.45;
+    let nx = r.x + r.vx * dt;
+    const dirX = Math.sign(r.vx);
+    if (dirX !== 0) {
+      const tx = Math.floor(nx + dirX * hw);
+      for (let ty = Math.floor(r.y - hh + 0.02); ty <= Math.floor(r.y + hh - 0.02); ty++) {
+        if (World.isSolid(tx, ty)) { nx = dirX > 0 ? tx - hw - 0.001 : tx + 1 + hw + 0.001; r.vx = 0; break; }
+      }
+    }
+    r.x = nx;
+    let ny = r.y + r.vy * dt;
+    const dirY = Math.sign(r.vy);
+    if (dirY !== 0) {
+      const ty = Math.floor(ny + dirY * hh);
+      for (let tx = Math.floor(r.x - hw + 0.02); tx <= Math.floor(r.x + hw - 0.02); tx++) {
+        if (World.isSolid(tx, ty)) { ny = dirY > 0 ? ty - hh - 0.001 : ty + 1 + hh + 0.001; r.vy = 0; break; }
+      }
+    }
+    r.y = ny;
+  },
+
+  // --- The security automatons: relentless half-speed pursuit, walking the
+  // floors and rocketing up shafts. Only the Microwave Cannon melts them. ---
+  updateRobots(dt) {
+    const R = C.ROBOT;
+    for (let i = this.robots.length - 1; i >= 0; i--) {
+      const r = this.robots[i];
+      r.age += dt;
+      if (r.zapT > 0) r.zapT -= dt;
+      r.punchCd = Math.max(0, r.punchCd - dt);
+
+      // Melted through — it detonates
+      if (r.cooked >= R.cookTime) { this.killRobot(i); continue; }
+
+      const dx = Player.x - r.x, dy = Player.y - r.y;
+      const dist = Math.hypot(dx, dy) || 1;
+
+      // Power management: it never gives up, it just waits
+      if (r.dormant) {
+        if (dist < R.wakeDist && !Player.dead && Player.teleporting <= 0) {
+          r.dormant = false;
+          Audio.play('servo');
+          this.toast('Red eyes flare in the dark — the automaton reboots!');
+        } else {
+          // Settle onto the ground and idle
+          r.flying = false;
+          r.vx = 0;
+          r.vy = World.isSolid(Math.floor(r.x), Math.floor(r.y + 0.5)) ? 0 : Math.min(r.vy + C.GRAVITY * dt, 12);
+          this.moveRobot(r, dt);
+          continue;
+        }
+      }
+      if (dist * 1 > R.leash || Player.dead) { r.dormant = true; continue; }
+
+      r.facing = dx < 0 ? -1 : 1;
+      r.aim = Math.atan2(dy - 0.1, dx);
+
+      // Movement: walk at half pace; kick in the rocket when the pod is above
+      // or a wall/rack wants climbing over
+      const grounded = World.isSolid(Math.floor(r.x), Math.floor(r.y + 0.55)) && r.vy >= 0;
+      const aheadX = Math.floor(r.x + Math.sign(dx) * 0.45);
+      const rowY = Math.floor(r.y);
+      const blockedAhead = World.isSolid(aheadX, rowY);
+      // It can start a climb if there's air above it OR above the obstacle
+      const canClimb = !World.isSolid(Math.floor(r.x), rowY - 1) || !World.isSolid(aheadX, rowY - 1);
+      r.flying = dy < -0.8 || (blockedAhead && canClimb && dy < 0.5);
+      if (r.flying) {
+        // A wall in the way at this level? Boost UP first, then over
+        const wallAtLevel = World.isSolid(Math.floor(r.x + Math.sign(dx) * 0.6), rowY);
+        if (wallAtLevel && dy > -3) {
+          r.vx = Math.sign(dx) * R.flySpeed * 0.35;
+          r.vy = -R.flySpeed;
+        } else {
+          r.vx = (dx / dist) * R.flySpeed;
+          r.vy = (dy / dist) * R.flySpeed;
+        }
+        // Rocket wash
+        if (Math.random() < dt * 30) {
+          Particles.spawn({
+            x: r.x + (Math.random() - 0.5) * 0.2, y: r.y + 0.45,
+            vx: (Math.random() - 0.5) * 1.5, vy: 2.5 + Math.random() * 2,
+            life: 0.35, size: 0.09,
+            color: Math.random() < 0.5 ? '#ffb347' : '#8fd8ff', glow: true,
+          });
+        }
+      } else {
+        r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);
+        if (grounded) r.vx = Math.abs(dx) > 0.35 ? Math.sign(dx) * R.walkSpeed : 0;
+      }
+      this.moveRobot(r, dt);
+      if (!r.flying && Math.abs(r.vx) > 0.1) r.walkPhase += dt * 9;
+
+      // Servo whine when close — dread you can hear
+      if (dist < 8 && Math.random() < dt * 1.2) Audio.play('servo');
+
+      // Close quarters: a piston-driven hammer blow
+      if (dist < 0.95 && r.punchCd <= 0 && !Player.dead && Player.teleporting <= 0) {
+        r.punchCd = R.punchCd;
+        Audio.play('clank');
+        this.shake(0.5);
+        Player.vx = (dx / dist) * 7;
+        Player.vy = -2.5;
+        this.toast('The automaton hammers your hull!');
+        Player.damage(R.punchDmg, 'robot');
+      }
+
+      // Laser fire: slow, glowing, dodgeable — and it HURTS
+      r.laserCd -= dt;
+      if (r.laserCd <= 0 && dist < R.laserRange && !Player.dead && Player.teleporting <= 0
+          && this.hasLineOfSight(r.x, r.y - 0.15, Player.x, Player.y)) {
+        r.laserCd = R.laserCd * (0.8 + Math.random() * 0.5);
+        this.roboLasers.push({
+          x: r.x + (dx / dist) * 0.4, y: r.y - 0.12 + (dy / dist) * 0.4,
+          vx: (dx / dist) * R.laserSpeed, vy: (dy / dist) * R.laserSpeed, life: 4,
+        });
+        Audio.play('laser');
+      }
+    }
+
+    // Laser bolts in flight
+    for (let i = this.roboLasers.length - 1; i >= 0; i--) {
+      const b = this.roboLasers[i];
+      b.life -= dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      if (Math.random() < dt * 24) {
+        Particles.spawn({
+          x: b.x, y: b.y, vx: (Math.random() - 0.5) * 0.6, vy: (Math.random() - 0.5) * 0.6,
+          life: 0.25, size: 0.06, color: '#ff6a4a', glow: true,
+        });
+      }
+      if (!Player.dead && Player.teleporting <= 0
+          && Math.abs(b.x - Player.x) < 0.45 && Math.abs(b.y - Player.y) < 0.5) {
+        Audio.play('fireball');
+        this.shake(0.7);
+        Particles.burst(b.x, b.y, 14, { color: '#ff4a30', speed: 5, life: 0.5, size: 0.1, glow: true });
+        this.toast('Laser bolt sears the hull!');
+        Player.damage(C.ROBOT.laserDmg, 'robot');
+        this.roboLasers.splice(i, 1);
+        continue;
+      }
+      if (b.life <= 0 || World.isSolid(Math.floor(b.x), Math.floor(b.y))) {
+        Particles.burst(b.x, b.y, 6, { color: '#ff4a30', speed: 3, life: 0.4, size: 0.08, glow: true });
+        this.roboLasers.splice(i, 1);
+      }
+    }
+
+    // Dropped heads: settle, smoulder, get collected
+    for (let i = this.roboHeads.length - 1; i >= 0; i--) {
+      const h = this.roboHeads[i];
+      if (!World.isSolid(Math.floor(h.x), Math.floor(h.y + 0.4))) {
+        h.vy = Math.min(h.vy + 18 * dt, 14);
+        h.y += h.vy * dt;
+      } else {
+        h.vy = 0;
+      }
+      if (Math.random() < dt * 3) {
+        Particles.spawn({
+          x: h.x + (Math.random() - 0.5) * 0.2, y: h.y - 0.15,
+          vx: (Math.random() - 0.5) * 0.3, vy: -0.6 - Math.random() * 0.5,
+          life: 0.8, size: 0.07, color: '#6b6b66', gravity: -0.5,
+        });
+      }
+      if (!Player.dead && Player.teleporting <= 0
+          && Math.hypot(Player.x - h.x, Player.y - h.y) < 0.85) {
+        this.roboHeads.splice(i, 1);
+        this.deliverHeadDialogue();
+      }
+    }
+  },
+
+  killRobot(i) {
+    const r = this.robots[i];
+    this.robots.splice(i, 1);
+    if (r.room) r.room.robotDown = true;
+    Audio.play('roboBoom');
+    this.shake(1.1);
+    Particles.explosion(r.x, r.y, 1.6);
+    // White-hot slag and dark shrapnel
+    Particles.burst(r.x, r.y, 18, { color: '#ffd97a', speed: 6, life: 0.6, size: 0.11, glow: true, gravity: 6 });
+    Particles.burst(r.x, r.y, 12, { color: '#3c434f', speed: 4.5, life: 0.8, size: 0.1, gravity: 9 });
+    if (!Player.hasEmpHead) {
+      this.roboHeads.push({ x: r.x, y: r.y - 0.2, vy: 0 });
+      this.toast('The automaton detonates — its head survives the blast…');
+    } else {
+      Player.money += C.SERVER.salvage;
+      this.popup(r.x, r.y - 1, '+$' + C.SERVER.salvage.toLocaleString(), '#8fd8ff');
+      this.toast(`Automaton scrapped: +$${C.SERVER.salvage.toLocaleString()}`);
+    }
+  },
+
+  // Picking up the head: Mr. Natas slips, then covers — and you gain the EMP
+  deliverHeadDialogue() {
+    Audio.play('radio');
+    this.pauseForDialog();
+    UI.transmission({
+      from: 'Mr. Natas — Natas Mining Corp.',
+      portrait: 'natas',
+      text: 'Why are you destroying my... ugh...I mean...ugh...wow! Why are there servers down here? Are you okay? Looks like that machine is doing something? Try holding [Q].',
+    }, () => {
+      Player.hasEmpHead = true;
+      UI.toast('AUTOMATON HEAD installed — hold Q to charge the EMP');
+      Audio.play('powerup');
+      this.resumeFromDialog();
+    });
+  },
+
+  // --- EMP burst: hold Q to open the bay and charge; release at full to fire ---
+  updateEmp(dt) {
+    this.empFlash = Math.max(0, this.empFlash - dt);
+    for (const wv of this.empWaves) wv.age += dt;
+    this.empWaves = this.empWaves.filter(wv => wv.age < 0.9);
+
+    const charging = this.empHolding && Player.hasEmpHead && !Player.dead && Player.teleporting <= 0;
+    const doorTarget = charging ? 1 : 0;
+    this.empDoors += (doorTarget - this.empDoors) * Math.min(1, dt * 9);
+    if (!charging) return;
+
+    const prev = this.empCharge;
+    this.empCharge = Math.min(1, this.empCharge + dt / C.EMP.chargeSecs);
+    if (this.empCharge >= 1) {
+      if (prev < 1) Audio.play('empReady');
+      // Holding at max: arcs crawling over the hull
+      if (Math.random() < dt * 6) Audio.play('crackle');
+      if (Math.random() < dt * 24) {
+        Particles.spawn({
+          x: Player.x + (Math.random() - 0.5) * 0.9, y: Player.y + (Math.random() - 0.5) * 0.9,
+          vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+          life: 0.3, size: 0.07, color: Math.random() < 0.6 ? '#8fd8ff' : '#e8f8ff', glow: true,
+        });
+      }
+    } else {
+      // Rising charge whine
+      this._empToneT = (this._empToneT || 0) - dt;
+      if (this._empToneT <= 0) {
+        Audio.beep(240 + 920 * this.empCharge, 0.06);
+        this._empToneT = 0.12;
+      }
+    }
+  },
+
+  releaseEmp() {
+    if (!this.empHolding) return;
+    this.empHolding = false;
+    if (this.empCharge >= 1 && this.state === 'play' && Player.hasEmpHead && !Player.dead) this.fireEmp();
+    this.empCharge = 0;
+  },
+
+  fireEmp() {
+    const rate = 1 + 0.25 * (Player.mwLevel || 0);
+    const cx = Player.x, cy = Player.y;
+    // Everything mineral is vaporized outright (no cargo — the pulse leaves nothing)
+    World.empBlast(cx, cy, C.EMP.radius).forEach(n => this.armNuke(n.x, n.y));
+    // …and everything alive takes ten beam-seconds at once
+    const w = this.worm;
+    if (w && !w.leaving && [{ x: w.x, y: w.y }, ...(w.segPos || [])]
+        .some(p => Math.hypot(p.x - cx, p.y - cy) <= C.EMP.radius)) {
+      w.cooked = (w.cooked || 0) + C.EMP.heatSecs * rate;
+      w.zapT = 0.3;
+    }
+    const g = this.ghost;
+    if (g && g.fading <= 0 && Math.hypot(g.x - cx, g.y - cy) <= C.EMP.radius) {
+      g.exposure += C.EMP.heatSecs * rate;
+      g.zapT = 0.3;
+    }
+    for (const r of this.robots) {
+      if (Math.hypot(r.x - cx, r.y - cy) <= C.EMP.radius) { r.cooked += C.EMP.heatSecs * rate; r.zapT = 0.3; }
+    }
+    if (Boss.active && !Boss.betweenForms
+        && Math.hypot(Boss.x - cx, (Boss.y - 1.8) - cy) <= C.EMP.radius) {
+      Boss.microwave(C.EMP.heatSecs, rate);
+    }
+    Audio.play('empBlast');
+    this.shake(2.2);
+    this.empFlash = 0.5;
+    this.empWaves.push({ x: cx, y: cy, age: 0 });
+    this.warn('EMP DISCHARGE!', '#8fd8ff');
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2, rr = Math.random() * 2.5;
+      Particles.spawn({
+        x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr,
+        vx: Math.cos(a) * (6 + Math.random() * 9), vy: Math.sin(a) * (6 + Math.random() * 9),
+        life: 0.45 + Math.random() * 0.4, size: 0.12,
+        color: Math.random() < 0.6 ? '#8fd8ff' : '#e8f8ff', glow: true,
+      });
+    }
+  },
+
   // --- Save / load (mirrors the original save machine: gear + cash, not tunnels) ---
   save() {
     const data = {
@@ -1059,6 +1458,9 @@ const Game = {
     this.updateWorm(dt);
     this.updateCaveins(dt);
     this.updateMeat(dt);
+    this.updateServers(dt);
+    this.updateRobots(dt);
+    this.updateEmp(dt);
     this.checkPyramids();
 
     // Fuel-low banner: fires each time fuel crosses down through the warn line
@@ -1156,6 +1558,9 @@ const Game = {
         aim: this._aim,
         microwave: Player.hasMicrowave,
         mwFiring: !!this.mwBeam,
+        hasHead: Player.hasEmpHead,
+        empDoors: this.empDoors || 0,
+        empCharge: this.empCharge || 0,
       });
       // Frost creeping over the hull as the ICE bar fills
       if ((Player.frost || 0) > 0) {
@@ -1188,6 +1593,7 @@ const Game = {
     }
     this.drawLighting(ctx);
     this.drawGimmickFx(ctx);
+    this.drawRobotFx(ctx);
     this.drawGhost(ctx);
     this.drawPopups(ctx);
 
@@ -1199,6 +1605,11 @@ const Game = {
     // Nuclear detonation whiteout
     if (this.nukeFlash > 0) {
       ctx.fillStyle = `rgba(255,250,235,${Math.min(1, this.nukeFlash * 1.6)})`;
+      ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
+    }
+    // EMP discharge: a cold blue-white snap
+    if (this.empFlash > 0) {
+      ctx.fillStyle = `rgba(200,235,255,${Math.min(1, this.empFlash * 1.5)})`;
       ctx.fillRect(0, 0, C.VIEW_W, C.VIEW_H);
     }
 
@@ -1269,12 +1680,17 @@ const Game = {
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
-      // Permafrost band: everything gets a cold blue cast, strongest mid-band
+      // Permafrost band: everything gets a cold blue cast, strongest mid-band.
+      // Below it the deep permafrost keeps a steady frozen-dirt chill down to
+      // deepMaxFt, with frost flecks in the soil itself.
       const rowFeet = C.rowToFeet(y);
-      let icyA = 0;
+      let icyA = 0, deepIcy = false;
       if (rowFeet >= C.ICE.minFt && rowFeet <= C.ICE.maxFt) {
         const mid = (C.ICE.minFt + C.ICE.maxFt) / 2, half = (C.ICE.maxFt - C.ICE.minFt) / 2;
         icyA = 0.05 + 0.09 * (1 - Math.abs(rowFeet - mid) / half);
+      } else if (rowFeet > C.ICE.maxFt && rowFeet <= C.ICE.deepMaxFt) {
+        icyA = 0.11;
+        deepIcy = true;
       }
       for (let x = Math.max(0, x0); x <= Math.min(C.WORLD_W - 1, x1); x++) {
         const id = World.get(x, y);
@@ -1311,6 +1727,9 @@ const Game = {
         else if (id === 8) tex = Sprites.nukeTex[band];
         else if (id === 9) tex = Sprites.crackedTex[band];
         else if (id === 10) tex = Sprites.iceTex;
+        else if (id === 11) tex = Sprites.serverWallTex;
+        else if (id === 12) tex = Sprites.serverRackTex;
+        else if (id === 13) tex = Sprites.serverDoorTex;
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
@@ -1332,6 +1751,32 @@ const Game = {
           const pulse = 0.08 + 0.07 * Math.sin(this.time * 1.8 + x * 2.1 + y * 1.6);
           ctx.fillStyle = `rgba(120,230,90,${pulse})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+        }
+        // Deep permafrost: frost flecks frozen into the dirt (deterministic
+        // per tile so they don't shimmer frame to frame)
+        if (deepIcy && id === 1) {
+          ctx.fillStyle = 'rgba(220,242,255,0.32)';
+          let hsh = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+          for (let k = 0; k < 3; k++) {
+            hsh = (hsh * 1664525 + 1013904223) >>> 0;
+            const fx = (hsh & 255) / 255, fy = ((hsh >> 8) & 255) / 255;
+            ctx.fillRect(sx + fx * (T - 5), sy + fy * (T - 4), 3 + (hsh >> 16 & 1) * 2, 2);
+          }
+        }
+        // Server racks: LED rows blinking busily as they think
+        if (id === 12) {
+          for (let led = 0; led < 6; led++) {
+            const on = Math.sin(this.time * (2.5 + ((led * 2.7 + x * 1.3 + y) % 4)) + led * 2.1 + x) > 0.1;
+            if (!on) continue;
+            ctx.fillStyle = led % 2 ? 'rgba(80,255,130,0.95)' : 'rgba(255,200,80,0.95)';
+            ctx.fillRect(sx + T * 0.8, sy + T * (0.08 + led * 0.15) + T * 0.035, T * 0.05, T * 0.05);
+          }
+        }
+        // Sealed vault door: its red lamp breathes, watching
+        if (id === 13) {
+          const pulse = 0.3 + 0.28 * Math.sin(this.time * 2.4 + x);
+          ctx.fillStyle = `rgba(255,60,40,${pulse})`;
+          ctx.beginPath(); ctx.arc(sx + T * 0.5, sy + T * 0.2, T * 0.08, 0, Math.PI * 2); ctx.fill();
         }
       }
     }
@@ -2762,6 +3207,90 @@ const Game = {
     ctx.restore();
   },
 
+  // --- Automatons, laser bolts, dropped heads, EMP shockwaves ---
+  drawRobotFx(ctx) {
+    const T = C.TILE;
+    for (const r of this.robots) {
+      const sx = (r.x - this.cam.x) * T, sy = (r.y - this.cam.y) * T;
+      if (sx < -T * 2 || sx > C.VIEW_W + T * 2 || sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      Sprites.drawRobot(ctx, sx, sy, {
+        facing: r.facing, walkPhase: r.walkPhase, flying: r.flying,
+        heat: r.cooked / C.ROBOT.cookTime, dormant: r.dormant,
+        aim: r.aim || 0, zapT: r.zapT, time: this.time + r.age * 0.37,
+      });
+    }
+
+    // Laser bolts: a hot white core dragging a red tail
+    for (const b of this.roboLasers) {
+      const sx = (b.x - this.cam.x) * T, sy = (b.y - this.cam.y) * T;
+      if (sx < -T || sx > C.VIEW_W + T || sy < -T || sy > C.VIEW_H + T) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(Math.atan2(b.vy, b.vx));
+      ctx.globalCompositeOperation = 'lighter';
+      const lg = ctx.createLinearGradient(-T * 0.55, 0, T * 0.18, 0);
+      lg.addColorStop(0, 'rgba(255,60,30,0)');
+      lg.addColorStop(1, 'rgba(255,90,50,0.85)');
+      ctx.fillStyle = lg;
+      ctx.fillRect(-T * 0.55, -T * 0.05, T * 0.73, T * 0.1);
+      ctx.fillStyle = '#fff0d8';
+      ctx.beginPath(); ctx.arc(T * 0.18, 0, T * 0.06, 0, Math.PI * 2); ctx.fill();
+      const gl = ctx.createRadialGradient(T * 0.18, 0, 1, T * 0.18, 0, T * 0.2);
+      gl.addColorStop(0, 'rgba(255,120,80,0.6)');
+      gl.addColorStop(1, 'rgba(255,120,80,0)');
+      ctx.fillStyle = gl;
+      ctx.beginPath(); ctx.arc(T * 0.18, 0, T * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Dropped heads: dead red eyes, unlit — and worth stopping for
+    for (const h of this.roboHeads) {
+      const sx = (h.x - this.cam.x) * T, sy = (h.y - this.cam.y) * T;
+      if (sx < -T || sx > C.VIEW_W + T || sy < -T || sy > C.VIEW_H + T) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      // Attention shimmer so it reads as a pickup
+      const pulse = 0.25 + 0.2 * Math.sin(this.time * 3);
+      ctx.globalCompositeOperation = 'lighter';
+      const pg = ctx.createRadialGradient(0, 0, T * 0.02, 0, 0, T * 0.5);
+      pg.addColorStop(0, `rgba(140,200,255,${pulse})`);
+      pg.addColorStop(1, 'rgba(140,200,255,0)');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(0, 0, T * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#454c58';
+      Sprites.rr(ctx, -T * 0.11, -T * 0.13, T * 0.22, T * 0.21, T * 0.05);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1;
+      Sprites.rr(ctx, -T * 0.11, -T * 0.13, T * 0.22, T * 0.21, T * 0.05);
+      ctx.stroke();
+      ctx.fillStyle = '#22252b';
+      ctx.fillRect(-T * 0.08, T * 0.015, T * 0.16, T * 0.05);
+      // The eyes: dark sockets, no light left in them
+      ctx.fillStyle = '#2b1516';
+      ctx.beginPath(); ctx.arc(-T * 0.05, -T * 0.04, T * 0.026, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(T * 0.05, -T * 0.04, T * 0.026, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // EMP shockwaves racing outward
+    for (const wv of this.empWaves) {
+      const p = wv.age / 0.9;
+      const rad = p * C.EMP.radius * T;
+      const sx = (wv.x - this.cam.x) * T, sy = (wv.y - this.cam.y) * T;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = `rgba(150,220,255,${0.8 * (1 - p)})`;
+      ctx.lineWidth = 7 * (1 - p) + 2;
+      ctx.beginPath(); ctx.arc(sx, sy, rad, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - p)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(sx, sy, rad * 0.86, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  },
+
   drawPopups(ctx) {
     if (!this.popups.length) return;
     ctx.save();
@@ -2817,7 +3346,7 @@ const Game = {
     ctx.fillStyle = '#9a958a';
     const lines = [
       'Arrows / WASD — fly & drill      E — enter buildings      N — mute',
-      'Items: F fuel · R repair · X dynamite · C plastic · Q teleport · M transmitter',
+      'Items: F fuel · R repair · X dynamite · C plastic · T teleport · M transmitter',
       'Sell minerals at the processor. Refuel often. Watch your hull. Dig deep…',
     ];
     lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.68 + i * 22));
@@ -2848,6 +3377,7 @@ const Game = {
       nuke: 'Fifty-megaton problems require more than a mining hull.',
       cavein: 'The ceiling remembered how gravity works.',
       worm: 'It was hungry. You were there. The math was simple.',
+      robot: 'The security system flagged you as an intruder. Case closed.',
       boss: 'Your contract has been terminated.',
       laser: 'Your contract has been terminated.',
       cane: 'Your contract has been terminated.',

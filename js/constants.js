@@ -132,7 +132,28 @@ const C = {
   // Microwave Cannon at YOURSELF to melt off — a full bar takes meltSecs
   // (faster with worm-meat power levels). Ice drills quickly, and the cannon
   // can also melt ice tiles in the ground outright.
-  ICE: { minFt: 6000, maxFt: 7600, freq: 160, drillMult: 0.7, frostPerBlock: 10, meltSecs: 3 },
+  // Below maxFt the permafrost keeps going as frozen dirt down to deepMaxFt:
+  // fewer ice blocks (deepFreq), but the same cold cast — cold enough that
+  // something down there uses it for cooling…
+  ICE: { minFt: 6000, maxFt: 7600, freq: 160, drillMult: 0.7, frostPerBlock: 10, meltSecs: 3,
+         deepMaxFt: 9000, deepFreq: 55 },
+
+  // --- AI server rooms, buried in the deep permafrost (-7,700 to -8,950 ft)
+  // and kept cool by it. Metal-walled vaults full of humming racks. Cutting
+  // into one trips the AI alarm: a door slides open and a security automaton
+  // marches out. wallHardness: drill-speed penalty on the casing.
+  SERVER: { minFt: 7700, maxFt: 8950, count: 4, wallHardness: 2.2, salvage: 20000 },
+  // The automaton walks/flies at roughly half the pod's pace, fires a slow
+  // dodgeable laser bolt (50 dmg), and only the Microwave Cannon hurts it:
+  // ~cookTime beam-seconds to melt down (less with worm-meat power levels).
+  // Beyond leash tiles it powers down in place and reboots when you return.
+  ROBOT: { walkSpeed: 2.5, flySpeed: 5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
+           laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12 },
+  // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
+  // bay doors and charge (chargeSecs); release at full charge to detonate a
+  // pulse that vaporizes ALL blocks (boulders included) within radius tiles
+  // and deals heatSecs' worth of microwave damage to anything alive.
+  EMP: { chargeSecs: 2, radius: 16, heatSecs: 10 },
 
   // --- Cave-ins from ~-6,000 ft: visibly cracked tiles that crumble ~1 s
   // after the pod passes beneath them, dropping a damaging rock. Localized,
@@ -220,7 +241,7 @@ const C = {
     nanobots:   { name: 'Hull Repair Nanobots', price: 7500,  desc: '+30 hull instantly', key: 'R' },
     dynamite:   { name: 'Dynamite',             price: 2000,  desc: 'Clears 3x3 around the pod', key: 'X' },
     plastic:    { name: 'Plastic Explosive',    price: 5000,  desc: 'Clears 5x5 around the pod', key: 'C' },
-    teleporter: { name: 'Quantum Teleporter',   price: 2000,  desc: 'Teleport to the surface (rough landing possible)', key: 'Q' },
+    teleporter: { name: 'Quantum Teleporter',   price: 2000,  desc: 'Teleport to the surface (rough landing possible)', key: 'T' },
     transmitter:{ name: 'Matter Transmitter',   price: 10000, desc: 'Safe teleport to beside the Fuel Station', key: 'M' },
   },
   REPAIR_COST_PER_HP: 15,       // Emendation Station hull repair

@@ -320,7 +320,7 @@ const UI = {
     ctx.textAlign = 'left';
     let ix = pad + barW + gap * 1.5;
     ctx.font = `${Math.round(11 * U)}px Verdana`;
-    const itemIcons = { fuelTank: '⛽F', nanobots: '🔧R', dynamite: '🧨X', plastic: '💥C', teleporter: '🌀Q', transmitter: '📡M' };
+    const itemIcons = { fuelTank: '⛽F', nanobots: '🔧R', dynamite: '🧨X', plastic: '💥C', teleporter: '🌀T', transmitter: '📡M' };
     for (const key of Object.keys(itemIcons)) {
       const n = P.items[key];
       ctx.fillStyle = n > 0 ? '#ffd9a0' : 'rgba(150,145,135,0.35)';

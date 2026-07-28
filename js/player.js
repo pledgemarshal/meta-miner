@@ -38,6 +38,7 @@ const Player = {
     this.hasMicrowave = false;
     this.mwLevel = 0;          // worm-meat power-ups: 0, 1, or 2 (maxed)
     this.frost = 0;            // 0-100; drilling permafrost ice builds it — 100 = frozen solid
+    this.hasEmpHead = false;   // automaton head in the bay: hold Q to charge the EMP burst
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -271,11 +272,17 @@ const Player = {
     let harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
     if (World.get(tx, ty) === World.kindIndex.sand) harden *= C.PYRAMID.sandHardness;
     if (World.get(tx, ty) === World.kindIndex.ice) harden *= C.ICE.drillMult;   // ice drills fast — the cost is frost
+    const tileId = World.get(tx, ty);
+    if (tileId === World.kindIndex.serverWall) harden *= C.SERVER.wallHardness; // hardened casing
     // Frost slows the drill by the same fraction it slows movement
     const time = (C.DRILL_BASE_TIME * harden) / (this.drillSpeed() * Math.max(0.05, 1 - (this.frost || 0) / 100));
     this.drilling = { x: tx, y: ty, dir, progress: 0, time: Math.max(0.1, time) };
     this.fallStartY = null;
     Audio.play('drill');
+    // The moment the bit touches the vault, the AI knows you're there
+    if (tileId === World.kindIndex.serverWall || tileId === World.kindIndex.serverRack) {
+      Game.onServerBreach(tx, ty);
+    }
   },
 
   finishDrill() {
@@ -530,6 +537,7 @@ const Player = {
       hasMicrowave: this.hasMicrowave || false,
       mwLevel: this.mwLevel || 0,
       frost: this.frost || 0,
+      hasEmpHead: this.hasEmpHead || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -544,6 +552,7 @@ const Player = {
     this.hasMicrowave = !!d.hasMicrowave;
     this.mwLevel = d.mwLevel || 0;
     this.frost = d.frost || 0;
+    this.hasEmpHead = !!d.hasEmpHead;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },
