@@ -1081,6 +1081,12 @@ const Game = {
       this.warn('FREEZING! MICROWAVE YOURSELF TO MELT THE ICE!', '#8fd8ff');
       Audio.play('denied');
     }
+    if ((Player.frost || 0) >= 100 && (this._prevFrost || 0) < 100 && !Player.dead) {
+      this.warn('FROZEN SOLID! MICROWAVE YOURSELF FREE!', '#8fd8ff');
+      Audio.play('shatter');
+      this.shake(0.6);
+      Particles.burst(Player.x, Player.y, 24, { color: '#cfeefc', speed: 5, life: 0.8, size: 0.11, glow: true });
+    }
     this._prevFrost = Player.frost || 0;
 
     // Denser strata announcement: fires once per newly-entered darker soil band
@@ -2841,7 +2847,6 @@ const Game = {
       explosive: 'Standing next to your own blast radius is not recommended.',
       nuke: 'Fifty-megaton problems require more than a mining hull.',
       cavein: 'The ceiling remembered how gravity works.',
-      frozen: 'Flash-frozen. The pod makes an excellent monument.',
       worm: 'It was hungry. You were there. The math was simple.',
       boss: 'Your contract has been terminated.',
       laser: 'Your contract has been terminated.',

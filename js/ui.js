@@ -294,7 +294,8 @@ const UI = {
       const iceFrac = P.frost / 100;
       const critical = iceFrac >= 0.75 && Math.sin(Game.time * 8) > 0;
       this.bar(ctx, pad, 10 * U + 2 * (barH + gap * 0.6), barW, barH, iceFrac,
-        critical ? '#ff4530' : '#8fd8ff', `ICE ${Math.round(P.frost)}%`);
+        critical ? '#ff4530' : '#8fd8ff',
+        P.frost >= 100 ? 'FROZEN SOLID!' : `ICE ${Math.round(P.frost)}%`);
     }
 
     // Money & depth

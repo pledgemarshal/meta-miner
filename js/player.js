@@ -114,6 +114,21 @@ const Player = {
       return;
     }
 
+    // Frozen solid at 100% frost: totally immobile — no thrust, no drill, no
+    // fall — until the Microwave Cannon melts the bar back below 100
+    if ((this.frost || 0) >= 100) {
+      this.vx = 0; this.vy = 0;
+      this.drilling = null;
+      this.flush = null;
+      this.fallStartY = null;
+      Audio.stop('drill');
+      Audio.setWind(0);
+      Audio.setTreads(0);
+      Audio.setGeyser(0);
+      Audio.thrustOff();
+      return;
+    }
+
     // Geyser roar plays exactly while the surge is carrying the pod
     Audio.setGeyser(this.flush ? 1 : 0);
 
@@ -188,7 +203,8 @@ const Player = {
 
     // --- Input & physics ---
     const thrustUp = input.up;
-    const eng = this.engineMult() * this.liftFactor();
+    // Frost stiffens the pod: 10% ice = 10% slower to move, scaling linearly
+    const eng = this.engineMult() * this.liftFactor() * (1 - (this.frost || 0) / 100);
 
     if (thrustUp && this.fuel > 0) {
       this.vy -= C.THRUST * eng * dt;
@@ -255,7 +271,8 @@ const Player = {
     let harden = Math.pow(1 + C.BAND_DRILL_PENALTY, band);
     if (World.get(tx, ty) === World.kindIndex.sand) harden *= C.PYRAMID.sandHardness;
     if (World.get(tx, ty) === World.kindIndex.ice) harden *= C.ICE.drillMult;   // ice drills fast — the cost is frost
-    const time = (C.DRILL_BASE_TIME * harden) / this.drillSpeed();
+    // Frost slows the drill by the same fraction it slows movement
+    const time = (C.DRILL_BASE_TIME * harden) / (this.drillSpeed() * Math.max(0.05, 1 - (this.frost || 0) / 100));
     this.drilling = { x: tx, y: ty, dir, progress: 0, time: Math.max(0.1, time) };
     this.fallStartY = null;
     Audio.play('drill');
@@ -375,12 +392,8 @@ const Player = {
       Audio.play('iceBreak');
       Particles.burst(d.x + 0.5, d.y + 0.5, 10, { color: '#cfeefc', speed: 4, life: 0.5, size: 0.09 });
       Particles.burst(d.x + 0.5, d.y + 0.5, 6, { color: '#8fd0ee', speed: 2.5, life: 0.7, size: 0.07, glow: true });
-      if (this.frost >= 100 && !this.dead) {
-        Audio.play('shatter');
-        Particles.burst(this.x, this.y, 30, { color: '#cfeefc', speed: 6, life: 0.9, size: 0.12, glow: true });
-        this.die('frozen');
-        return;
-      }
+      // At 100% the pod locks up solid (handled in update) — not fatal,
+      // just stranded until the Microwave Cannon melts it free
     }
     this.vy = Math.min(this.vy, 1);
 
