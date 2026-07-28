@@ -36,6 +36,7 @@ const Player = {
     this.maxDepth = 0;
     this.flush = null;
     this.hasMicrowave = false;
+    this.mwLevel = 0;          // worm-meat power-ups: 0, 1, or 2 (maxed)
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -499,6 +500,7 @@ const Player = {
       money: this.money, fuel: this.fuel, hull: this.hull,
       maxDepth: this.maxDepth || 0,
       hasMicrowave: this.hasMicrowave || false,
+      mwLevel: this.mwLevel || 0,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -511,6 +513,7 @@ const Player = {
     this.hull = d.hull;
     this.maxDepth = d.maxDepth || 0;
     this.hasMicrowave = !!d.hasMicrowave;
+    this.mwLevel = d.mwLevel || 0;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

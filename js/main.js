@@ -31,6 +31,8 @@ const Game = {
   crumbling: [],         // triggered ceiling tiles counting down: { x, y, t }
   debris: [],            // falling rocks: { x, y, vy, hit }
   _caveinIntro: false,
+  meat: [],              // cooked worm meat drops: { x, y, vy }
+  podGlowT: 0,           // level-up aura timer after eating meat
   popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
@@ -321,11 +323,49 @@ const Game = {
     this.wormIntroSeen = false;
     this.alertT = 0;
     this.mwBeam = null;
-    this._mwKey = null;
-    this._mwHeat = 0;
+    this._mwHeats = {};
     this.crumbling = [];
     this.debris = [];
     this._caveinIntro = false;
+    this.meat = [];
+    this.podGlowT = 0;
+  },
+
+  // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
+  // Each piece permanently boosts the Microwave Cannon (max 2).
+  updateMeat(dt) {
+    if (this.podGlowT > 0) this.podGlowT -= dt;
+    for (let i = this.meat.length - 1; i >= 0; i--) {
+      const m = this.meat[i];
+      // Settle onto the ground
+      if (!World.isSolid(Math.floor(m.x), Math.floor(m.y + 0.4))) {
+        m.vy = Math.min(m.vy + 18 * dt, 14);
+        m.y += m.vy * dt;
+      } else {
+        m.vy = 0;
+      }
+      // Appetizing steam
+      if (Math.random() < dt * 4) {
+        Particles.spawn({
+          x: m.x + (Math.random() - 0.5) * 0.3, y: m.y - 0.2,
+          vx: (Math.random() - 0.5) * 0.5, vy: -0.8 - Math.random() * 0.6,
+          life: 0.7, size: 0.07, color: '#bff5a0', glow: true, gravity: -0.5,
+        });
+      }
+      // Nom
+      if (!Player.dead && Player.teleporting <= 0
+          && Math.hypot(Player.x - m.x, Player.y - m.y) < 0.85) {
+        this.meat.splice(i, 1);
+        Player.mwLevel = Math.min(2, (Player.mwLevel || 0) + 1);
+        this.podGlowT = 1.8;
+        Audio.play('powerup');
+        Particles.burst(Player.x, Player.y, 26, { color: '#9dff5a', speed: 5, life: 0.9, size: 0.11, glow: true });
+        Particles.burst(Player.x, Player.y, 12, { color: '#fff7c0', speed: 3, life: 1.1, size: 0.08, glow: true });
+        this.warn(Player.mwLevel >= 2
+          ? 'MICROWAVE BEAM COOKING AND MAXED OUT!'
+          : 'MICROWAVE GUN POWERED UP 25%!', '#9dff5a');
+      }
+    }
   },
 
   // --- Cave-ins: cracked ceiling tiles crumble ~1 s after the pod passes
@@ -441,27 +481,29 @@ const Game = {
     const firing = Player.hasMicrowave && this.mouseDown && !Player.dead
       && Player.teleporting <= 0 && this.state === 'play' && !UI.isOpen();
     this.mwBeam = null;
-    if (!firing) { Audio.setMicrowave(0); this._mwKey = null; return; }
+    if (!firing) { Audio.setMicrowave(0); this._mwHeats = {}; return; }
     Audio.setMicrowave(1);
+
+    // Worm-meat power-ups: each level heats 25% faster; level 2 widens the
+    // focus to a 3x3 tile area
+    const lvl = Player.mwLevel || 0;
+    const rate = 1 + 0.25 * lvl;
 
     // The focused tile, anywhere on screen
     const T = C.TILE;
     const tx = Math.floor(this.cam.x + this.mouse.x / T);
     const ty = Math.floor(this.cam.y + this.mouse.y / T);
     const cx = tx + 0.5, cy = ty + 0.5;
-    let key = null, needed = 0, kind = null;
 
     // The worm's bulk takes priority over whatever tile is behind it
     const w = this.worm;
+    const wormR = 1.35 + (lvl >= 2 ? 0.8 : 0);
     if (w && !w.leaving && [{ x: w.x, y: w.y }, ...(w.segPos || [])]
-        .some(p => Math.hypot(p.x - cx, p.y - cy) < 1.35)) {
-      kind = 'worm';
-      key = 'worm';
-      needed = C.MICROWAVE.heatWorm;
-      w.cooked = (w.cooked || 0) + dt;          // cumulative — its only weakness
+        .some(p => Math.hypot(p.x - cx, p.y - cy) < wormR)) {
+      w.cooked = (w.cooked || 0) + dt * rate;   // cumulative — its only weakness
       w.zapT = 0.15;
       // Steam and sparks boiling off the whole body, heavier as it cooks
-      const boilRate = 26 + 30 * (w.cooked / C.MICROWAVE.heatWorm);
+      const boilRate = (26 + 30 * (w.cooked / C.MICROWAVE.heatWorm)) * rate;
       if (Math.random() < dt * boilRate) {
         const segs = [{ x: w.x, y: w.y }, ...(w.segPos || [])];
         const p = segs[Math.floor(Math.random() * segs.length)];
@@ -473,48 +515,63 @@ const Game = {
           glow: true, gravity: -1,
         });
       }
-      this.mwBeam = { tx, ty, heat: w.cooked, needed, kind };
+      this.mwBeam = { tx, ty, heat: w.cooked, needed: C.MICROWAVE.heatWorm, kind: 'worm' };
       // Death handled in updateWorm so the bounty/burst logic stays in one place
       return;
     }
 
     // Ghosts sizzle under the beam — stacks with the flashlight burn
     const g = this.ghost;
-    if (g && g.fading <= 0 && Math.hypot(g.x - cx, g.y - cy) < 0.95) {
-      g.exposure += dt;
+    if (g && g.fading <= 0 && Math.hypot(g.x - cx, g.y - cy) < 0.95 + (lvl >= 2 ? 0.7 : 0)) {
+      g.exposure += dt * rate;
       g.zapT = 0.15;
       this.mwBeam = { tx, ty, heat: g.exposure, needed: 3, kind: 'ghost' };
       return;
     }
 
-    const id = World.get(tx, ty);
-    if (id === World.kindIndex.nuke) { kind = 'nuke'; needed = C.MICROWAVE.heatNuke; }
-    else if (id === World.kindIndex.magnetite) { kind = 'magnet'; needed = C.MICROWAVE.heatMagnet; }
-    else if (id === World.kindIndex.steam) { kind = 'steam'; needed = C.MICROWAVE.heatSteam; }
-    else if (id === World.kindIndex.gas) { kind = 'gas'; needed = C.MICROWAVE.heatGas; }
-    else if (id === World.kindIndex.cracked) { kind = 'crack'; needed = C.MICROWAVE.heatCrack; }
-    if (!kind) { this._mwKey = null; this.mwBeam = { tx, ty, heat: 0, needed: 0, kind: null }; return; }
-
-    // Heat is per-target: moving the beam elsewhere starts over
-    key = kind + ':' + tx + ',' + ty;
-    if (this._mwKey !== key) { this._mwKey = key; this._mwHeat = 0; }
-    this._mwHeat += dt;
-    this.mwBeam = { tx, ty, heat: this._mwHeat, needed, kind };
-
-    // Boiling bubbles while a target cooks
-    if (Math.random() < dt * (8 + 24 * (this._mwHeat / needed))) {
-      Particles.spawn({
-        x: tx + 0.2 + Math.random() * 0.6, y: ty + 0.2 + Math.random() * 0.6,
-        vx: (Math.random() - 0.5) * 1.2, vy: -1 - Math.random() * 1.5,
-        life: 0.45, size: 0.07,
-        color: kind === 'magnet' ? '#c99cff' : kind === 'steam' ? '#9fd8e8' : '#ffd97a',
-        glow: true,
-      });
+    // Tile targets: one at the cursor — or the whole 3x3 around it at max
+    // level. Heat is tracked per tile and drops if the beam moves away.
+    const offsets = lvl >= 2
+      ? [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]
+      : [[0, 0]];
+    const kindOf = id2 => {
+      if (id2 === World.kindIndex.nuke) return ['nuke', C.MICROWAVE.heatNuke];
+      if (id2 === World.kindIndex.magnetite) return ['magnet', C.MICROWAVE.heatMagnet];
+      if (id2 === World.kindIndex.steam) return ['steam', C.MICROWAVE.heatSteam];
+      if (id2 === World.kindIndex.gas) return ['gas', C.MICROWAVE.heatGas];
+      if (id2 === World.kindIndex.cracked) return ['crack', C.MICROWAVE.heatCrack];
+      return [null, 0];
+    };
+    const carried = {};
+    let center = { tx, ty, heat: 0, needed: 0, kind: null };
+    for (const [ox, oy] of offsets) {
+      const x = tx + ox, y = ty + oy;
+      const [kind2, needed2] = kindOf(World.get(x, y));
+      if (!kind2) continue;
+      const key2 = kind2 + ':' + x + ',' + y;
+      const heat2 = ((this._mwHeats && this._mwHeats[key2]) || 0) + dt * rate;
+      if (ox === 0 && oy === 0) center = { tx, ty, heat: heat2, needed: needed2, kind: kind2 };
+      // Boiling bubbles while a target cooks
+      if (Math.random() < dt * (8 + 24 * (heat2 / needed2))) {
+        Particles.spawn({
+          x: x + 0.2 + Math.random() * 0.6, y: y + 0.2 + Math.random() * 0.6,
+          vx: (Math.random() - 0.5) * 1.2, vy: -1 - Math.random() * 1.5,
+          life: 0.45, size: 0.07,
+          color: kind2 === 'magnet' ? '#c99cff' : kind2 === 'steam' ? '#9fd8e8' : '#ffd97a',
+          glow: true,
+        });
+      }
+      if (heat2 < needed2) { carried[key2] = heat2; continue; }
+      this.mwResolve(kind2, x, y);
     }
+    this._mwHeats = carried;
+    this.mwBeam = center;
+  },
 
-    if (this._mwHeat < needed) return;
-    this._mwKey = null;
-
+  // A tile target finished cooking — apply its effect
+  mwResolve(kind, tx, ty) {
+    const cx = tx + 0.5, cy = ty + 0.5;
+    const boom = Player.mwLevel >= 2 ? 1.5 : 1;   // maxed cannon hits harder
     if (kind === 'nuke') {
       this.armNuke(tx, ty);        // "safe disposal", as promised
     } else if (kind === 'crack') {
@@ -524,10 +581,10 @@ const Game = {
       // The vapor flashes over the moment the beam touches it — remote
       // detonation is the whole point, but standing close still hurts
       World.blast(tx, ty, 1).forEach(nn => this.armNuke(nn.x, nn.y));
-      Particles.explosion(cx, cy, 1.2);
-      Particles.burst(cx, cy, 20, { color: '#9fe870', speed: 7, life: 0.5, size: 0.12, glow: true });
+      Particles.explosion(cx, cy, 1.2 * boom);
+      Particles.burst(cx, cy, Math.round(20 * boom), { color: '#9fe870', speed: 7, life: 0.5, size: 0.12, glow: true });
       Audio.play('gas');
-      this.shake(0.7);
+      this.shake(0.7 * boom);
       const pd = Math.hypot(Player.x - cx, Player.y - cy);
       if (pd < 2.4 && !Player.dead) {
         const feet = C.rowToFeet(ty);
@@ -540,9 +597,9 @@ const Game = {
       // Superheated lodestone bursts, taking its own tile with it
       World.clear(tx, ty);
       Audio.play('mwPop');
-      this.shake(0.35);
-      Particles.burst(cx, cy, 18, { color: '#b56cff', speed: 5, life: 0.6, size: 0.1, glow: true });
-      Particles.burst(cx, cy, 8, { color: '#e8d9ff', speed: 3, life: 0.8, size: 0.08, glow: true });
+      this.shake(0.35 * boom);
+      Particles.burst(cx, cy, Math.round(18 * boom), { color: '#b56cff', speed: 5, life: 0.6, size: 0.1, glow: true });
+      Particles.burst(cx, cy, Math.round(8 * boom), { color: '#e8d9ff', speed: 3, life: 0.8, size: 0.08, glow: true });
       this.toast('Lodestone boiled away!');
     } else if (kind === 'steam') {
       // The whole connected spring flashes to steam and bursts one tile out
@@ -565,8 +622,8 @@ const Game = {
       World.blast(tx, ty, 1).forEach(n => this.armNuke(n.x, n.y));
       Audio.play('steam');
       Audio.play('mwPop');
-      this.shake(0.5);
-      Particles.burst(cx, cy, 20, { color: '#e8f8ff', speed: 6, life: 0.7, size: 0.13, gravity: -2 });
+      this.shake(0.5 * boom);
+      Particles.burst(cx, cy, Math.round(20 * boom), { color: '#e8f8ff', speed: 6, life: 0.7, size: 0.13, gravity: -2 });
       this.toast('Spring boiled off — pressure vented!');
     }
   },
@@ -840,6 +897,10 @@ const Game = {
     this.popup(w.x, w.y - 1, '+$' + C.WORM.bounty.toLocaleString(), '#9dff5a');
     this.toast(`Worm destroyed! Bounty +$${C.WORM.bounty.toLocaleString()}`);
     this.shake(1.2);
+    // A perfectly cooked, glowing morsel — the cannon's next power-up
+    if ((Player.mwLevel || 0) < 2) {
+      this.meat.push({ x: w.x, y: w.y, vy: 0 });
+    }
   },
 
   // --- Pyramids: an eerie fanfare when the pod digs near one ---
@@ -958,6 +1019,7 @@ const Game = {
     this.updateNukes(dt);
     this.updateWorm(dt);
     this.updateCaveins(dt);
+    this.updateMeat(dt);
     this.checkPyramids();
 
     // Fuel-low banner: fires each time fuel crosses down through the warn line
@@ -1608,6 +1670,70 @@ const Game = {
       ctx.restore();
     }
 
+    // Cooked worm meat: a glowing green morsel steaming on the ground
+    for (const m of this.meat) {
+      const sx = (m.x - this.cam.x) * T, sy = (m.y - this.cam.y) * T + Math.sin(this.time * 3) * T * 0.04;
+      if (sx < -T * 2 || sx > C.VIEW_W + T * 2 || sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      ctx.save();
+      // Beacon glow so it's findable in the dark
+      ctx.globalCompositeOperation = 'lighter';
+      const pulse2 = 0.6 + 0.4 * Math.sin(this.time * 4);
+      const mg = ctx.createRadialGradient(sx, sy, T * 0.05, sx, sy, T * 1.1);
+      mg.addColorStop(0, `rgba(150,255,110,${0.35 * pulse2})`);
+      mg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = mg;
+      ctx.fillRect(sx - T * 1.1, sy - T * 1.1, T * 2.2, T * 2.2);
+      ctx.globalCompositeOperation = 'source-over';
+      // The morsel: seared glaze over glowing green meat, bone stub poking out
+      ctx.fillStyle = '#e8e0d0';
+      ctx.beginPath();
+      ctx.ellipse(sx - T * 0.2, sy - T * 0.12, T * 0.06, T * 0.045, -0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(sx - T * 0.22, sy - T * 0.12, T * 0.1, T * 0.05);
+      const meatG = ctx.createRadialGradient(sx + T * 0.02, sy - T * 0.04, T * 0.02, sx + T * 0.05, sy, T * 0.24);
+      meatG.addColorStop(0, '#c8ff8a');
+      meatG.addColorStop(0.55, '#6fae3a');
+      meatG.addColorStop(1, '#3e6a1e');
+      ctx.fillStyle = meatG;
+      ctx.beginPath();
+      ctx.ellipse(sx + T * 0.05, sy, T * 0.22, T * 0.16, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+      // Char grill lines
+      ctx.strokeStyle = 'rgba(40,25,10,0.6)';
+      ctx.lineWidth = Math.max(1, T * 0.022);
+      for (const off of [-0.06, 0.02, 0.1]) {
+        ctx.beginPath();
+        ctx.moveTo(sx - T * 0.1 + off * T, sy - T * 0.12);
+        ctx.lineTo(sx + T * 0.02 + off * T, sy + T * 0.13);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Level-up aura: the pod shines after eating worm meat
+    if (this.podGlowT > 0 && !Player.dead) {
+      const px2 = (Player.x - this.cam.x) * T, py2 = (Player.y - this.cam.y) * T;
+      const t2 = this.podGlowT / 1.8;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const ag = ctx.createRadialGradient(px2, py2, T * 0.2, px2, py2, T * (1.6 + (1 - t2) * 0.8));
+      ag.addColorStop(0, `rgba(190,255,150,${0.4 * t2})`);
+      ag.addColorStop(0.6, `rgba(255,245,170,${0.22 * t2})`);
+      ag.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ag;
+      ctx.fillRect(px2 - T * 2.5, py2 - T * 2.5, T * 5, T * 5);
+      // Rising motes of power
+      for (let i = 0; i < 6; i++) {
+        const a2 = this.time * 2.4 + i * 1.05;
+        const rr3 = T * (0.7 + 0.25 * Math.sin(this.time * 3 + i));
+        ctx.fillStyle = `rgba(220,255,180,${0.6 * t2})`;
+        ctx.beginPath();
+        ctx.arc(px2 + Math.cos(a2) * rr3, py2 + Math.sin(a2) * rr3 * 0.8 - (1 - t2) * T * 0.5, T * 0.045, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
     this.drawNukeAftermath(ctx);
     this.drawWorm(ctx);
     this.drawMicrowaveBeam(ctx);
@@ -1641,25 +1767,32 @@ const Game = {
     const ty2 = (b.ty + 0.5 - this.cam.y) * T;
     const ang = Math.atan2(ty2 - py, tx2 - px);
     const len = Math.hypot(tx2 - px, ty2 - py);
+    // Worm-meat upgrades tint the beam green; maxed makes it thicker and
+    // washes heat over the whole 3x3 focus area
+    const lvl = Player.mwLevel || 0;
+    const wmul = lvl >= 2 ? 1.45 : 1;
+    const cCore = lvl ? '160,255,150' : '255,220,150';
+    const cRip = lvl ? '110,240,110' : '255,180,90';
+    const cGlow = lvl ? '200,255,180' : '255,235,180';
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
 
     // Beam core + sinusoidal ripples traveling outward (microwaves, literally)
-    ctx.strokeStyle = 'rgba(255,220,150,0.35)';
-    ctx.lineWidth = Math.max(2, T * 0.06);
+    ctx.strokeStyle = `rgba(${cCore},0.35)`;
+    ctx.lineWidth = Math.max(2, T * 0.06 * wmul);
     ctx.beginPath();
     ctx.moveTo(px, py);
     ctx.lineTo(tx2, ty2);
     ctx.stroke();
-    ctx.lineWidth = Math.max(1.5, T * 0.035);
+    ctx.lineWidth = Math.max(1.5, T * 0.035 * wmul);
     for (const phase of [0, Math.PI]) {
-      ctx.strokeStyle = 'rgba(255,180,90,0.5)';
+      ctx.strokeStyle = `rgba(${cRip},0.5)`;
       ctx.beginPath();
       const steps = Math.max(8, Math.floor(len / 9));
       for (let i = 0; i <= steps; i++) {
         const f = i / steps;
-        const wob = Math.sin(f * len * 0.09 - this.time * 22 + phase) * T * 0.12 * Math.sin(f * Math.PI);
+        const wob = Math.sin(f * len * 0.09 - this.time * 22 + phase) * T * 0.12 * wmul * Math.sin(f * Math.PI);
         const wx = px + Math.cos(ang) * len * f - Math.sin(ang) * wob;
         const wy = py + Math.sin(ang) * len * f + Math.cos(ang) * wob;
         i === 0 ? ctx.moveTo(wx, wy) : ctx.lineTo(wx, wy);
@@ -1667,20 +1800,27 @@ const Game = {
       ctx.stroke();
     }
     // Emitter glow at the dish
-    let g = ctx.createRadialGradient(px, py, 1, px, py, T * 0.35);
-    g.addColorStop(0, 'rgba(255,235,180,0.8)');
-    g.addColorStop(1, 'rgba(255,180,90,0)');
+    let g = ctx.createRadialGradient(px, py, 1, px, py, T * 0.35 * wmul);
+    g.addColorStop(0, `rgba(${cGlow},0.8)`);
+    g.addColorStop(1, `rgba(${cRip},0)`);
     ctx.fillStyle = g;
-    ctx.fillRect(px - T * 0.35, py - T * 0.35, T * 0.7, T * 0.7);
+    ctx.fillRect(px - T * 0.5, py - T * 0.5, T, T);
 
-    // Target tile: flickering heat wash
+    // Target: flickering heat wash — one tile, or the whole 3x3 when maxed
     const flick = 0.55 + 0.45 * Math.sin(this.time * 27);
-    g = ctx.createRadialGradient(tx2, ty2, T * 0.06, tx2, ty2, T * 0.75);
-    g.addColorStop(0, `rgba(255,225,160,${0.4 * flick})`);
-    g.addColorStop(0.6, `rgba(255,150,70,${0.22 * flick})`);
+    const washR = lvl >= 2 ? T * 1.55 : T * 0.75;
+    g = ctx.createRadialGradient(tx2, ty2, T * 0.06, tx2, ty2, washR);
+    g.addColorStop(0, `rgba(${lvl ? '210,255,170' : '255,225,160'},${0.4 * flick})`);
+    g.addColorStop(0.6, `rgba(${cRip},${0.22 * flick})`);
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
-    ctx.fillRect(tx2 - T * 0.75, ty2 - T * 0.75, T * 1.5, T * 1.5);
+    ctx.fillRect(tx2 - washR, ty2 - washR, washR * 2, washR * 2);
+    if (lvl >= 2) {
+      // Faint 3x3 focus outline so the wide area reads clearly
+      ctx.strokeStyle = `rgba(150,255,140,${0.2 + 0.15 * flick})`;
+      ctx.lineWidth = Math.max(1, T * 0.03);
+      ctx.strokeRect(tx2 - T * 1.5, ty2 - T * 1.5, T * 3, T * 3);
+    }
 
     // Progress ring while something is actually cooking
     if (b.needed > 0) {
@@ -1931,19 +2071,28 @@ const Game = {
       }
     }
 
-    // Head: 2 tiles wide, mandibles chewing
+    // Head: 2 tiles wide, mandibles chewing — sears with the body as it cooks
     const hr = T * 0.98;
     const ang = w.heading || 0;
     ctx.translate(hx, hy);
     ctx.rotate(ang);
     const hg = ctx.createRadialGradient(-hr * 0.3, -hr * 0.3, hr * 0.15, 0, 0, hr);
-    hg.addColorStop(0, '#4a6e30');
-    hg.addColorStop(0.6, '#2c4a1a');
-    hg.addColorStop(1, '#14260c');
+    hg.addColorStop(0, `rgb(${mix2(74, 210, cookFrac)},${mix2(110, 80, cookFrac)},${mix2(48, 30, cookFrac)})`);
+    hg.addColorStop(0.6, `rgb(${mix2(44, 150, cookFrac)},${mix2(74, 48, cookFrac)},${mix2(26, 18, cookFrac)})`);
+    hg.addColorStop(1, `rgb(${mix2(20, 76, cookFrac)},${mix2(38, 22, cookFrac)},${mix2(12, 9, cookFrac)})`);
     ctx.fillStyle = hg;
     ctx.beginPath();
     ctx.ellipse(0, 0, hr, hr * 0.92, 0, 0, Math.PI * 2);
     ctx.fill();
+    // White-hot sizzle rim on the head while the beam is on it
+    if (zapped) {
+      const flick2 = 0.5 + 0.5 * Math.sin(this.time * 29);
+      ctx.strokeStyle = `rgba(255,240,200,${0.35 + 0.4 * flick2})`;
+      ctx.lineWidth = Math.max(1.5, hr * 0.08);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, hr * 0.99, hr * 0.91, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     // Armored head plates
     ctx.strokeStyle = 'rgba(15,30,8,0.8)';
     ctx.lineWidth = Math.max(1.5, hr * 0.07);

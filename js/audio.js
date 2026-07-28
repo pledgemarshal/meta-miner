@@ -186,6 +186,13 @@ const Audio = {
         this.noise(0.018, 0.32, 6500);
         if (Math.random() < 0.3) this.noise(0.014, 0.22, 7500, 0.03);   // occasional double-tick
         break;
+      // Eating worm meat: a triumphant rising power-up chime
+      case 'powerup':
+        [392, 494, 587, 784].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.16, null, i * 0.08));
+        this.tone(1175, 0.4, 'sine', 0.12, null, 0.34);
+        this.tone(1568, 0.5, 'sine', 0.08, null, 0.42);
+        this.noise(0.5, 0.06, 2500, 0.3);
+        break;
       // Rock groaning before it lets go
       case 'creak':
         this.tone(85, 0.7, 'sawtooth', 0.14, 48);
