@@ -298,14 +298,22 @@ const Player = {
       Particles.burst(d.x + 0.5, d.y + 0.5, 14, { color: a.color, speed: 4, life: 0.7, size: 0.08, glow: true });
       if (kind.key === 'relic') Game.triggerCurse(d.x, d.y);
     } else if (kind.lava) {
-      // Lava hits twice (two damage rolls), reduced by radiator
+      // Lava hits twice (two damage rolls), reduced by radiator. The combined
+      // total is capped below max hull so it can never one-shot from full HP.
       const res = 1 - this.heatResist();
       const roll = base => Math.max(1, Math.round((base + (Math.random() * 4 - 2)) * res));
       Particles.explosion(d.x + 0.5, d.y + 0.5, 1.3);
       Audio.play('lava');
       Game.shake(0.5);
-      this.damage(roll(C.LAVA.dmg1), 'lava');
-      if (!this.dead) this.damage(roll(C.LAVA.dmg2), 'lava');
+      let dmg1 = roll(C.LAVA.dmg1), dmg2 = roll(C.LAVA.dmg2);
+      const cap = Math.floor(this.hullCap() * C.LAVA_DMG_CAP);
+      if (dmg1 + dmg2 > cap) {
+        const scale = cap / (dmg1 + dmg2);
+        dmg1 = Math.max(1, Math.floor(dmg1 * scale));
+        dmg2 = Math.max(0, cap - dmg1);
+      }
+      this.damage(dmg1, 'lava');
+      if (!this.dead && dmg2 > 0) this.damage(dmg2, 'lava');
     } else if (kind.steam) {
       // Popping any tile bursts the WHOLE connected pool; the surge distance
       // scales with the pool's size — 250 ft per tile of its longest side.

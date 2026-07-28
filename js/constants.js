@@ -88,6 +88,9 @@ const C = {
   STEAM: { min: 800, boostPerSizeFt: 250, color: '#9fd8e8' },
   // Gas can hurt badly but never one-shot: capped at this fraction of max hull
   GAS_DMG_CAP: 0.7,
+  // Lava too: both damage rolls combined never exceed this fraction of max
+  // hull, so full health always survives a lava kiss (barely)
+  LAVA_DMG_CAP: 0.8,
 
   // --- Depth gimmicks: a new surprise every 1,000 ft ---
   // Magnetite lodestones from ~-1,000 ft: entering the visible field inverts
