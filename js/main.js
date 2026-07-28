@@ -1473,13 +1473,23 @@ const Game = {
     this.empFlash = 0.5;
     this.empWaves.push({ x: cx, y: cy, age: 0 });
     this.warn('EMP DISCHARGE!', '#8fd8ff');
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
       const a = Math.random() * Math.PI * 2, rr = Math.random() * 2.5;
       Particles.spawn({
         x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr,
         vx: Math.cos(a) * (6 + Math.random() * 9), vy: Math.sin(a) * (6 + Math.random() * 9),
         life: 0.45 + Math.random() * 0.4, size: 0.12,
         color: Math.random() < 0.6 ? '#8fd8ff' : '#e8f8ff', glow: true,
+      });
+    }
+    // Lingering static: slow bright motes that hang and fizzle in the crater
+    for (let i = 0; i < 26; i++) {
+      const a = Math.random() * Math.PI * 2, rr = Math.random() * C.EMP.radius * 0.9;
+      Particles.spawn({
+        x: cx + Math.cos(a) * rr, y: cy + Math.sin(a) * rr,
+        vx: (Math.random() - 0.5) * 1.2, vy: (Math.random() - 0.5) * 1.2,
+        life: 0.7 + Math.random() * 0.7, size: 0.07,
+        color: Math.random() < 0.5 ? '#cfe8ff' : '#ffffff', glow: true,
       });
     }
   },
@@ -3577,7 +3587,7 @@ const Game = {
       ctx.restore();
     }
 
-    // EMP shockwaves racing outward
+    // EMP shockwaves racing outward, wrapped in crawling lightning
     for (const wv of this.empWaves) {
       const p = wv.age / 0.9;
       const rad = p * C.EMP.radius * T;
@@ -3590,6 +3600,56 @@ const Game = {
       ctx.strokeStyle = `rgba(255,255,255,${0.5 * (1 - p)})`;
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(sx, sy, rad * 0.86, 0, Math.PI * 2); ctx.stroke();
+      // Jagged lightning rays lashing from the core to the ring — re-rolled
+      // every frame so they crawl and flicker
+      const rays = 8;
+      ctx.lineWidth = Math.max(1.5, T * 0.035);
+      for (let i = 0; i < rays; i++) {
+        const a = (i / rays) * Math.PI * 2 + Math.random() * 0.6;
+        ctx.strokeStyle = i % 2
+          ? `rgba(255,255,255,${0.75 * (1 - p)})`
+          : `rgba(140,215,255,${0.85 * (1 - p)})`;
+        ctx.beginPath();
+        let lx = sx, ly = sy;
+        ctx.moveTo(lx, ly);
+        const segs = 5;
+        for (let s2 = 1; s2 <= segs; s2++) {
+          const rr = (s2 / segs) * rad;
+          const jitter = (Math.random() - 0.5) * rad * 0.22;
+          lx = sx + Math.cos(a) * rr - Math.sin(a) * jitter;
+          ly = sy + Math.sin(a) * rr + Math.cos(a) * jitter;
+          ctx.lineTo(lx, ly);
+        }
+        ctx.stroke();
+        // Forked tip at the ring
+        if (Math.random() < 0.6) {
+          ctx.beginPath();
+          ctx.moveTo(lx, ly);
+          ctx.lineTo(lx + (Math.random() - 0.5) * T * 0.9, ly + (Math.random() - 0.5) * T * 0.9);
+          ctx.stroke();
+        }
+      }
+      // Short arcs sparking ON the ring itself
+      ctx.lineWidth = Math.max(1, T * 0.025);
+      for (let i = 0; i < 6; i++) {
+        const a = Math.random() * Math.PI * 2;
+        ctx.strokeStyle = `rgba(200,240,255,${0.8 * (1 - p)})`;
+        ctx.beginPath();
+        let ax = sx + Math.cos(a) * rad, ay = sy + Math.sin(a) * rad;
+        ctx.moveTo(ax, ay);
+        for (let s2 = 0; s2 < 3; s2++) {
+          ax += (Math.random() - 0.5) * T * 0.5;
+          ay += (Math.random() - 0.5) * T * 0.5;
+          ctx.lineTo(ax, ay);
+        }
+        ctx.stroke();
+      }
+      // Core flash
+      const cg = ctx.createRadialGradient(sx, sy, 1, sx, sy, rad * 0.5 + T * 0.3);
+      cg.addColorStop(0, `rgba(255,255,255,${0.5 * (1 - p)})`);
+      cg.addColorStop(1, 'rgba(160,220,255,0)');
+      ctx.fillStyle = cg;
+      ctx.fillRect(sx - rad, sy - rad, rad * 2, rad * 2);
       ctx.restore();
     }
   },

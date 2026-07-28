@@ -152,7 +152,7 @@ const C = {
   // emergeSecs: boot-up pause in the doorway before the hunt begins.
   ROBOT: { walkSpeed: 0.75, flySpeed: 1.5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
            laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
-           mineSecs: 1, doorSecs: 0.9, emergeSecs: 0.8 },
+           mineSecs: 0.5, doorSecs: 0.9, emergeSecs: 0.8 },
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
   // bay doors and charge (chargeSecs); release at full charge to detonate a
   // pulse that vaporizes ALL blocks (boulders included) within radius tiles
