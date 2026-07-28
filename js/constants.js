@@ -114,7 +114,7 @@ const C = {
   // and never hunts above -500 ft.
   WORM: { min: 5000, speedSolid: 1.0, speedOpen: 1.6, biteDmg: 25, biteCd: 1.2, bounty: 40000, lifetime: 55, leashFt: 500, ceilingFt: 500 },
 
-  // --- Microwave Cannon: unlocked by Mr. Natas' transmission at -4,000 ft ---
+  // --- Microwave Cannon: unlocked by Mr. Natas' transmission at -3,000 ft ---
   // Hold the mouse button to cook the tile under the cursor (anywhere on
   // screen, one-tile focus). Heating times in seconds per target type:
   // warheads arm, lodestones boil then burst, springs boil then burst (1-tile
@@ -226,9 +226,9 @@ const C = {
     { depth: 1750 },
     { depth: 2100 },
     { depth: 2500 },
+    { depth: 3000 },   // Microwave Cannon unlock
     { depth: 3100 },
     { depth: 3500, bonus: 25000 },
-    { depth: 4000 },   // Microwave Cannon unlock
     { depth: 4100 },
     { depth: 4500 },
     { depth: 6200 },

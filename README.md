@@ -17,7 +17,7 @@ No build step, no dependencies. Either:
 | --- | --- |
 | Arrow keys / WASD | Fly (up = thrust) and drill down / left / right |
 | Mouse | Aim the dome flashlight |
-| Hold click | Fire the Microwave Cannon (unlocked at -4,000 ft) |
+| Hold click | Fire the Microwave Cannon (unlocked at -3,000 ft) |
 | E / Enter | Interact with surface buildings |
 | Esc | Pause / close menus |
 
