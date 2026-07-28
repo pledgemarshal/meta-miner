@@ -3320,19 +3320,27 @@ const Game = {
     this.screenBase(ctx, 0.55);
     ctx.save();
     ctx.textAlign = 'center';
-    // Big title with warm glow
+    // Big title with warm glow — shrink to fit narrow windows
+    const title = 'MOTHERLOAD - REVAMPED';
     ctx.font = 'bold 64px Verdana';
+    if (ctx.measureText(title).width > C.VIEW_W * 0.92) {
+      const size = Math.floor(64 * (C.VIEW_W * 0.92) / ctx.measureText(title).width);
+      ctx.font = `bold ${size}px Verdana`;
+    }
     ctx.shadowColor = '#ff8a30';
     ctx.shadowBlur = 30;
     const g = ctx.createLinearGradient(0, C.VIEW_H * 0.3 - 40, 0, C.VIEW_H * 0.3 + 20);
     g.addColorStop(0, '#ffd9a0');
     g.addColorStop(1, '#e07b28');
     ctx.fillStyle = g;
-    ctx.fillText('MOTHERLOAD', C.VIEW_W / 2, C.VIEW_H * 0.3);
+    ctx.fillText(title, C.VIEW_W / 2, C.VIEW_H * 0.3);
     ctx.shadowBlur = 0;
-    ctx.font = '15px Verdana';
-    ctx.fillStyle = '#b8b2a6';
-    ctx.fillText('A fan remake of the 2004 classic — modernized graphics, faithful gameplay', C.VIEW_W / 2, C.VIEW_H * 0.3 + 36);
+    ctx.font = '19px Verdana';
+    ctx.fillStyle = '#efe9dc';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 6;
+    ctx.fillText('A fan remake vibe coded with love', C.VIEW_W / 2, C.VIEW_H * 0.3 + 40);
+    ctx.shadowBlur = 0;
 
     const hasSave = !!this.loadSaveData();
     ctx.font = 'bold 20px Verdana';
@@ -3342,17 +3350,20 @@ const Game = {
     ctx.fillText(hasSave ? 'Press ENTER to continue your save' : 'Press ENTER to start digging', C.VIEW_W / 2, C.VIEW_H * 0.55);
     ctx.globalAlpha = 1;
 
-    ctx.font = '13px Verdana';
-    ctx.fillStyle = '#9a958a';
+    ctx.font = '16px Verdana';
+    ctx.fillStyle = '#ded8cb';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 5;
     const lines = [
       'Arrows / WASD — fly & drill      E — enter buildings      N — mute',
       'Items: F fuel · R repair · X dynamite · C plastic · T teleport · M transmitter',
       'Sell minerals at the processor. Refuel often. Watch your hull. Dig deep…',
     ];
-    lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.68 + i * 22));
-    ctx.font = '11px Verdana';
-    ctx.fillStyle = '#6e6a60';
-    ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 22 + 18);
+    lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.68 + i * 26));
+    ctx.font = '13px Verdana';
+    ctx.fillStyle = '#aaa498';
+    ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 26 + 20);
+    ctx.shadowBlur = 0;
     ctx.restore();
   },
 
