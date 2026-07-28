@@ -469,11 +469,11 @@ const Audio = {
       const hum = this.ctx.createOscillator();
       hum.type = 'sine'; hum.frequency.value = 60;
       const humG = this.ctx.createGain();
-      humG.gain.value = 0.16;
+      humG.gain.value = 0.15;
       const hum2 = this.ctx.createOscillator();
       hum2.type = 'sine'; hum2.frequency.value = 120;
       const hum2G = this.ctx.createGain();
-      hum2G.gain.value = 0.07;
+      hum2G.gain.value = 0.05;
       hum.connect(humG); humG.connect(g);
       hum2.connect(hum2G); hum2G.connect(g);
 
@@ -490,26 +490,29 @@ const Audio = {
       const fan = this.ctx.createBufferSource();
       fan.buffer = buf; fan.loop = true;
       const fanF = this.ctx.createBiquadFilter();
-      fanF.type = 'bandpass'; fanF.frequency.value = 520; fanF.Q.value = 0.7;
+      fanF.type = 'bandpass'; fanF.frequency.value = 400; fanF.Q.value = 0.5;
+      // Extra lowpass rounds off the hissy top end of the whir
+      const fanF2 = this.ctx.createBiquadFilter();
+      fanF2.type = 'lowpass'; fanF2.frequency.value = 900;
       const fanG = this.ctx.createGain();
-      fanG.gain.value = 0.1;
+      fanG.gain.value = 0.08;
       const fanLfo = this.ctx.createOscillator();
       fanLfo.type = 'sine'; fanLfo.frequency.value = 4.3;
       const fanLfoG = this.ctx.createGain();
-      fanLfoG.gain.value = 0.03;
+      fanLfoG.gain.value = 0.022;
       fanLfo.connect(fanLfoG); fanLfoG.connect(fanG.gain);
-      fan.connect(fanF); fanF.connect(fanG); fanG.connect(g);
+      fan.connect(fanF); fanF.connect(fanF2); fanF2.connect(fanG); fanG.connect(g);
 
-      // Beam shimmer: a thin, singing high tone with gentle vibrato riding on
-      // top — the "focused energy" layer
+      // Beam shimmer: a soft singing overtone with gentle vibrato — dropped
+      // well out of the piercing register and kept quiet
       const beam = this.ctx.createOscillator();
-      beam.type = 'sine'; beam.frequency.value = 1980;
+      beam.type = 'sine'; beam.frequency.value = 990;
       const beamG = this.ctx.createGain();
-      beamG.gain.value = 0.016;
+      beamG.gain.value = 0.008;
       const beamVib = this.ctx.createOscillator();
-      beamVib.type = 'sine'; beamVib.frequency.value = 6.5;
+      beamVib.type = 'sine'; beamVib.frequency.value = 5.2;
       const beamVibG = this.ctx.createGain();
-      beamVibG.gain.value = 22;
+      beamVibG.gain.value = 12;
       beamVib.connect(beamVibG); beamVibG.connect(beam.frequency);
       beam.connect(beamG); beamG.connect(g);
 
