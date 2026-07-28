@@ -77,6 +77,37 @@ const Sprites = {
       this.artifacts[key] = [];
       for (let b = 0; b < this.BANDS; b++) this.artifacts[key].push(this.makeArtifact(key, b, S));
     }
+
+    // Permafrost variants: rebuild every soil-backed tile with frozen ground
+    // behind it, by temporarily swapping the dirt/soil sources the generators
+    // draw from. The ores themselves keep their color — only the soil chills.
+    const realDirt = this.dirt, realSoil = this.soil;
+    this.dirt = this.frozenDirt;
+    this.soil = () => ['#8ba3b8', '#54687c'];
+    this.frozenStone = [];
+    this.frozenGasTex = [];
+    this.frozenCrackedTex = [];
+    this.frozenMagnetiteTex = [];
+    this.frozenNukeTex = [];
+    for (let b = 0; b < this.BANDS; b++) {
+      this.frozenStone.push(this.makeStone(b, S));
+      this.frozenGasTex.push(this.makeGas(b, S));
+      this.frozenCrackedTex.push(this.makeCracked(b, S));
+      this.frozenMagnetiteTex.push(this.makeMagnetite(b, S));
+      this.frozenNukeTex.push(this.makeNuke(b, S));
+    }
+    this.frozenMinerals = {};
+    for (const key of Object.keys(C.MINERALS)) {
+      this.frozenMinerals[key] = [];
+      for (let b = 0; b < this.BANDS; b++) this.frozenMinerals[key].push(this.makeMineral(key, b, S));
+    }
+    this.frozenArtifacts = {};
+    for (const key of Object.keys(C.ARTIFACTS)) {
+      this.frozenArtifacts[key] = [];
+      for (let b = 0; b < this.BANDS; b++) this.frozenArtifacts[key].push(this.makeArtifact(key, b, S));
+    }
+    this.dirt = realDirt;
+    this.soil = realSoil;
   },
 
   makeDirt(band, S) {

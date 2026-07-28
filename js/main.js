@@ -1892,15 +1892,15 @@ const Game = {
           this._steamTiles.push({ x, y });
           continue;
         }
-        let tex = null;
+        let tex = null, ftex = null;   // ftex: frozen-soil variant for the permafrost band
         if (id === 1) { drawSoil(sx, sy, v); }
-        else if (id === 2) tex = Sprites.stone[band];
+        else if (id === 2) { tex = Sprites.stone[band]; ftex = Sprites.frozenStone[band]; }
         else if (id === 3) tex = Sprites.lavaBase;
-        else if (id === 4) { tex = Sprites.gasTex[band]; this._gasVis.push({ x, y }); }   // gas is visible now — fairness over stealth
-        else if (id === 6) { tex = Sprites.magnetiteTex[band]; this._magnetVis.push({ x, y }); }
+        else if (id === 4) { tex = Sprites.gasTex[band]; ftex = Sprites.frozenGasTex[band]; this._gasVis.push({ x, y }); }   // gas is visible now — fairness over stealth
+        else if (id === 6) { tex = Sprites.magnetiteTex[band]; ftex = Sprites.frozenMagnetiteTex[band]; this._magnetVis.push({ x, y }); }
         else if (id === 7) tex = Sprites.sandTex[band];
-        else if (id === 8) tex = Sprites.nukeTex[band];
-        else if (id === 9) tex = Sprites.crackedTex[band];
+        else if (id === 8) { tex = Sprites.nukeTex[band]; ftex = Sprites.frozenNukeTex[band]; }
+        else if (id === 9) { tex = Sprites.crackedTex[band]; ftex = Sprites.frozenCrackedTex[band]; }
         else if (id === 10) tex = Sprites.iceTex;
         else if (id === 11) tex = Sprites.serverWallTex;
         else if (id === 12) tex = Sprites.serverRackTex;
@@ -1908,11 +1908,20 @@ const Game = {
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
+          ftex = kind.mineral ? Sprites.frozenMinerals[kind.key][band] : Sprites.frozenArtifacts[kind.key][band];
         }
-        if (tex) ctx.drawImage(tex, sx, sy, T + 0.5, T + 0.5);
-        // Cold cast over the permafrost band (ice is already blue, and the
-        // frozen soil texture carries its own chill)
-        if (icyA > 0 && id !== 10 && id !== 1) {
+        if (tex) {
+          const useFrozen = ftex && frozenT > 0;
+          if (!useFrozen || frozenT < 1) ctx.drawImage(tex, sx, sy, T + 0.5, T + 0.5);
+          if (useFrozen) {
+            if (frozenT < 1) ctx.globalAlpha = frozenT;
+            ctx.drawImage(ftex, sx, sy, T + 0.5, T + 0.5);
+            if (frozenT < 1) ctx.globalAlpha = 1;
+          }
+        }
+        // Cold cast over the permafrost band — only for tiles that don't
+        // already carry frozen artwork (dirt, ice and the frozen variants do)
+        if (icyA > 0 && id !== 10 && id !== 1 && !(ftex && frozenT > 0)) {
           ctx.fillStyle = `rgba(150,205,255,${icyA})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
         }

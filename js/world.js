@@ -89,8 +89,9 @@ const World = {
           if (r < acc) { this.grid[i] = 2; continue; }
         }
 
-        // Lava pockets from ~-3,000 ft
-        if (feet >= C.LAVA.min) {
+        // Lava pockets from ~-3,000 ft — but not inside the permafrost, where
+        // the ground is far too cold for molten rock
+        if (feet >= C.LAVA.min && !(feet >= C.ICE.minFt && feet <= C.ICE.deepMaxFt)) {
           acc += C.LAVA.freq * (0.5 + 0.5 * depthT);
           if (r < acc) { this.grid[i] = 3; continue; }
         }
