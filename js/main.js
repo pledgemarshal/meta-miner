@@ -589,14 +589,25 @@ const Game = {
       r.zapT = 0.15;
       if (r.dormant) r.dormant = false;   // cooking a sleeper wakes it VERY fast
       const hf = r.cooked / C.ROBOT.cookTime;
-      // Violent arc-flash sparks
-      if (Math.random() < dt * (34 + 40 * hf)) {
-        Particles.spawn({
-          x: r.x + (Math.random() - 0.5) * 0.6, y: r.y - 0.15 + (Math.random() - 0.5) * 0.7,
-          vx: (Math.random() - 0.5) * 8, vy: -2 - Math.random() * 4,
-          life: 0.35, size: 0.08,
-          color: Math.random() < 0.5 ? '#cfe8ff' : '#fff7c0', glow: true, gravity: 10,
-        });
+      // VIOLENT arc-flash: showers of sparks ricocheting off the chassis
+      if (Math.random() < dt * (90 + 90 * hf)) {
+        const burst = 2 + Math.floor(Math.random() * 3);
+        for (let s = 0; s < burst; s++) {
+          const a = Math.random() * Math.PI * 2;
+          const sp = 4 + Math.random() * 9;
+          Particles.spawn({
+            x: r.x + (Math.random() - 0.5) * 0.5, y: r.y - 0.15 + (Math.random() - 0.5) * 0.6,
+            vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+            life: 0.3 + Math.random() * 0.25, size: 0.055 + Math.random() * 0.05,
+            color: Math.random() < 0.45 ? '#cfe8ff' : (Math.random() < 0.6 ? '#fff7c0' : '#ffd06a'),
+            glow: true, gravity: 14,
+          });
+        }
+      }
+      // Occasional big white arc-pop
+      if (Math.random() < dt * 7) {
+        Particles.burst(r.x + (Math.random() - 0.5) * 0.5, r.y - 0.15 + (Math.random() - 0.5) * 0.5, 8,
+          { color: '#ffffff', speed: 7, life: 0.22, size: 0.07, glow: true });
       }
       // Molten metal shedding once it's half gone
       if (hf > 0.4 && Math.random() < dt * 20 * hf) {
@@ -1673,28 +1684,55 @@ const Game = {
         empDoors: this.empDoors || 0,
         empCharge: this.empCharge || 0,
       });
-      // Frost creeping over the hull as the ICE bar fills
+      // Frost claiming the hull stage by stage as the ICE bar fills: every
+      // 10% another patch crystallizes, then a full icy sheet builds, then
+      // icicles multiply and lengthen toward the total freeze
       if ((Player.frost || 0) > 0) {
         const fr = Player.frost / 100;
+        const T2 = C.TILE;
         ctx.save();
-        ctx.globalAlpha = 0.2 + 0.55 * fr;
-        const ig = ctx.createLinearGradient(podX, podY - C.TILE * 0.45, podX, podY + C.TILE * 0.45);
-        ig.addColorStop(0, 'rgba(210,240,255,0.75)');
-        ig.addColorStop(0.55, 'rgba(150,210,245,0.4)');
-        ig.addColorStop(1, 'rgba(120,180,230,0.65)');
-        ctx.fillStyle = ig;
-        Sprites.rr(ctx, podX - C.TILE * 0.44, podY - C.TILE * 0.46, C.TILE * 0.88, C.TILE * 0.92, C.TILE * 0.16);
-        ctx.fill();
-        // Icicles growing from the underside once it's serious
-        if (fr > 0.3) {
-          ctx.fillStyle = 'rgba(200,235,255,0.85)';
-          for (let i = 0; i < 4; i++) {
-            const ix = podX - C.TILE * 0.3 + i * C.TILE * 0.2;
-            const il = C.TILE * (0.08 + 0.16 * fr) * (i % 2 ? 0.7 : 1);
+        // Stage 1 — frost patches, one per 10%, each blooming in as it lands
+        const patches = [
+          [-0.34, 0.26, 0.14], [0.36, 0.28, 0.12], [-0.42, -0.02, 0.13], [0.42, 0.06, 0.14],
+          [-0.18, -0.34, 0.12], [0.22, -0.3, 0.13], [0.02, 0.38, 0.15], [-0.3, 0.12, 0.16],
+          [0.3, -0.12, 0.15], [0.0, -0.1, 0.2],
+        ];
+        const lit = fr * patches.length;
+        for (let i = 0; i < Math.ceil(lit) && i < patches.length; i++) {
+          const grow = Math.min(1, lit - i);                 // newest patch fades in
+          const [pxf, pyf, prf] = patches[i];
+          const cx2 = podX + pxf * T2, cy2 = podY + pyf * T2;
+          const pr = prf * T2 * (0.6 + 0.4 * grow);
+          const pg = ctx.createRadialGradient(cx2, cy2, pr * 0.15, cx2, cy2, pr);
+          pg.addColorStop(0, `rgba(235,248,255,${0.7 * grow})`);
+          pg.addColorStop(0.7, `rgba(190,228,252,${0.45 * grow})`);
+          pg.addColorStop(1, 'rgba(170,215,248,0)');
+          ctx.fillStyle = pg;
+          ctx.beginPath(); ctx.arc(cx2, cy2, pr, 0, Math.PI * 2); ctx.fill();
+        }
+        // Stage 2 — past 35% a continuous icy sheet builds over everything
+        if (fr > 0.35) {
+          ctx.globalAlpha = ((fr - 0.35) / 0.65) * 0.85;
+          const ig = ctx.createLinearGradient(podX, podY - T2 * 0.45, podX, podY + T2 * 0.45);
+          ig.addColorStop(0, 'rgba(210,240,255,0.75)');
+          ig.addColorStop(0.55, 'rgba(150,210,245,0.4)');
+          ig.addColorStop(1, 'rgba(120,180,230,0.65)');
+          ctx.fillStyle = ig;
+          Sprites.rr(ctx, podX - T2 * 0.44, podY - T2 * 0.46, T2 * 0.88, T2 * 0.92, T2 * 0.16);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        // Stage 3 — icicles from 20%: more of them, and longer, as it worsens
+        if (fr > 0.2) {
+          const count = 1 + Math.floor(((fr - 0.2) / 0.8) * 6);
+          ctx.fillStyle = `rgba(200,235,255,${0.5 + 0.4 * fr})`;
+          for (let i = 0; i < count; i++) {
+            const ix = podX - T2 * 0.36 + (i + 0.5) * (T2 * 0.72 / count);
+            const il = T2 * (0.05 + 0.28 * fr) * (i % 2 ? 0.65 : 1);
             ctx.beginPath();
-            ctx.moveTo(ix - C.TILE * 0.035, podY + C.TILE * 0.44);
-            ctx.lineTo(ix, podY + C.TILE * 0.44 + il);
-            ctx.lineTo(ix + C.TILE * 0.035, podY + C.TILE * 0.44);
+            ctx.moveTo(ix - T2 * 0.035, podY + T2 * 0.44);
+            ctx.lineTo(ix, podY + T2 * 0.44 + il);
+            ctx.lineTo(ix + T2 * 0.035, podY + T2 * 0.44);
             ctx.closePath();
             ctx.fill();
           }
@@ -3449,6 +3487,31 @@ const Game = {
         dormant: r.dormant || (r.emergeT > 0 && Math.sin(this.time * 26) < 0.1),
         aim: r.aim || 0, zapT: r.zapT, time: this.time + r.age * 0.37,
       });
+      // Under the beam: jagged electric arcs crawl across the chassis
+      if (r.zapT > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let a = 0; a < 3; a++) {
+          ctx.strokeStyle = a === 0 ? 'rgba(255,255,255,0.9)' : 'rgba(160,220,255,0.75)';
+          ctx.lineWidth = Math.max(1, T * (a === 0 ? 0.02 : 0.03));
+          let ax = sx + (Math.random() - 0.5) * T * 0.5;
+          let ay = sy - T * 0.3 + Math.random() * T * 0.5;
+          ctx.beginPath(); ctx.moveTo(ax, ay);
+          for (let s = 0; s < 4; s++) {
+            ax += (Math.random() - 0.5) * T * 0.3;
+            ay += (Math.random() - 0.5) * T * 0.3;
+            ctx.lineTo(ax, ay);
+          }
+          ctx.stroke();
+        }
+        // Hot white flash at the strike point
+        const fg = ctx.createRadialGradient(sx, sy - T * 0.1, 1, sx, sy - T * 0.1, T * 0.55);
+        fg.addColorStop(0, `rgba(255,255,255,${0.25 + 0.2 * Math.sin(this.time * 60)})`);
+        fg.addColorStop(1, 'rgba(190,230,255,0)');
+        ctx.fillStyle = fg;
+        ctx.fillRect(sx - T * 0.55, sy - T * 0.65, T * 1.1, T * 1.1);
+        ctx.restore();
+      }
     }
 
     // Laser bolts: a hot white core dragging a red tail

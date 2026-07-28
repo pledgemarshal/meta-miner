@@ -152,12 +152,12 @@ const C = {
   // emergeSecs: boot-up pause in the doorway before the hunt begins.
   ROBOT: { walkSpeed: 0.75, flySpeed: 1.5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
            laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
-           mineSecs: 2, doorSecs: 0.9, emergeSecs: 0.8 },
+           mineSecs: 1, doorSecs: 0.9, emergeSecs: 0.8 },
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
   // bay doors and charge (chargeSecs); release at full charge to detonate a
   // pulse that vaporizes ALL blocks (boulders included) within radius tiles
   // and deals heatSecs' worth of microwave damage to anything alive.
-  EMP: { chargeSecs: 2, radius: 8, heatSecs: 10 },
+  EMP: { chargeSecs: 2, radius: 4, heatSecs: 10 },
 
   // --- Cave-ins from ~-6,000 ft: visibly cracked tiles that crumble ~1 s
   // after the pod passes beneath them, dropping a damaging rock. Localized,
