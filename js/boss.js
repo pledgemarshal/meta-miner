@@ -58,6 +58,17 @@ const Boss = {
     this.hp = this.form === 1 ? C.BOSS.form1HP : C.BOSS.form2HP;
   },
 
+  // Sustained microwave damage — slower than explosives, but steady
+  microwave(dt, rate) {
+    if (!this.active || this.betweenForms || this.defeated) return;
+    this.hp -= C.BOSS.mwDps * rate * dt;
+    this.hitFlash = Math.max(this.hitFlash, 0.1);
+    if (this.hp <= 0) {
+      if (this.form === 1) this.transition();
+      else this.win();
+    }
+  },
+
   onExplosion(cx, cy, radius, itemKey) {
     if (!this.active || this.betweenForms || this.defeated) return;
     // Distance from blast center to the boss's feet
@@ -221,7 +232,8 @@ const Boss = {
       case 'cane': {
         const dur = 0.7;
         if (this.attackT > dur * 0.4 && this.attackT < dur * 0.75) {
-          if (Math.abs(P.x - this.x) < 3.2 && Math.abs(P.y - (this.y - 1.5)) < 2.2 && (this._caneHit !== true)) {
+          // Tightened: only the swing arc in front of him, not a room-wide box
+          if (Math.abs(P.x - this.x) < 2.4 && Math.abs(P.y - (this.y - 1.5)) < 1.7 && (this._caneHit !== true)) {
             P.damage(C.BOSS.caneDmg, 'cane');
             P.vx = Math.sign(P.x - this.x || 1) * 18;
             P.vy = -10;
@@ -236,7 +248,8 @@ const Boss = {
         const dur = 1.0;
         const reach = Math.sin(Math.min(Math.PI, this.attackT * 4)) * 3.2;
         const cx = this.x + this.facing * (1 + reach);
-        if (Math.abs(P.x - cx) < 1.4 && Math.abs(P.y - (this.y - 2.1)) < 2.4 && this._clawHit !== true) {
+        // Tightened: the claw itself, not the air around it
+        if (Math.abs(P.x - cx) < 1.05 && Math.abs(P.y - (this.y - 2.1)) < 1.8 && this._clawHit !== true) {
           P.damage(C.BOSS.clawDmg, 'claw');
           P.vx = this.facing * 16;
           P.vy = -8;
@@ -334,6 +347,8 @@ const Boss = {
     ctx.restore();
   },
 
-  serialize() { return { defeated: this.defeated }; },
-  restore(d) { this.reset(); this.defeated = !!(d && d.defeated); },
+  // The boss is NOT persisted as defeated: every time you load a save and
+  // dig back down, he's waiting again — beating him is repeatable.
+  serialize() { return {}; },
+  restore(d) { this.reset(); },
 };

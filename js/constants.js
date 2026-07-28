@@ -245,10 +245,12 @@ const C = {
   ALTIMETER_FAIL: 10000,         // below this the altimeter reads garbage
   HELL_ALTIMETER: -66666,        // displayed inside Hell
 
-  // --- Boss (two forms; damaged ONLY by explosives) ---
+  // --- Boss (two forms; explosives hit hard, the Microwave Cannon sears
+  // him steadily — mwDps scales with worm-meat power level) ---
   BOSS: {
     form1HP: 1000,
     form2HP: 2000,
+    mwDps: 35,
     dynamiteDmg: 120,            // direct hit; glancing = 60
     plasticDmg: 240,
     glancingDmg: 60,

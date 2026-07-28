@@ -495,6 +495,22 @@ const Game = {
     const ty = Math.floor(this.cam.y + this.mouse.y / T);
     const cx = tx + 0.5, cy = ty + 0.5;
 
+    // The boss takes the beam too — steady searing damage in the arena
+    if (Boss.active && !Boss.betweenForms
+        && Math.hypot(cx - Boss.x, cy - (Boss.y - 1.8)) < 2.2 + (lvl >= 2 ? 0.8 : 0)) {
+      Boss.microwave(dt, rate);
+      if (Math.random() < dt * 24) {
+        Particles.spawn({
+          x: Boss.x + (Math.random() - 0.5) * 1.6, y: Boss.y - 1 - Math.random() * 2,
+          vx: (Math.random() - 0.5) * 2, vy: -2 - Math.random() * 2,
+          life: 0.5, size: 0.11,
+          color: Math.random() < 0.5 ? '#ffb04a' : '#e8f8ff', glow: true,
+        });
+      }
+      this.mwBeam = { tx, ty, heat: 0, needed: 0, kind: 'boss' };
+      return;
+    }
+
     // The worm's bulk takes priority over whatever tile is behind it
     const w = this.worm;
     const wormR = 1.35 + (lvl >= 2 ? 0.8 : 0);
@@ -1597,6 +1613,35 @@ const Game = {
         ctx.stroke();
       }
       ctx.restore();
+    }
+
+    // Embers seep up from the Hell gap — the one way through the floor is
+    // marked so it can actually be found
+    if (!this.inHell()) {
+      const gapSx = (C.HELL_GAP_X + 0.5 - this.cam.x) * T;
+      const gapSy = (C.GROUND_BOTTOM_ROW - 1 - this.cam.y) * T;
+      if (gapSx > -T * 3 && gapSx < C.VIEW_W + T * 3 && gapSy > -T * 2 && gapSy < C.VIEW_H + T * 6) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const gpulse = 0.6 + 0.4 * Math.sin(this.time * 2.2);
+        const gg2 = ctx.createRadialGradient(gapSx, gapSy, T * 0.1, gapSx, gapSy, T * 2.4);
+        gg2.addColorStop(0, `rgba(255,110,45,${0.4 * gpulse})`);
+        gg2.addColorStop(0.6, `rgba(220,50,25,${0.18 * gpulse})`);
+        gg2.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gg2;
+        ctx.fillRect(gapSx - T * 2.4, gapSy - T * 2.4, T * 4.8, T * 4.8);
+        // Rising embers
+        for (let i = 0; i < 4; i++) {
+          const cyc = (this.time * (0.35 + i * 0.07) + i * 0.31) % 1;
+          const ex = gapSx + Math.sin(this.time * 1.8 + i * 2.4 + cyc * 4) * T * 0.35;
+          const ey = gapSy - cyc * T * 2.6;
+          ctx.fillStyle = `rgba(255,${120 + i * 25},50,${Math.sin(cyc * Math.PI) * 0.7})`;
+          ctx.beginPath();
+          ctx.arc(ex, ey, T * (0.05 - cyc * 0.02), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
     }
 
     // Gas pockets exhale slow curling wisps of vapor
