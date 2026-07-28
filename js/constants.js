@@ -252,8 +252,6 @@ const C = {
   // Self-damage when your own explosive goes off under the pod
   EXPLOSION_SELF: { dynamite: 15, plastic: 30 },
 
-  MARSQUAKE_CHANCE: 0.004,       // rolled on each shop visit while on the surface
-
   SAVE_KEY: 'motherload-remake-save',
 };
 

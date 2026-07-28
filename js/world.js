@@ -245,19 +245,6 @@ const World = {
     return armed;
   },
 
-  // Marsquake: collapse dug tunnels — refill with plain dirt (no ore respawn)
-  quake() {
-    for (let i = 0; i < this.grid.length; i++) {
-      if (this.dug[i] && this.grid[i] === 0) {
-        const y = Math.floor(i / C.WORLD_W);
-        // Keep Hell hollow
-        if (y > C.GROUND_BOTTOM_ROW) continue;
-        this.grid[i] = 1;
-        this.dug[i] = 0;
-      }
-    }
-  },
-
   // Persistence: the cleared set fully describes the world (generation is seeded)
   serialize() {
     const cleared = [];

@@ -755,15 +755,6 @@ const Game = {
     this.spawnGhost({ cursed: true });
   },
 
-  rollMarsquake() {
-    if (Math.random() < C.MARSQUAKE_CHANCE && Player.depthFeet() < 10) {
-      World.quake();
-      Audio.play('quake');
-      this.shake(1.5);
-      UI.toast('MARSQUAKE! Your tunnels have collapsed!');
-    }
-  },
-
   // --- Save / load (mirrors the original save machine: gear + cash, not tunnels) ---
   save() {
     const data = {

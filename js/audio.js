@@ -161,7 +161,6 @@ const Audio = {
       case 'repair':   [440, 554, 659].forEach((f, i) => this.tone(f, 0.09, 'sine', 0.12, null, i * 0.06)); break;
       case 'teleport': this.tone(1200, 0.5, 'sine', 0.15, 200); this.tone(800, 0.5, 'sine', 0.1, 2400, 0.05); break;
       case 'radio':    this.tone(880, 0.06, 'square', 0.08); this.tone(1320, 0.06, 'square', 0.08, null, 0.09); break;
-      case 'quake':    this.noise(1.6, 0.4, 300); break;
       case 'laser':    this.tone(1800, 0.25, 'sawtooth', 0.14, 300); break;
       case 'roar':     this.tone(90, 0.9, 'sawtooth', 0.3, 45); this.noise(0.9, 0.3, 400); break;
       case 'fireball': this.noise(0.3, 0.25, 1000); this.tone(260, 0.3, 'sawtooth', 0.12, 90); break;

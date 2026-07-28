@@ -13,7 +13,6 @@ const Shops = {
 
   open(key) {
     Audio.resume();
-    Game.rollMarsquake();
     switch (key) {
       case 'fuel': return this.fuelMenu();
       case 'processor': return this.processorMenu();
