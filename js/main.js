@@ -157,7 +157,14 @@ const Game = {
         case 'KeyT': Player.useItem('teleporter'); break;
         case 'KeyQ':
           // Hold to charge the EMP burst (the teleporter moved to T for this)
-          if (Player.hasEmpHead) this.empHolding = true;
+          if (Player.hasEmpHead) {
+            if ((Player.empCharges || 0) <= 0) {
+              Audio.play('denied');
+              UI.toast('EMP capacitors recharging…');
+            } else {
+              this.empHolding = true;
+            }
+          }
           break;
         case 'KeyM': Player.useItem('transmitter'); break;
         case 'KeyN': UI.toast(Audio.toggleMute() ? 'Sound muted' : 'Sound on'); break;
@@ -357,6 +364,7 @@ const Game = {
     this.empDoors = 0;
     this.empWaves = [];
     this.empFlash = 0;
+    this.empRegenT = 0;
     this._serverIntro = false;
   },
 
@@ -1371,6 +1379,10 @@ const Game = {
     const r = this.robots[i];
     this.robots.splice(i, 1);
     if (r.room) r.room.robotDown = true;
+    Player.roboKills = (Player.roboKills || 0) + 1;
+    if (Player.roboKills === 2) {
+      this.warn('AUTOMATON DATA ASSIMILATED — EMP RECHARGES 2x FASTER!', '#8fd8ff');
+    }
     Audio.play('roboBoom');
     this.shake(1.1);
     Particles.explosion(r.x, r.y, 1.6);
@@ -1397,6 +1409,7 @@ const Game = {
       text: 'Why are you destroying my... ugh...I mean...ugh...wow! Why are there servers down here? Are you okay? Looks like that machine is doing something? Try holding [Q].',
     }, () => {
       Player.hasEmpHead = true;
+      Player.empCharges = C.EMP.charges;
       UI.toast('AUTOMATON HEAD installed — hold Q to charge the EMP');
       Audio.play('powerup');
       this.resumeFromDialog();
@@ -1404,12 +1417,30 @@ const Game = {
   },
 
   // --- EMP burst: hold Q to open the bay and charge; release at full to fire ---
+  // Recharge time per capacitor bar — halved for good after the 2nd kill
+  empCooldown() {
+    return (Player.roboKills || 0) >= 2 ? C.EMP.rechargeSecs / 2 : C.EMP.rechargeSecs;
+  },
+
   updateEmp(dt) {
     this.empFlash = Math.max(0, this.empFlash - dt);
     for (const wv of this.empWaves) wv.age += dt;
     this.empWaves = this.empWaves.filter(wv => wv.age < 0.9);
 
-    const charging = this.empHolding && Player.hasEmpHead && !Player.dead && Player.teleporting <= 0;
+    // Spent capacitors refill one at a time
+    if (Player.hasEmpHead && (Player.empCharges || 0) < C.EMP.charges) {
+      this.empRegenT = (this.empRegenT || 0) + dt;
+      if (this.empRegenT >= this.empCooldown()) {
+        this.empRegenT = 0;
+        Player.empCharges = (Player.empCharges || 0) + 1;
+        Audio.beep(880, 0.06);
+      }
+    } else {
+      this.empRegenT = 0;
+    }
+
+    const charging = this.empHolding && Player.hasEmpHead && (Player.empCharges || 0) > 0
+      && !Player.dead && Player.teleporting <= 0;
     const doorTarget = charging ? 1 : 0;
     this.empDoors += (doorTarget - this.empDoors) * Math.min(1, dt * 9);
     if (!charging) return;
@@ -1445,6 +1476,8 @@ const Game = {
   },
 
   fireEmp() {
+    if ((Player.empCharges || 0) <= 0) return;
+    Player.empCharges--;
     const rate = 1 + 0.25 * (Player.mwLevel || 0);
     const cx = Player.x, cy = Player.y;
     // Everything mineral is vaporized outright (no cargo — the pulse leaves nothing)
@@ -1504,6 +1537,9 @@ const Game = {
     for (let y = row - 1; y <= row + 1; y++) {
       for (let x = cx - 1; x <= cx + 1; x++) World.clear(x, y);
     }
+    // The bore leaves an open shaft all the way back to daylight — without
+    // it, anyone without a teleporter would be entombed by their own cheat
+    for (let y = 0; y < row - 1; y++) World.clear(cx, y);
     Particles.burst(Player.x, Player.y, 24, { color: '#7de0ff', speed: 5, life: 0.8, size: 0.1, glow: true });
     Player.x = cx + 0.5;
     Player.y = row + 0.5;

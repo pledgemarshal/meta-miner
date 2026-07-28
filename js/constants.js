@@ -157,7 +157,9 @@ const C = {
   // bay doors and charge (chargeSecs); release at full charge to detonate a
   // pulse that vaporizes ALL blocks (boulders included) within radius tiles
   // and deals heatSecs' worth of microwave damage to anything alive.
-  EMP: { chargeSecs: 2, radius: 4, heatSecs: 10 },
+  // Three stored charges (HUD pips); each refills in rechargeSecs — halved
+  // for good after the second automaton kill.
+  EMP: { chargeSecs: 2, radius: 4, heatSecs: 10, charges: 3, rechargeSecs: 20 },
 
   // --- Cave-ins from ~-6,000 ft: visibly cracked tiles that crumble ~1 s
   // after the pod passes beneath them, dropping a damaging rock. Localized,

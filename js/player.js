@@ -39,6 +39,8 @@ const Player = {
     this.mwLevel = 0;          // worm-meat power-ups: 0, 1, or 2 (maxed)
     this.frost = 0;            // 0-100; drilling permafrost ice builds it — 100 = frozen solid
     this.hasEmpHead = false;   // automaton head in the bay: hold Q to charge the EMP burst
+    this.empCharges = C.EMP.charges;   // stored EMP uses; refill over time
+    this.roboKills = 0;        // slain automatons; the 2nd halves EMP recharge time
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -538,6 +540,8 @@ const Player = {
       mwLevel: this.mwLevel || 0,
       frost: this.frost || 0,
       hasEmpHead: this.hasEmpHead || false,
+      empCharges: this.empCharges != null ? this.empCharges : C.EMP.charges,
+      roboKills: this.roboKills || 0,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -553,6 +557,8 @@ const Player = {
     this.mwLevel = d.mwLevel || 0;
     this.frost = d.frost || 0;
     this.hasEmpHead = !!d.hasEmpHead;
+    this.empCharges = d.empCharges != null ? d.empCharges : C.EMP.charges;
+    this.roboKills = d.roboKills || 0;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

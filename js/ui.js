@@ -349,11 +349,28 @@ const UI = {
     // Cargo bar
     this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
       `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+    // EMP capacitor pips: three charge bars, the next one filling as it
+    // recharges (only once the automaton head is installed)
+    let hudRow = 2;
+    if (P.hasEmpHead) {
+      const y3 = 10 * U + hudRow * (barH + gap * 0.6);
+      const segGap = 5 * U;
+      const segW = (barW - segGap * (C.EMP.charges - 1)) / C.EMP.charges;
+      const cd = Game.empCooldown();
+      for (let i = 0; i < C.EMP.charges; i++) {
+        let frac = 0;
+        if (i < (P.empCharges || 0)) frac = 1;
+        else if (i === (P.empCharges || 0)) frac = Math.min(1, (Game.empRegenT || 0) / cd);
+        this.bar(ctx, pad + i * (segW + segGap), y3, segW, barH * 0.85, frac, '#9ad8ff',
+          i === 0 ? 'EMP' : '');
+      }
+      hudRow++;
+    }
     // Ice bar: appears once the pod carries any frost — red-flash near freezing
     if ((P.frost || 0) > 0) {
       const iceFrac = P.frost / 100;
       const critical = iceFrac >= 0.75 && Math.sin(Game.time * 8) > 0;
-      this.bar(ctx, pad, 10 * U + 2 * (barH + gap * 0.6), barW, barH, iceFrac,
+      this.bar(ctx, pad, 10 * U + hudRow * (barH + gap * 0.6), barW, barH, iceFrac,
         critical ? '#ff4530' : '#8fd8ff',
         P.frost >= 100 ? 'FROZEN SOLID!' : `ICE ${Math.round(P.frost)}%`);
     }
