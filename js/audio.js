@@ -46,6 +46,15 @@ const Audio = {
     el.volume = 0.5;
     el.preload = 'auto';
     this.music = el;
+    // Start the moment the game opens — browsers may veto autoplay until the
+    // first interaction, so every early signal retries: file ready, page
+    // becoming visible, first click/touch/key anywhere.
+    const tryStart = () => this.startMusic();
+    tryStart();
+    el.addEventListener('canplaythrough', tryStart, { once: true });
+    document.addEventListener('visibilitychange', tryStart);
+    window.addEventListener('pointerdown', tryStart);
+    window.addEventListener('touchstart', tryStart);
   },
 
   // Browsers block autoplay until a user gesture — called from every keydown,
