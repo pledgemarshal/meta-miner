@@ -61,6 +61,11 @@ const Sprites = {
       this.crackedTex.push(this.makeCracked(b, S));
     }
     this.iceTex = this.makeIce(S);
+    // Frozen variants of every dirt texture for the permafrost bands
+    this.frozenDirt = [];
+    for (let b = 0; b < this.BANDS; b++) {
+      this.frozenDirt.push(this.dirt[b].map(d => this.makeFrozenDirt(d, S)));
+    }
     this.serverWallTex = this.makeServerWall(S);
     this.serverRackTex = this.makeServerRack(S);
     this.serverDoorTex = this.makeServerDoor(S);
@@ -518,6 +523,52 @@ const Sprites = {
     for (let i = 0; i < 4; i++) {
       const x = this.rand() * S, y = this.rand() * S, r = S * (0.02 + this.rand() * 0.02);
       ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = Math.max(1, S * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);
+      ctx.moveTo(x, y - r); ctx.lineTo(x, y + r);
+      ctx.stroke();
+    }
+    return c;
+  },
+
+  // Permafrost soil: the regular dirt drained of warmth — desaturated and
+  // blue-shifted, with frost patches, thin ice veins and sparkle glints
+  makeFrozenDirt(src, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    // Drain the warm browns out of the base soil
+    try { ctx.filter = 'saturate(0.35) brightness(1.06)'; } catch (e) {}
+    ctx.drawImage(src, 0, 0);
+    try { ctx.filter = 'none'; } catch (e) {}
+    // Cold blue wash
+    ctx.fillStyle = 'rgba(130,180,230,0.30)';
+    ctx.fillRect(0, 0, S, S);
+    // Soft frost patches blooming through the soil
+    for (let i = 0; i < 5; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = S * (0.08 + this.rand() * 0.14);
+      const g = ctx.createRadialGradient(x, y, r * 0.1, x, y, r);
+      g.addColorStop(0, `rgba(225,242,255,${0.22 + this.rand() * 0.15})`);
+      g.addColorStop(1, 'rgba(225,242,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    // Thin ice veins threading the ground
+    ctx.strokeStyle = 'rgba(210,238,255,0.4)';
+    ctx.lineWidth = Math.max(1, S * 0.014);
+    for (let i = 0; i < 3; i++) {
+      let x = this.rand() * S, y = this.rand() * S;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      for (let s = 0; s < 3; s++) {
+        x += (this.rand() - 0.5) * S * 0.5;
+        y += (this.rand() - 0.5) * S * 0.5;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // Ice-crystal sparkles
+    for (let i = 0; i < 5; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = S * (0.015 + this.rand() * 0.02);
+      ctx.strokeStyle = `rgba(240,250,255,${0.5 + this.rand() * 0.4})`;
       ctx.lineWidth = Math.max(1, S * 0.012);
       ctx.beginPath();
       ctx.moveTo(x - r, y); ctx.lineTo(x + r, y);

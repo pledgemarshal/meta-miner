@@ -1798,14 +1798,25 @@ const Game = {
       // Below it the deep permafrost keeps a steady frozen-dirt chill down to
       // deepMaxFt, with frost flecks in the soil itself.
       const rowFeet = C.rowToFeet(y);
-      let icyA = 0, deepIcy = false;
+      let icyA = 0;
       if (rowFeet >= C.ICE.minFt && rowFeet <= C.ICE.maxFt) {
         const mid = (C.ICE.minFt + C.ICE.maxFt) / 2, half = (C.ICE.maxFt - C.ICE.minFt) / 2;
         icyA = 0.05 + 0.09 * (1 - Math.abs(rowFeet - mid) / half);
       } else if (rowFeet > C.ICE.maxFt && rowFeet <= C.ICE.deepMaxFt) {
         icyA = 0.11;
-        deepIcy = true;
       }
+      // The soil itself freezes across the whole permafrost stretch, fading
+      // in over the first ~300 ft and thawing back out past the bottom edge
+      const frozenT = Math.max(0, Math.min(1,
+        Math.min((rowFeet - C.ICE.minFt) / 300, (C.ICE.deepMaxFt - rowFeet) / 300)));
+      const drawSoil = (sx, sy, v) => {
+        if (frozenT < 1) ctx.drawImage(Sprites.dirt[band][v], sx, sy, T + 0.5, T + 0.5);
+        if (frozenT > 0) {
+          if (frozenT < 1) ctx.globalAlpha = frozenT;
+          ctx.drawImage(Sprites.frozenDirt[band][v], sx, sy, T + 0.5, T + 0.5);
+          if (frozenT < 1) ctx.globalAlpha = 1;
+        }
+      };
       for (let x = Math.max(0, x0); x <= Math.min(C.WORLD_W - 1, x1); x++) {
         const id = World.get(x, y);
         const sx = (x - this.cam.x) * T;
@@ -1827,8 +1838,7 @@ const Game = {
             }
             // Draw solid dirt here too — the passage is carved out of it later
             // by the organic blob mask in drawCavePass().
-            const v = World.variant[y * C.WORLD_W + x] % Sprites.VARIANTS;
-            ctx.drawImage(Sprites.dirt[band][v], sx, sy, T + 0.5, T + 0.5);
+            drawSoil(sx, sy, World.variant[y * C.WORLD_W + x] % Sprites.VARIANTS);
             this._caveTiles.push({ x, y });
           } else {
             // Hell atmosphere
@@ -1840,12 +1850,12 @@ const Game = {
         const v = World.variant[y * C.WORLD_W + x];
         if (id === 5) {
           // Water pools: dirt behind, round blobs drawn in drawSteamPass()
-          ctx.drawImage(Sprites.dirt[band][v % Sprites.VARIANTS], sx, sy, T + 0.5, T + 0.5);
+          drawSoil(sx, sy, v % Sprites.VARIANTS);
           this._steamTiles.push({ x, y });
           continue;
         }
-        let tex;
-        if (id === 1) tex = Sprites.dirt[band][v];
+        let tex = null;
+        if (id === 1) { drawSoil(sx, sy, v); }
         else if (id === 2) tex = Sprites.stone[band];
         else if (id === 3) tex = Sprites.lavaBase;
         else if (id === 4) { tex = Sprites.gasTex[band]; this._gasVis.push({ x, y }); }   // gas is visible now — fairness over stealth
@@ -1861,9 +1871,10 @@ const Game = {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
         }
-        ctx.drawImage(tex, sx, sy, T + 0.5, T + 0.5);
-        // Cold cast over the permafrost band (ice blocks are already blue)
-        if (icyA > 0 && id !== 10) {
+        if (tex) ctx.drawImage(tex, sx, sy, T + 0.5, T + 0.5);
+        // Cold cast over the permafrost band (ice is already blue, and the
+        // frozen soil texture carries its own chill)
+        if (icyA > 0 && id !== 10 && id !== 1) {
           ctx.fillStyle = `rgba(150,205,255,${icyA})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
         }
@@ -1878,17 +1889,6 @@ const Game = {
           const pulse = 0.08 + 0.07 * Math.sin(this.time * 1.8 + x * 2.1 + y * 1.6);
           ctx.fillStyle = `rgba(120,230,90,${pulse})`;
           ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
-        }
-        // Deep permafrost: frost flecks frozen into the dirt (deterministic
-        // per tile so they don't shimmer frame to frame)
-        if (deepIcy && id === 1) {
-          ctx.fillStyle = 'rgba(220,242,255,0.32)';
-          let hsh = ((x * 73856093) ^ (y * 19349663)) >>> 0;
-          for (let k = 0; k < 3; k++) {
-            hsh = (hsh * 1664525 + 1013904223) >>> 0;
-            const fx = (hsh & 255) / 255, fy = ((hsh >> 8) & 255) / 255;
-            ctx.fillRect(sx + fx * (T - 5), sy + fy * (T - 4), 3 + (hsh >> 16 & 1) * 2, 2);
-          }
         }
         // Server racks & doors light themselves AFTER the darkness pass (they
         // glow) — collect them here, drawServerGlow does the shining
