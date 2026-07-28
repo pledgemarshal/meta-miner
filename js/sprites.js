@@ -531,26 +531,26 @@ const Sprites = {
   makeServerWall(S) {
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
     const g = ctx.createLinearGradient(0, 0, S, S);
-    g.addColorStop(0, '#5a6270');
-    g.addColorStop(0.5, '#3c434f');
-    g.addColorStop(1, '#272c35');
+    g.addColorStop(0, '#7e8898');
+    g.addColorStop(0.5, '#5c6472');
+    g.addColorStop(1, '#434a56');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, S, S);
     // Brushed-metal grain
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.09)';
     ctx.lineWidth = 1;
     for (let i = 0; i < 14; i++) {
       const y = this.rand() * S;
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(S, y + (this.rand() - 0.5) * 4); ctx.stroke();
     }
     // Panel border + cross seam
-    ctx.strokeStyle = 'rgba(10,12,16,0.8)';
+    ctx.strokeStyle = 'rgba(18,22,28,0.55)';
     ctx.lineWidth = Math.max(2, S * 0.045);
     ctx.strokeRect(S * 0.03, S * 0.03, S * 0.94, S * 0.94);
     ctx.lineWidth = Math.max(1, S * 0.02);
     ctx.beginPath(); ctx.moveTo(S * 0.5, S * 0.05); ctx.lineTo(S * 0.5, S * 0.95); ctx.stroke();
     // Corner rivets
-    ctx.fillStyle = '#8b95a3';
+    ctx.fillStyle = '#aeb8c6';
     for (const [rx, ry] of [[0.12, 0.12], [0.88, 0.12], [0.12, 0.88], [0.88, 0.88]]) {
       ctx.beginPath(); ctx.arc(S * rx, S * ry, S * 0.035, 0, Math.PI * 2); ctx.fill();
     }
@@ -567,26 +567,29 @@ const Sprites = {
   // blinking is overlaid at draw time in drawTiles)
   makeServerRack(S) {
     const c = this.makeCanvas(S), ctx = c.getContext('2d');
-    ctx.fillStyle = '#171a20';
+    ctx.fillStyle = '#2b313c';
     ctx.fillRect(0, 0, S, S);
     // Cabinet frame
-    ctx.strokeStyle = '#3c434f';
+    ctx.strokeStyle = '#5c6472';
     ctx.lineWidth = Math.max(2, S * 0.05);
     ctx.strokeRect(S * 0.06, S * 0.02, S * 0.88, S * 0.96);
     // Blade rows
     for (let r = 0; r < 6; r++) {
       const y = S * (0.08 + r * 0.15);
       const g = ctx.createLinearGradient(0, y, 0, y + S * 0.11);
-      g.addColorStop(0, '#2a303a');
-      g.addColorStop(1, '#1c2129');
+      g.addColorStop(0, '#48505e');
+      g.addColorStop(1, '#333944');
       ctx.fillStyle = g;
       ctx.fillRect(S * 0.12, y, S * 0.76, S * 0.11);
+      // Handle bar highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.fillRect(S * 0.12, y, S * 0.76, S * 0.02);
       // Vent slits
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillStyle = 'rgba(10,13,18,0.55)';
       for (let v = 0; v < 5; v++) ctx.fillRect(S * (0.16 + v * 0.1), y + S * 0.03, S * 0.05, S * 0.05);
-      // Static LED dots (green/amber) at the right edge of each blade
-      ctx.fillStyle = r % 2 ? '#39d867' : '#e8b53c';
-      ctx.beginPath(); ctx.arc(S * 0.84, y + S * 0.055, S * 0.018, 0, Math.PI * 2); ctx.fill();
+      // Dark LED sockets (the live alternating lights glow at draw time)
+      ctx.fillStyle = '#12151a';
+      ctx.beginPath(); ctx.arc(S * 0.84, y + S * 0.055, S * 0.022, 0, Math.PI * 2); ctx.fill();
     }
     return c;
   },

@@ -36,6 +36,7 @@ const Game = {
   robots: [],            // security automatons on the hunt
   roboLasers: [],        // slow dodgeable laser bolts: { x, y, vx, vy, life }
   roboHeads: [],         // dropped automaton heads: { x, y, vy }
+  openingDoors: [],      // vault doors mid-slide: { x, y, t, room }
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -350,6 +351,7 @@ const Game = {
     this.robots = [];
     this.roboLasers = [];
     this.roboHeads = [];
+    this.openingDoors = [];
     this.empHolding = false;
     this.empCharge = 0;
     this.empDoors = 0;
@@ -1035,6 +1037,32 @@ const Game = {
         if (World.get(t.x, t.y) === 0) { this.triggerAlarm(room); break; }
       }
     }
+
+    // Doors mid-slide: grind, rattle, then release the automaton
+    for (let i = this.openingDoors.length - 1; i >= 0; i--) {
+      const d = this.openingDoors[i];
+      d.t += dt;
+      if (Math.random() < dt * 6) Audio.play('servo');
+      if (Math.random() < dt * 20) {
+        Particles.spawn({
+          x: d.x + 0.5 + (Math.random() - 0.5) * 0.6, y: d.y + 0.15 + Math.random() * 0.7,
+          vx: (Math.random() - 0.5) * 0.8, vy: 0.4 + Math.random() * 0.8,
+          life: 0.4, size: 0.06, color: '#aeb8c6', gravity: 4,
+        });
+      }
+      if (d.t < C.ROBOT.doorSecs) continue;
+      this.openingDoors.splice(i, 1);
+      World.clear(d.x, d.y);
+      Audio.play('clank');
+      this.shake(0.3);
+      Particles.burst(d.x + 0.5, d.y + 0.5, 14, { color: '#8fd8ff', speed: 4, life: 0.6, size: 0.1, glow: true });
+      this.robots.push({
+        x: d.x + 0.5, y: d.y + 0.5, vx: 0, vy: 0,
+        facing: 1, walkPhase: 0, flying: false, dormant: false, aim: 0,
+        cooked: 0, zapT: 0, laserCd: 1.6, punchCd: 0.8, age: 0,
+        emergeT: C.ROBOT.emergeSecs, room: d.room,
+      });
+    }
   },
 
   // The drill only has to TOUCH the casing for the AI to notice
@@ -1050,15 +1078,36 @@ const Game = {
   triggerAlarm(room) {
     room.alarmed = true;
     Audio.play('alarm');
-    this.warn('⚠ AI ALARM — SECURITY AUTOMATON DEPLOYED!', '#ff5540');
+    this.warn('⚠ AI ALARM — SECURITY DOOR OPENING!', '#ff5540');
     this.shake(0.5);
-    World.clear(room.doorX, room.doorY);
-    Particles.burst(room.doorX + 0.5, room.doorY + 0.5, 14, { color: '#8fd8ff', speed: 4, life: 0.6, size: 0.1, glow: true });
-    this.robots.push({
-      x: room.doorX + 0.5, y: room.doorY + 0.5, vx: 0, vy: 0,
-      facing: 1, walkPhase: 0, flying: false, dormant: false, aim: 0,
-      cooked: 0, zapT: 0, laserCd: 1.6, punchCd: 0.8, age: 0, room,
-    });
+    // The door grinds open first; the automaton steps out when it's done
+    this.openingDoors.push({ x: room.doorX, y: room.doorY, t: 0, room });
+    Audio.play('servo');
+  },
+
+  // A room keeps its built-hall look while at least half its casing stands
+  // (checked once per frame, cached)
+  roomIntact(room) {
+    if (this._roomIntactFrame !== this.time) {
+      this._roomIntactFrame = this.time;
+      this._roomIntactCache = new Map();
+    }
+    let ok = this._roomIntactCache.get(room);
+    if (ok === undefined) {
+      let standing = 0;
+      for (const t of room.tiles) if (World.get(t.x, t.y) !== 0) standing++;
+      ok = standing >= room.tiles.length * 0.5;
+      this._roomIntactCache.set(room, ok);
+    }
+    return ok;
+  },
+
+  // Door slide progress (0..1) for a tile, or 0 if it isn't animating
+  doorAnimAt(x, y) {
+    for (const d of this.openingDoors) {
+      if (d.x === x && d.y === y) return Math.min(1, d.t / C.ROBOT.doorSecs);
+    }
+    return 0;
   },
 
   // Straight-line visibility check for the automaton's fire control
@@ -1111,6 +1160,15 @@ const Game = {
       const dx = Player.x - r.x, dy = Player.y - r.y;
       const dist = Math.hypot(dx, dy) || 1;
 
+      // Booting up in the doorway: eyes flickering on, systems spinning up
+      if (r.emergeT > 0) {
+        r.emergeT -= dt;
+        r.facing = dx < 0 ? -1 : 1;
+        r.aim = Math.atan2(dy, dx);
+        if (Math.random() < dt * 8) Audio.play('servo');
+        continue;
+      }
+
       // Power management: it never gives up, it just waits
       if (r.dormant) {
         if (dist < R.wakeDist && !Player.dead && Player.teleporting <= 0) {
@@ -1130,6 +1188,59 @@ const Game = {
 
       r.facing = dx < 0 ? -1 : 1;
       r.aim = Math.atan2(dy - 0.1, dx);
+
+      // No progress for a while? Nothing stops it: it lasers the material
+      // away tile by tile, cutting straight toward the pod
+      if (!r._lastPos || Math.hypot(r.x - r._lastPos.x, r.y - r._lastPos.y) > 0.2) {
+        r._lastPos = { x: r.x, y: r.y };
+        r._stuckT = 0;
+        r.mining = null;
+      } else {
+        r._stuckT = (r._stuckT || 0) + dt;
+      }
+      if (r._stuckT > 0.8 && dist > 1.1) {
+        if (!r.mining) {
+          // Prefer the axis with the most ground to cover
+          const cxr = Math.floor(r.x), cyr = Math.floor(r.y);
+          const cands = Math.abs(dx) >= Math.abs(dy)
+            ? [[cxr + Math.sign(dx), cyr], [cxr, cyr + Math.sign(dy) || 1]]
+            : [[cxr, cyr + Math.sign(dy)], [cxr + (Math.sign(dx) || 1), cyr]];
+          for (const [tx, ty] of cands) {
+            if (tx <= 0 || tx >= C.WORLD_W - 1 || ty <= 1 || ty >= C.GROUND_BOTTOM_ROW - 1) continue;
+            const id = World.get(tx, ty);
+            if (id === 0 || id === World.kindIndex.serverDoor) continue;
+            r.mining = { x: tx, y: ty, t: R.mineSecs };
+            break;
+          }
+        }
+        if (r.mining) {
+          const m = r.mining;
+          // Clamp in place and burn through
+          r.vx = 0; r.vy = 0; r.flying = false;
+          r.aim = Math.atan2(m.y + 0.5 - (r.y - 0.12), m.x + 0.5 - r.x);
+          r.facing = m.x + 0.5 < r.x ? -1 : 1;
+          m.t -= dt;
+          if (Math.random() < dt * 24) {
+            Particles.spawn({
+              x: m.x + 0.2 + Math.random() * 0.6, y: m.y + 0.2 + Math.random() * 0.6,
+              vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2,
+              life: 0.4, size: 0.08,
+              color: Math.random() < 0.6 ? '#ff6a4a' : '#ffd97a', glow: true, gravity: 6,
+            });
+          }
+          if (Math.random() < dt * 5) Audio.play('crackle');
+          if (m.t <= 0) {
+            if (World.get(m.x, m.y) === World.kindIndex.nuke) this.armNuke(m.x, m.y);
+            else World.clear(m.x, m.y);
+            Audio.play('mwPop');
+            Particles.burst(m.x + 0.5, m.y + 0.5, 10, { color: '#ff6a4a', speed: 3.5, life: 0.5, size: 0.09, glow: true });
+            r.mining = null;
+            r._stuckT = 0;
+            r._lastPos = null;
+          }
+          continue;   // fully occupied with cutting
+        }
+      }
 
       // Movement: walk at half pace; kick in the rocket when the pod is above
       // or a wall/rack wants climbing over
@@ -1592,6 +1703,7 @@ const Game = {
       }
     }
     this.drawLighting(ctx);
+    this.drawServerGlow(ctx);
     this.drawGimmickFx(ctx);
     this.drawRobotFx(ctx);
     this.drawGhost(ctx);
@@ -1677,6 +1789,8 @@ const Game = {
     this._steamTiles = [];
     this._magnetVis = [];
     this._gasVis = [];
+    this._rackVis = [];
+    this._doorVis = [];
 
     for (let y = y0; y <= y1; y++) {
       const band = Sprites.bandForRow(y);
@@ -1698,6 +1812,19 @@ const Game = {
         const sy = (y - this.cam.y) * T;
         if (id === 0) {
           if (y <= C.GROUND_BOTTOM_ROW) {
+            // Vault interiors are a built metal hall, not a dug cave — as long
+            // as the room is still mostly standing
+            const room = World.inServerRoom(x, y);
+            if (room && this.roomIntact(room)) {
+              ctx.fillStyle = '#252b34';
+              ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+              ctx.fillStyle = 'rgba(255,255,255,0.04)';
+              ctx.fillRect(sx, sy + T * 0.93, T + 0.5, T * 0.07);   // floor lip
+              ctx.fillRect(sx + T * 0.48, sy, T * 0.035, T + 0.5);  // panel seam
+              ctx.fillStyle = 'rgba(0,0,0,0.22)';
+              ctx.fillRect(sx, sy, T + 0.5, T * 0.06);              // ceiling shadow
+              continue;
+            }
             // Draw solid dirt here too — the passage is carved out of it later
             // by the organic blob mask in drawCavePass().
             const v = World.variant[y * C.WORLD_W + x] % Sprites.VARIANTS;
@@ -1763,20 +1890,24 @@ const Game = {
             ctx.fillRect(sx + fx * (T - 5), sy + fy * (T - 4), 3 + (hsh >> 16 & 1) * 2, 2);
           }
         }
-        // Server racks: LED rows blinking busily as they think
-        if (id === 12) {
-          for (let led = 0; led < 6; led++) {
-            const on = Math.sin(this.time * (2.5 + ((led * 2.7 + x * 1.3 + y) % 4)) + led * 2.1 + x) > 0.1;
-            if (!on) continue;
-            ctx.fillStyle = led % 2 ? 'rgba(80,255,130,0.95)' : 'rgba(255,200,80,0.95)';
-            ctx.fillRect(sx + T * 0.8, sy + T * (0.08 + led * 0.15) + T * 0.035, T * 0.05, T * 0.05);
-          }
-        }
-        // Sealed vault door: its red lamp breathes, watching
+        // Server racks & doors light themselves AFTER the darkness pass (they
+        // glow) — collect them here, drawServerGlow does the shining
+        if (id === 12) this._rackVis.push({ x, y });
         if (id === 13) {
-          const pulse = 0.3 + 0.28 * Math.sin(this.time * 2.4 + x);
-          ctx.fillStyle = `rgba(255,60,40,${pulse})`;
-          ctx.beginPath(); ctx.arc(sx + T * 0.5, sy + T * 0.2, T * 0.08, 0, Math.PI * 2); ctx.fill();
+          this._doorVis.push({ x, y });
+          // Mid-slide: redraw the door as two halves retracting into the frame
+          const anim = this.doorAnimAt(x, y);
+          if (anim > 0) {
+            ctx.fillStyle = '#14161c';
+            ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+            const S2 = Sprites.serverDoorTex.width;
+            ctx.save();
+            ctx.beginPath(); ctx.rect(sx, sy, T + 0.5, T + 0.5); ctx.clip();
+            const off = anim * T * 0.52;
+            ctx.drawImage(Sprites.serverDoorTex, 0, 0, S2, S2 / 2, sx, sy - off, T + 0.5, T / 2);
+            ctx.drawImage(Sprites.serverDoorTex, 0, S2 / 2, S2, S2 / 2, sx, sy + T / 2 + off, T + 0.5, T / 2);
+            ctx.restore();
+          }
         }
       }
     }
@@ -2059,6 +2190,30 @@ const Game = {
       lc.arc(px, py - C.TILE * 0.4, beamLen, this._aim - 0.26, this._aim + 0.26);
       lc.closePath();
       lc.fill();
+      lc.globalCompositeOperation = 'source-over';
+    }
+
+    // The server vaults light themselves: every rack casts a pool of cold
+    // machine-light, and the sealed door's lamp glows red in the dark
+    if ((this._rackVis && this._rackVis.length) || (this._doorVis && this._doorVis.length)) {
+      lc.globalCompositeOperation = 'destination-out';
+      for (const t of this._rackVis || []) {
+        const rx = (t.x + 0.5 - this.cam.x) * C.TILE, ry = (t.y + 0.5 - this.cam.y) * C.TILE;
+        const rg = lc.createRadialGradient(rx, ry, C.TILE * 0.3, rx, ry, C.TILE * 2.8);
+        rg.addColorStop(0, 'rgba(0,0,0,0.85)');
+        rg.addColorStop(0.6, 'rgba(0,0,0,0.45)');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        lc.fillStyle = rg;
+        lc.fillRect(rx - C.TILE * 2.8, ry - C.TILE * 2.8, C.TILE * 5.6, C.TILE * 5.6);
+      }
+      for (const t of this._doorVis || []) {
+        const rx = (t.x + 0.5 - this.cam.x) * C.TILE, ry = (t.y + 0.2 - this.cam.y) * C.TILE;
+        const rg = lc.createRadialGradient(rx, ry, C.TILE * 0.1, rx, ry, C.TILE * 1.6);
+        rg.addColorStop(0, 'rgba(0,0,0,0.7)');
+        rg.addColorStop(1, 'rgba(0,0,0,0)');
+        lc.fillStyle = rg;
+        lc.fillRect(rx - C.TILE * 1.6, ry - C.TILE * 1.6, C.TILE * 3.2, C.TILE * 3.2);
+      }
       lc.globalCompositeOperation = 'source-over';
     }
 
@@ -3207,15 +3362,91 @@ const Game = {
     ctx.restore();
   },
 
+  // --- Server-room lights: drawn after the darkness pass so the racks glow
+  // in the gloom. LED rows flash in a strict alternating pattern. ---
+  drawServerGlow(ctx) {
+    const T = C.TILE;
+    if (this._rackVis && this._rackVis.length) {
+      const phase = Math.floor(this.time * 2.2) % 2;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const t of this._rackVis) {
+        const sx = (t.x - this.cam.x) * T, sy = (t.y - this.cam.y) * T;
+        // Faint cool wash so the cabinet reads even in full darkness
+        const wash = ctx.createRadialGradient(sx + T * 0.5, sy + T * 0.5, T * 0.05, sx + T * 0.5, sy + T * 0.5, T * 0.75);
+        wash.addColorStop(0, 'rgba(120,170,220,0.10)');
+        wash.addColorStop(1, 'rgba(120,170,220,0)');
+        ctx.fillStyle = wash;
+        ctx.fillRect(sx - T * 0.25, sy - T * 0.25, T * 1.5, T * 1.5);
+        for (let led = 0; led < 6; led++) {
+          // Even rows and odd rows take turns — a marching alternating blink
+          if ((led + phase) % 2) continue;
+          const col = led % 2 ? '80,255,130' : '255,200,80';
+          const lx = sx + T * 0.84, ly = sy + T * (0.08 + led * 0.15) + T * 0.055;
+          ctx.fillStyle = `rgba(${col},0.95)`;
+          ctx.fillRect(lx - T * 0.028, ly - T * 0.028, T * 0.056, T * 0.056);
+          const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, T * 0.14);
+          g.addColorStop(0, `rgba(${col},0.5)`);
+          g.addColorStop(1, `rgba(${col},0)`);
+          ctx.fillStyle = g;
+          ctx.fillRect(lx - T * 0.14, ly - T * 0.14, T * 0.28, T * 0.28);
+        }
+      }
+      ctx.restore();
+    }
+    // Sealed doors: the red lamp burns through the dark — frantic mid-slide
+    if (this._doorVis && this._doorVis.length) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (const t of this._doorVis) {
+        const sx = (t.x - this.cam.x) * T, sy = (t.y - this.cam.y) * T;
+        const anim = this.doorAnimAt(t.x, t.y);
+        const pulse = anim > 0
+          ? 0.5 + 0.5 * Math.sin(this.time * 24)
+          : 0.35 + 0.3 * Math.sin(this.time * 2.4 + t.x);
+        const lx = sx + T * 0.5, ly = sy + T * 0.2;
+        ctx.fillStyle = `rgba(255,70,45,${0.75 * pulse})`;
+        ctx.beginPath(); ctx.arc(lx, ly, T * 0.07, 0, Math.PI * 2); ctx.fill();
+        const g = ctx.createRadialGradient(lx, ly, 1, lx, ly, T * 0.4);
+        g.addColorStop(0, `rgba(255,70,45,${0.45 * pulse})`);
+        g.addColorStop(1, 'rgba(255,70,45,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(lx - T * 0.4, ly - T * 0.4, T * 0.8, T * 0.8);
+      }
+      ctx.restore();
+    }
+  },
+
   // --- Automatons, laser bolts, dropped heads, EMP shockwaves ---
   drawRobotFx(ctx) {
     const T = C.TILE;
     for (const r of this.robots) {
       const sx = (r.x - this.cam.x) * T, sy = (r.y - this.cam.y) * T;
       if (sx < -T * 2 || sx > C.VIEW_W + T * 2 || sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      // Cutting beam: a thin flickering red lance from the pistol to the tile
+      if (r.mining) {
+        const gx = sx + r.facing * T * 0.24, gy = sy - T * 0.12;
+        const mx = (r.mining.x + 0.5 - this.cam.x) * T, my = (r.mining.y + 0.5 - this.cam.y) * T;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(255,70,40,${0.55 + 0.35 * Math.sin(this.time * 40)})`;
+        ctx.lineWidth = Math.max(2, T * 0.045);
+        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(mx, my); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,220,190,0.7)';
+        ctx.lineWidth = Math.max(1, T * 0.018);
+        ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(mx, my); ctx.stroke();
+        const g = ctx.createRadialGradient(mx, my, 1, mx, my, T * 0.35);
+        g.addColorStop(0, 'rgba(255,120,70,0.7)');
+        g.addColorStop(1, 'rgba(255,120,70,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(mx - T * 0.35, my - T * 0.35, T * 0.7, T * 0.7);
+        ctx.restore();
+      }
       Sprites.drawRobot(ctx, sx, sy, {
         facing: r.facing, walkPhase: r.walkPhase, flying: r.flying,
-        heat: r.cooked / C.ROBOT.cookTime, dormant: r.dormant,
+        heat: r.cooked / C.ROBOT.cookTime,
+        // Booting: the eyes stutter on and off before it commits to the hunt
+        dormant: r.dormant || (r.emergeT > 0 && Math.sin(this.time * 26) < 0.1),
         aim: r.aim || 0, zapT: r.zapT, time: this.time + r.age * 0.37,
       });
     }

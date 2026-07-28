@@ -188,13 +188,18 @@ const World = {
       }
     }
 
-    // AI server rooms hidden in the deep permafrost, one per depth slice
+    // AI server rooms hidden in the deep permafrost, one per depth slice —
+    // with a guaranteed vertical gap so two vaults never merge into one
     this.serverRooms = [];
     const sTop = C.feetToRow(C.SERVER.minFt), sBot = C.feetToRow(C.SERVER.maxFt);
+    let lastRoomY = -999;
     for (let n = 0; n < C.SERVER.count; n++) {
-      const cy = sTop + Math.floor(((n + rand()) / C.SERVER.count) * (sBot - sTop));
+      let cy = sTop + Math.floor(((n + rand()) / C.SERVER.count) * (sBot - sTop));
+      cy = Math.max(cy, lastRoomY + 10);
+      if (cy + 6 >= C.GROUND_BOTTOM_ROW - 2) break;
       const cx = 4 + Math.floor(rand() * (W - 8 - 9));
       this.stampServerRoom(cx, cy, rand() < 0.5 ? 'left' : 'right');
+      lastRoomY = cy;
     }
 
     // Dormant nuclear warheads sleeping in the deep rock
@@ -265,6 +270,14 @@ const World = {
     put(doorX, floorY, this.kindIndex.serverDoor);
     // The door tile is not in the manifest — it opening is not a "breach"
     this.serverRooms.push({ x0, y0, w, h, doorX, doorY: floorY, tiles, alarmed: false, robotDown: false });
+  },
+
+  // Inside a vault's footprint (used to draw a metal hall instead of cave)
+  inServerRoom(x, y) {
+    for (const r of this.serverRooms || []) {
+      if (x >= r.x0 && x < r.x0 + r.w && y >= r.y0 && y < r.y0 + r.h) return r;
+    }
+    return null;
   },
 
   inBounds(x, y) { return x >= 0 && x < C.WORLD_W && y >= 0 && y < C.WORLD_H; },

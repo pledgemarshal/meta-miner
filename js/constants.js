@@ -143,17 +143,21 @@ const C = {
   // into one trips the AI alarm: a door slides open and a security automaton
   // marches out. wallHardness: drill-speed penalty on the casing.
   SERVER: { minFt: 7700, maxFt: 8950, count: 4, wallHardness: 2.2, salvage: 20000 },
-  // The automaton walks/flies at roughly half the pod's pace, fires a slow
-  // dodgeable laser bolt (50 dmg), and only the Microwave Cannon hurts it:
-  // ~cookTime beam-seconds to melt down (less with worm-meat power levels).
-  // Beyond leash tiles it powers down in place and reboots when you return.
-  ROBOT: { walkSpeed: 2.5, flySpeed: 5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
-           laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12 },
+  // The automaton stalks slowly but never stops: it walks and rocket-flies,
+  // fires a slow dodgeable laser bolt (50 dmg), and when the path is blocked
+  // it lasers the rock away tile by tile (mineSecs each) to keep coming.
+  // Only the Microwave Cannon hurts it: ~cookTime beam-seconds to melt down
+  // (less with worm-meat power levels). Beyond leash tiles it powers down in
+  // place and reboots when you return. doorSecs: the vault door slide-open;
+  // emergeSecs: boot-up pause in the doorway before the hunt begins.
+  ROBOT: { walkSpeed: 0.75, flySpeed: 1.5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
+           laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
+           mineSecs: 2, doorSecs: 0.9, emergeSecs: 0.8 },
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
   // bay doors and charge (chargeSecs); release at full charge to detonate a
   // pulse that vaporizes ALL blocks (boulders included) within radius tiles
   // and deals heatSecs' worth of microwave damage to anything alive.
-  EMP: { chargeSecs: 2, radius: 16, heatSecs: 10 },
+  EMP: { chargeSecs: 2, radius: 8, heatSecs: 10 },
 
   // --- Cave-ins from ~-6,000 ft: visibly cracked tiles that crumble ~1 s
   // after the pod passes beneath them, dropping a damaging rock. Localized,
