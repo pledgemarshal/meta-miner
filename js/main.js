@@ -481,7 +481,7 @@ const Game = {
     const firing = Player.hasMicrowave && this.mouseDown && !Player.dead
       && Player.teleporting <= 0 && this.state === 'play' && !UI.isOpen();
     this.mwBeam = null;
-    if (!firing) { Audio.setMicrowave(0); this._mwHeats = {}; return; }
+    if (!firing) { Audio.setMicrowave(0); this._mwHeats = {}; this._mwAimX = null; return; }
     Audio.setMicrowave(1);
 
     // Worm-meat power-ups: each level heats 25% faster; level 2 widens the
@@ -1763,8 +1763,15 @@ const Game = {
     // (-0.18, -0.46), and the pod sprite mirrors with facing)
     const px = (Player.x - this.cam.x) * T + (Player.facing < 0 ? T * 0.18 : -T * 0.18);
     const py = (Player.y - this.cam.y) * T - T * 0.46;
-    const tx2 = (b.tx + 0.5 - this.cam.x) * T;
-    const ty2 = (b.ty + 0.5 - this.cam.y) * T;
+    // The beam visually tracks a smoothed aim point that glides with the
+    // cursor — gameplay still targets whole tiles, but no block-to-block snap
+    const aimWX = this.cam.x + this.mouse.x / T;
+    const aimWY = this.cam.y + this.mouse.y / T;
+    if (this._mwAimX == null) { this._mwAimX = aimWX; this._mwAimY = aimWY; }
+    this._mwAimX += (aimWX - this._mwAimX) * 0.3;
+    this._mwAimY += (aimWY - this._mwAimY) * 0.3;
+    const tx2 = (this._mwAimX - this.cam.x) * T;
+    const ty2 = (this._mwAimY - this.cam.y) * T;
     const ang = Math.atan2(ty2 - py, tx2 - px);
     const len = Math.hypot(tx2 - px, ty2 - py);
     // Worm-meat upgrades tint the beam green; maxed makes it thicker and
@@ -1816,10 +1823,25 @@ const Game = {
     ctx.fillStyle = g;
     ctx.fillRect(tx2 - washR, ty2 - washR, washR * 2, washR * 2);
     if (lvl >= 2) {
-      // Faint 3x3 focus outline so the wide area reads clearly
-      ctx.strokeStyle = `rgba(150,255,140,${0.2 + 0.15 * flick})`;
-      ctx.lineWidth = Math.max(1, T * 0.03);
-      ctx.strokeRect(tx2 - T * 1.5, ty2 - T * 1.5, T * 3, T * 3);
+      // Wide-focus ring: a breathing, slowly rotating dashed circle
+      const breathe = 1 + 0.05 * Math.sin(this.time * 2.6);
+      const ringR = T * 1.55 * breathe;
+      ctx.strokeStyle = `rgba(150,255,140,${0.3 + 0.18 * flick})`;
+      ctx.lineWidth = Math.max(1.5, T * 0.045);
+      ctx.setLineDash([T * 0.35, T * 0.22]);
+      ctx.lineDashOffset = -this.time * T * 0.9;
+      ctx.beginPath();
+      ctx.arc(tx2, ty2, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+      // Counter-rotating inner ring for that "focusing lens" feel
+      ctx.strokeStyle = `rgba(200,255,180,${0.16 + 0.12 * flick})`;
+      ctx.lineWidth = Math.max(1, T * 0.028);
+      ctx.setLineDash([T * 0.18, T * 0.3]);
+      ctx.lineDashOffset = this.time * T * 0.7;
+      ctx.beginPath();
+      ctx.arc(tx2, ty2, ringR * 0.78, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     // Progress ring while something is actually cooking
