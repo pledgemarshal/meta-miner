@@ -1494,6 +1494,45 @@ const Game = {
     }
   },
 
+  // --- Cheat: "emp" — bores a hole 4,600 ft down and drops the pod in it.
+  // Missed transmissions along the way are auto-acknowledged (bonuses and
+  // the Microwave Cannon unlock still land) so the arrival isn't ten dialogs.
+  cheatEmpDrop() {
+    const targetFt = 4600;
+    const row = C.feetToRow(targetFt);
+    const cx = Math.max(2, Math.min(C.WORLD_W - 3, Math.floor(Player.x)));
+    for (let y = row - 1; y <= row + 1; y++) {
+      for (let x = cx - 1; x <= cx + 1; x++) World.clear(x, y);
+    }
+    Particles.burst(Player.x, Player.y, 24, { color: '#7de0ff', speed: 5, life: 0.8, size: 0.1, glow: true });
+    Player.x = cx + 0.5;
+    Player.y = row + 0.5;
+    Player.vx = 0;
+    Player.vy = 0;
+    Player.drilling = null;
+    Player.fallStartY = null;
+    Player.maxDepth = Math.max(Player.maxDepth || 0, Player.depthFeet());
+    // Snap the camera — no 4,600 ft lerp
+    this.cam.x = Math.max(0, Math.min(C.WORLD_W - C.VIEW_W / C.TILE, Player.x - C.VIEW_W / C.TILE / 2));
+    this.cam.y = Math.max(-C.SURFACE_ROWS, Math.min(C.WORLD_H - C.VIEW_H / C.TILE, Player.y - C.VIEW_H / C.TILE / 2));
+    for (const t of C.TRANSMISSIONS) {
+      if (t.depth > targetFt || Story.seen[t.depth]) continue;
+      Story.seen[t.depth] = true;
+      if (t.bonus) Player.money += t.bonus;
+      const s = Story.script[t.depth];
+      if (s && s.unlock === 'microwave' && !Player.hasMicrowave) {
+        Player.hasMicrowave = true;
+        this.toast('MICROWAVE CANNON online — hold CLICK to fire');
+      }
+    }
+    Story.seen[0] = true;
+    Audio.play('teleport');
+    Particles.burst(Player.x, Player.y, 30, { color: '#7de0ff', speed: 6, life: 0.9, size: 0.11, glow: true });
+    this.shake(0.8);
+    this.warn('CHEAT ACCEPTED — EXPRESS ELEVATOR DOWN', '#8fd8ff');
+    this.toast('The ground swallows you. 4,600 ft, instantly.');
+  },
+
   // --- Save / load (mirrors the original save machine: gear + cash, not tunnels) ---
   save() {
     const data = {

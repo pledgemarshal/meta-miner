@@ -100,6 +100,7 @@ const UI = {
       rows: [
         { name: 'Resume', detail: 'Back to digging', button: { label: 'Resume', onClick: () => this.close() } },
         { name: 'Options', detail: 'Sound & music volume', button: { label: 'Options', onClick: () => this.optionsMenu() } },
+        { name: 'Cheat Codes', detail: 'Whisper the right word and the rules bend', button: { label: 'Cheats', onClick: () => this.cheatMenu() } },
         {
           name: 'Clear Saves',
           detail: confirmClear ? 'This erases ALL saved progress. Are you sure?' : 'Erase saved progress and start fresh',
@@ -117,6 +118,65 @@ const UI = {
       ],
       hint: 'Esc — resume',
     });
+  },
+
+  // --- Cheat codes: a text field, a button, and whatever secrets it knows ---
+  cheatMenu() {
+    const body = document.createElement('div');
+    const row = document.createElement('div');
+    row.className = 'row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Enter code…';
+    input.maxLength = 24;
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+    Object.assign(input.style, {
+      flex: '1', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.2)',
+      borderRadius: '8px', padding: '10px 14px', color: '#ffd9a0',
+      font: 'bold 16px Verdana', outline: 'none', letterSpacing: '1px',
+    });
+    const b = document.createElement('button');
+    b.textContent = 'Enter';
+    const submit = () => { this.submitCheat(input.value); input.value = ''; };
+    b.onclick = e => { e.stopPropagation(); submit(); };
+    // Keep typed letters away from the game's global key handling (WASD, E…)
+    input.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') submit();
+      else if (e.key === 'Escape') this.pauseMenu();
+    });
+    row.appendChild(input);
+    row.appendChild(b);
+    body.appendChild(row);
+    this.panel({
+      title: 'Cheat Codes',
+      sub: 'Company policy strictly forbids these. Company policy is far away.',
+      body,
+      rows: [
+        { name: 'Back', button: { label: 'Back', onClick: () => this.pauseMenu() } },
+      ],
+      hint: 'Enter — submit · Esc — resume',
+    });
+    setTimeout(() => input.focus(), 0);
+  },
+
+  submitCheat(raw) {
+    const code = (raw || '').trim().toLowerCase();
+    if (!code) return;
+    if (code === 'emp') {
+      // Express elevator: only from the surface
+      if (Player.depthFeet() > 5 || Game.inHell() || Player.dead) {
+        Audio.play('denied');
+        this.toast('That code only answers from the surface.');
+        return;
+      }
+      this.close();
+      Game.cheatEmpDrop();
+    } else {
+      Audio.play('denied');
+      this.toast('Unrecognized code.');
+    }
   },
 
   optionsMenu() {
