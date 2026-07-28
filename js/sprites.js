@@ -52,11 +52,13 @@ const Sprites = {
     this.sandTex = [];
     this.nukeTex = [];
     this.gasTex = [];
+    this.crackedTex = [];
     for (let b = 0; b < this.BANDS; b++) {
       this.magnetiteTex.push(this.makeMagnetite(b, S));
       this.sandTex.push(this.makeSand(b, S));
       this.nukeTex.push(this.makeNuke(b, S));
       this.gasTex.push(this.makeGas(b, S));
+      this.crackedTex.push(this.makeCracked(b, S));
     }
     for (const key of Object.keys(C.MINERALS)) {
       this.minerals[key] = [];
@@ -467,6 +469,49 @@ const Sprites = {
     gl.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gl;
     ctx.fillRect(0, 0, S, S);
+    return c;
+  },
+
+  // Cracked stratum: dirt shot through with a bold web of fissures — the
+  // universal miner's sign for "do not linger underneath this"
+  makeCracked(band, S) {
+    const c = this.makeCanvas(S), ctx = c.getContext('2d');
+    ctx.drawImage(this.dirt[band][5], 0, 0);
+    // Main fissure network radiating from a weak point
+    const cx0 = S * (0.35 + this.rand() * 0.3), cy0 = S * (0.35 + this.rand() * 0.3);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + this.rand() * 0.8;
+      let px = cx0, py = cy0;
+      let ang = a;
+      ctx.strokeStyle = 'rgba(12,6,4,0.75)';
+      ctx.lineWidth = Math.max(2, S * 0.035);
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      for (let s = 0; s < 4; s++) {
+        ang += (this.rand() - 0.5) * 1.1;
+        px += Math.cos(ang) * S * (0.1 + this.rand() * 0.12);
+        py += Math.sin(ang) * S * (0.1 + this.rand() * 0.12);
+        ctx.lineTo(px, py);
+        ctx.lineWidth = Math.max(1, S * 0.035 * (1 - s * 0.22));
+      }
+      ctx.stroke();
+      // Lighter stress edge alongside
+      ctx.strokeStyle = 'rgba(255,225,190,0.14)';
+      ctx.lineWidth = Math.max(1, S * 0.015);
+      ctx.beginPath();
+      ctx.moveTo(cx0 + 2, cy0 + 2);
+      ctx.lineTo(px + 2, py + 2);
+      ctx.stroke();
+    }
+    // Loose pebbles wedged in the cracks
+    for (let i = 0; i < 5; i++) {
+      const x = this.rand() * S, y = this.rand() * S, r = 1.5 + this.rand() * 2.5;
+      ctx.fillStyle = 'rgba(30,16,10,0.6)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
     return c;
   },
 

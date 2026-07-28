@@ -28,6 +28,9 @@ const Game = {
   fallout: [],           // radioactive sites that tick the Geiger counter: { x, y, age }
   worm: null,            // the burrowing horror below -5,000 ft
   wormIntroSeen: false,
+  crumbling: [],         // triggered ceiling tiles counting down: { x, y, t }
+  debris: [],            // falling rocks: { x, y, vy, hit }
+  _caveinIntro: false,
   popups: [],            // floating "+$" texts
   input: { up: false, down: false, left: false, right: false },
   stars: [],
@@ -320,6 +323,90 @@ const Game = {
     this.mwBeam = null;
     this._mwKey = null;
     this._mwHeat = 0;
+    this.crumbling = [];
+    this.debris = [];
+    this._caveinIntro = false;
+  },
+
+  // --- Cave-ins: cracked ceiling tiles crumble ~1 s after the pod passes
+  // beneath them, dropping a rock. Drill (or microwave) them to clear safely.
+  startCrumble(x, y) {
+    if (this.crumbling.some(c => c.x === x && c.y === y)) return;
+    this.crumbling.push({ x, y, t: C.CAVEIN.fuse });
+    Audio.play('creak');
+    if (!this._caveinIntro) {
+      this._caveinIntro = true;
+      this.warn('CAVE-IN! GET OUT FROM UNDER THE CRACKED ROCK!', '#e8b06a');
+    }
+  },
+
+  updateCaveins(dt) {
+    // Trigger: a cracked tile with open air below it, the pod underneath in
+    // its column with nothing solid in between
+    if (!Player.dead && Player.teleporting <= 0) {
+      const py = Math.floor(Player.y);
+      const px = Math.floor(Player.x);
+      for (let x = px - 1; x <= px + 1; x++) {
+        if (Math.abs(Player.x - (x + 0.5)) > 0.7) continue;
+        for (let y = Math.max(2, py - 8); y < py; y++) {
+          if (World.get(x, y) !== World.kindIndex.cracked) continue;
+          if (World.get(x, y + 1) !== 0) continue;
+          let clearPath = true;
+          for (let yy = y + 1; yy < py; yy++) {
+            if (World.isSolid(x, yy)) { clearPath = false; break; }
+          }
+          if (clearPath) this.startCrumble(x, y);
+        }
+      }
+    }
+
+    // Count down the telegraphs, then let go
+    for (let i = this.crumbling.length - 1; i >= 0; i--) {
+      const c = this.crumbling[i];
+      c.t -= dt;
+      // Dust trickling down while it groans
+      if (Math.random() < dt * 14) {
+        Particles.spawn({
+          x: c.x + 0.2 + Math.random() * 0.6, y: c.y + 0.95,
+          vx: (Math.random() - 0.5) * 0.4, vy: 1 + Math.random() * 1.5,
+          life: 0.5, size: 0.06, color: '#8a6a4a', gravity: 8,
+        });
+      }
+      if (c.t > 0) continue;
+      this.crumbling.splice(i, 1);
+      // Only falls if it wasn't already drilled/blasted away mid-telegraph
+      if (World.get(c.x, c.y) !== World.kindIndex.cracked) continue;
+      World.clear(c.x, c.y);
+      this.debris.push({ x: c.x + 0.5, y: c.y + 0.5, vy: 2, hit: false });
+      Audio.play('clank');
+    }
+
+    // Falling rocks
+    for (let i = this.debris.length - 1; i >= 0; i--) {
+      const d = this.debris[i];
+      d.vy = Math.min(d.vy + 22 * dt, 20);
+      d.y += d.vy * dt;
+      // Clip the pod
+      if (!d.hit && !Player.dead && Player.teleporting <= 0
+          && Math.abs(d.x - Player.x) < 0.55 && Math.abs(d.y - Player.y) < 0.6) {
+        d.hit = true;
+        Audio.play('thud');
+        this.shake(0.5);
+        this.toast('Falling rock hit the pod!');
+        Player.damage(C.CAVEIN.dmg, 'cavein');
+        this.debris.splice(i, 1);
+        Particles.dust(d.x, d.y, '#8a6a4a');
+        Particles.burst(d.x, d.y, 8, { color: '#6a4a30', speed: 3, life: 0.5, size: 0.09 });
+        continue;
+      }
+      // Shatter on the ground
+      if (World.isSolid(Math.floor(d.x), Math.floor(d.y + 0.45)) || d.y > C.WORLD_H) {
+        Audio.play('thud');
+        Particles.dust(d.x, d.y + 0.3, '#8a6a4a');
+        Particles.burst(d.x, d.y + 0.2, 10, { color: '#6a4a30', speed: 3.5, life: 0.5, size: 0.1, gravity: 6 });
+        this.debris.splice(i, 1);
+      }
+    }
   },
 
   // --- Magnetite: standing inside a lodestone's field inverts the controls ---
@@ -405,6 +492,7 @@ const Game = {
     else if (id === World.kindIndex.magnetite) { kind = 'magnet'; needed = C.MICROWAVE.heatMagnet; }
     else if (id === World.kindIndex.steam) { kind = 'steam'; needed = C.MICROWAVE.heatSteam; }
     else if (id === World.kindIndex.gas) { kind = 'gas'; needed = C.MICROWAVE.heatGas; }
+    else if (id === World.kindIndex.cracked) { kind = 'crack'; needed = C.MICROWAVE.heatCrack; }
     if (!kind) { this._mwKey = null; this.mwBeam = { tx, ty, heat: 0, needed: 0, kind: null }; return; }
 
     // Heat is per-target: moving the beam elsewhere starts over
@@ -429,6 +517,9 @@ const Game = {
 
     if (kind === 'nuke') {
       this.armNuke(tx, ty);        // "safe disposal", as promised
+    } else if (kind === 'crack') {
+      // Knock the loose rock down from a safe distance
+      this.startCrumble(tx, ty);
     } else if (kind === 'gas') {
       // The vapor flashes over the moment the beam touches it — remote
       // detonation is the whole point, but standing close still hurts
@@ -866,6 +957,7 @@ const Game = {
     this.updateMicrowave(dt);
     this.updateNukes(dt);
     this.updateWorm(dt);
+    this.updateCaveins(dt);
     this.checkPyramids();
 
     // Fuel-low banner: fires each time fuel crosses down through the warn line
@@ -1062,6 +1154,7 @@ const Game = {
         else if (id === 6) { tex = Sprites.magnetiteTex[band]; this._magnetVis.push({ x, y }); }
         else if (id === 7) tex = Sprites.sandTex[band];
         else if (id === 8) tex = Sprites.nukeTex[band];
+        else if (id === 9) tex = Sprites.crackedTex[band];
         else {
           const kind = World.tileKinds[id];
           tex = kind.mineral ? Sprites.minerals[kind.key][band] : Sprites.artifacts[kind.key][band];
@@ -1470,6 +1563,48 @@ const Game = {
           ctx.fill();
         }
       }
+      ctx.restore();
+    }
+
+    // Crumbling ceilings: violent jitter + darkening as they let go
+    for (const c of this.crumbling) {
+      const sx = (c.x - this.cam.x) * T, sy = (c.y - this.cam.y) * T;
+      const panic = 1 - c.t / C.CAVEIN.fuse;
+      const jx = (Math.random() - 0.5) * T * 0.08 * (0.5 + panic);
+      const jy = (Math.random() - 0.5) * T * 0.06 * (0.5 + panic);
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.3 * panic;
+      ctx.drawImage(Sprites.crackedTex[Sprites.bandForRow(c.y)], sx + jx, sy + jy, T + 0.5, T + 0.5);
+      ctx.fillStyle = `rgba(20,8,4,${0.2 + 0.25 * panic})`;
+      ctx.fillRect(sx + jx, sy + jy, T + 0.5, T + 0.5);
+      ctx.restore();
+    }
+
+    // Falling rocks
+    for (const d of this.debris) {
+      const sx = (d.x - this.cam.x) * T, sy = (d.y - this.cam.y) * T;
+      if (sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(d.y * 2.2);
+      const rr2 = T * 0.34;
+      ctx.fillStyle = '#5c4632';
+      ctx.beginPath();
+      ctx.moveTo(-rr2, -rr2 * 0.4);
+      ctx.lineTo(-rr2 * 0.25, -rr2);
+      ctx.lineTo(rr2 * 0.8, -rr2 * 0.55);
+      ctx.lineTo(rr2, rr2 * 0.35);
+      ctx.lineTo(rr2 * 0.1, rr2);
+      ctx.lineTo(-rr2 * 0.75, rr2 * 0.6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = Math.max(1, T * 0.03);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,225,190,0.15)';
+      ctx.beginPath();
+      ctx.ellipse(-rr2 * 0.3, -rr2 * 0.4, rr2 * 0.35, rr2 * 0.2, -0.4, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     }
 
@@ -2412,6 +2547,7 @@ const Game = {
       gas: 'The green vapor was not a suggestion.',
       explosive: 'Standing next to your own blast radius is not recommended.',
       nuke: 'Fifty-megaton problems require more than a mining hull.',
+      cavein: 'The ceiling remembered how gravity works.',
       worm: 'It was hungry. You were there. The math was simple.',
       boss: 'Your contract has been terminated.',
       laser: 'Your contract has been terminated.',

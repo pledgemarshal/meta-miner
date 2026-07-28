@@ -186,6 +186,12 @@ const Audio = {
         this.noise(0.018, 0.32, 6500);
         if (Math.random() < 0.3) this.noise(0.014, 0.22, 7500, 0.03);   // occasional double-tick
         break;
+      // Rock groaning before it lets go
+      case 'creak':
+        this.tone(85, 0.7, 'sawtooth', 0.14, 48);
+        this.tone(140, 0.5, 'sine', 0.08, 70, 0.1);
+        this.noise(0.6, 0.14, 500);
+        break;
       // Something superheated bursting apart under the microwave beam
       case 'mwPop':
         this.noise(0.35, 0.4, 1800);

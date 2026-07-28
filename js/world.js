@@ -22,9 +22,9 @@ const World = {
       { key: 'lava', lava: true }, { key: 'gas', gas: true },
       { key: 'steam', steam: true },
       { key: 'magnetite', magnet: true }, { key: 'sand', sand: true },
-      { key: 'nuke', nuke: true },
+      { key: 'nuke', nuke: true }, { key: 'cracked', cracked: true },
     ];
-    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8 };
+    this.kindIndex = { empty: 0, dirt: 1, stone: 2, lava: 3, gas: 4, steam: 5, magnetite: 6, sand: 7, nuke: 8, cracked: 9 };
     for (const key of Object.keys(C.MINERALS)) {
       this.kindIndex[key] = this.tileKinds.length;
       this.tileKinds.push({ key, mineral: C.MINERALS[key] });
@@ -165,6 +165,17 @@ const World = {
       const cx = 6 + Math.floor(rand() * (W - 12));
       this.stampPyramid(cx, cy);
       this.pyramids.push({ x: cx, y: cy });
+    }
+
+    // Cracked strata from ~-6,000 ft: ceiling tiles that crumble when the
+    // pod passes beneath them (handled in Game.updateCaveins)
+    const crackRow = C.feetToRow(C.CAVEIN.min);
+    for (let y = crackRow; y < bottom - 2; y++) {
+      for (let n = 0; n < 2; n++) {
+        if (rand() >= C.CAVEIN.chancePerRow) continue;
+        const x = 2 + Math.floor(rand() * (W - 4));
+        if (this.grid[y * W + x] === 1) this.grid[y * W + x] = 9;
+      }
     }
 
     // Dormant nuclear warheads sleeping in the deep rock
