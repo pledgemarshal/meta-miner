@@ -23,7 +23,7 @@ const Sprites = {
   },
 
   bandForRow(row) {
-    const t = Math.max(0, Math.min(1, C.rowToFeet(row) / 7300));
+    const t = Math.max(0, Math.min(1, C.rowToFeet(row) / C.DEPTH_MAX));
     return Math.min(this.BANDS - 1, Math.floor(t * this.BANDS));
   },
 

@@ -299,7 +299,7 @@ const UI = {
     const depth = P.depthFeet();
     let depthStr;
     if (Game.inHell()) depthStr = C.HELL_ALTIMETER.toLocaleString() + ' ft';
-    else if (depth > C.ALTIMETER_FAIL) depthStr = (Math.random() < 0.5 ? '?' : '') + '✕✕✕✕ ft';
+    else if (depth > C.ALTIMETER_FAIL) depthStr = (Math.random() < 0.5 ? '?' : '') + '✕✕✕✕✕ ft';
     else depthStr = '-' + depth.toLocaleString() + ' ft';
     ctx.fillStyle = depth > C.ALTIMETER_FAIL ? '#ff6a50' : '#d8d3c8';
     ctx.fillText(depthStr, C.VIEW_W - pad, 40 * U);

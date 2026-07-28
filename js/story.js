@@ -46,7 +46,7 @@ const Story = {
     3500: {
       from: 'Mr. Natas — Natas Mining Corp.',
       portrait: 'natas',
-      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas — if you see green vapor seeping from the soil, do NOT put your drill in it.\n\nAlso: your altimeter is only rated to six thousand feet. Company policy is FIRM — do not dig past six thousand. Am I understood?',
+      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas — if you see green vapor seeping from the soil, do NOT put your drill in it.\n\nAlso: your altimeter is only rated to ten thousand feet. Company policy is FIRM — do not dig past ten thousand. Am I understood?',
     },
     3000: {
       from: 'Mr. Natas — Natas Mining Corp.',
@@ -65,19 +65,19 @@ const Story = {
       portrait: 'miner',
       text: 'HA! JACKPOT! You should see this vein, it goes on forever — I\'m rich, I\'m RICH! Drinks on me back at the depot, everybody, I—\n\nwhat is that. WHAT IS THAT?! [SIGNAL LOST]',
     },
-    6200: {
+    10600: {
       from: 'Mr. Natas — Natas Mining Corp.',
       portrait: 'natas',
       signal: 'Signal: distorted',
       text: 'CONTRACTOR. Your depth gauge failed six hundred feet ago and yet you are STILL DESCENDING. Read your contract — section nine, clause one: disobedience is grounds for TERMINATION of employment.\n\nTurn. Back. Now.',
     },
-    7000: {
+    10800: {
       from: 'Mr. Natas — Natas Mining Corp.',
       portrait: 'natas',
       signal: 'Signal: very distorted',
       text: 'You are making a grave mistake, little digger. Continue and you will be terminated— ...ahem. Fired. You will be FIRED.\n\nLast warning. Some doors should stay buried.',
     },
-    7200: {
+    10900: {
       from: '??? ',
       portrait: 'satan',
       signal: 'SIGNAL SOURCE: DIRECTLY BELOW',

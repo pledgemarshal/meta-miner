@@ -66,14 +66,14 @@ const World = {
 
         // Hell: hollow arena below the impassable floor
         if (y > bottom) { this.grid[i] = 0; continue; }
-        // Impassable floor at ~-7,300 ft with one drillable gap at the far right
+        // Impassable floor at -11,000 ft with one drillable gap at the far right
         if (y >= bottom - 1 && y <= bottom) {
           this.grid[i] = (x === C.HELL_GAP_X) ? 1 : 2;
           continue;
         }
 
         const r = rand() * 1000;
-        const depthT = Math.min(1, feet / 7300);
+        const depthT = Math.min(1, feet / C.DEPTH_MAX);
 
         // Occasional natural caverns (rarer near surface)
         const cavern = y < 3 ? 0 : 6 + depthT * 18;
@@ -94,7 +94,7 @@ const World = {
 
         // Gas pockets from ~-4,750 ft, ramping hard toward the bottom
         if (feet >= C.GAS.min) {
-          const t = Math.min(1, (feet - C.GAS.min) / (7300 - C.GAS.min));
+          const t = Math.min(1, (feet - C.GAS.min) / (C.DEPTH_MAX - C.GAS.min));
           acc += C.GAS.maxFreq * t * t;
           if (r < acc) { this.grid[i] = 4; continue; }
         }

@@ -207,7 +207,7 @@ const Game = {
         return;
       }
       // Spawn chance per second grows with depth
-      const p = Math.pow(Math.min(1, depth / 7300), 1.2) * 0.035;
+      const p = Math.pow(Math.min(1, depth / C.DEPTH_MAX), 1.2) * 0.035;
       if (Math.random() < p * dt) this.spawnGhost();
       return;
     }

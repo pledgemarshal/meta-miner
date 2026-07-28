@@ -8,13 +8,14 @@ const C = {
   TILE: 48,            // on-screen pixels per tile
   TEX: 96,             // pre-rendered texture resolution per tile
 
-  // --- World (original: 12.5 ft per tile, 32 tiles wide, ground to -7,300 ft + Hell) ---
+  // --- World (12.5 ft per tile, 32 tiles wide; extended: ground to -11,000 ft + Hell) ---
   WORLD_W: 32,
-  WORLD_H: 592,                 // tiles deep; bottom of Hell ≈ -7,400 ft
+  WORLD_H: 889,                 // tiles deep; Hell arena sits below the floor
   FEET_PER_TILE: 12.5,
-  GROUND_BOTTOM_ROW: 583,       // impassable floor at ~-7,300 ft except the Hell gap
+  GROUND_BOTTOM_ROW: 880,       // impassable floor at -11,000 ft except the Hell gap
   HELL_GAP_X: 29,               // right-side soil gap leading into Hell
   SURFACE_ROWS: 8,              // sky rows drawn above ground
+  DEPTH_MAX: 11000,             // feet at the bottom floor — depth curves normalize to this
 
   // --- Physics (units: tiles/sec, tiles/sec^2) ---
   GRAVITY: 14,
@@ -53,13 +54,13 @@ const C = {
     ironium:    { name: 'Ironium',     value: 30,     wt: 10,  min: 25,   fadeAt: 2600, freq: 58, color: '#b0623a' },
     bronzium:   { name: 'Bronzium',    value: 60,     wt: 10,  min: 25,   fadeAt: 3200, freq: 38, color: '#c98946' },
     silverium:  { name: 'Silverium',   value: 100,    wt: 10,  min: 25,   fadeAt: 4000, freq: 30, color: '#c9d2dd' },
-    goldium:    { name: 'Goldium',     value: 250,    wt: 20,  min: 250,  fadeAt: 5200, freq: 22, color: '#f4c542' },
-    platinium:  { name: 'Platinium',   value: 750,    wt: 30,  min: 800,  fadeAt: 6000, freq: 13, color: '#dfe8ef' },
-    einsteinium:{ name: 'Einsteinium', value: 2000,   wt: 40,  min: 1600, fadeAt: 6800, freq: 9,  color: '#7de07d' },
-    emerald:    { name: 'Emerald',     value: 5000,   wt: 60,  min: 2400, fadeAt: 7300, freq: 6,  color: '#2ee66b' },
-    ruby:       { name: 'Ruby',        value: 20000,  wt: 80,  min: 4000, fadeAt: 7300, freq: 4,  color: '#f0304e' },
-    diamond:    { name: 'Diamond',     value: 100000, wt: 100, min: 4400, fadeAt: 7300, freq: 2.5,color: '#aef4ff' },
-    amazonite:  { name: 'Amazonite',   value: 500000, wt: 120, min: 5500, fadeAt: 7300, freq: 1.5,color: '#37d8c0' },
+    goldium:    { name: 'Goldium',     value: 250,    wt: 20,  min: 250,  fadeAt: 6500, freq: 22, color: '#f4c542' },
+    platinium:  { name: 'Platinium',   value: 750,    wt: 30,  min: 800,  fadeAt: 8000, freq: 13, color: '#dfe8ef' },
+    einsteinium:{ name: 'Einsteinium', value: 2000,   wt: 40,  min: 1600, fadeAt: 9500, freq: 9,  color: '#7de07d' },
+    emerald:    { name: 'Emerald',     value: 5000,   wt: 60,  min: 2400, fadeAt: 10500, freq: 6,  color: '#2ee66b' },
+    ruby:       { name: 'Ruby',        value: 20000,  wt: 80,  min: 4000, fadeAt: 11000, freq: 4,  color: '#f0304e' },
+    diamond:    { name: 'Diamond',     value: 100000, wt: 100, min: 4400, fadeAt: 11000, freq: 2.5,color: '#aef4ff' },
+    amazonite:  { name: 'Amazonite',   value: 500000, wt: 120, min: 5500, fadeAt: 11000, freq: 1.5,color: '#37d8c0' },
   },
 
   // --- Artifacts: instant cash on drilling (not stored in cargo), ~1-2 per 1,000 ft ---
@@ -231,11 +232,11 @@ const C = {
     { depth: 3500, bonus: 25000 },
     { depth: 4100 },
     { depth: 4500 },
-    { depth: 6200 },
-    { depth: 7000 },
-    { depth: 7200 },   // entering Hell
+    { depth: 10600 },
+    { depth: 10800 },
+    { depth: 10900 },  // entering Hell
   ],
-  ALTIMETER_FAIL: 5813,          // below this the altimeter reads garbage
+  ALTIMETER_FAIL: 10000,         // below this the altimeter reads garbage
   HELL_ALTIMETER: -66666,        // displayed inside Hell
 
   // --- Boss (two forms; damaged ONLY by explosives) ---
