@@ -404,6 +404,7 @@ const Game = {
     if (id === World.kindIndex.nuke) { kind = 'nuke'; needed = C.MICROWAVE.heatNuke; }
     else if (id === World.kindIndex.magnetite) { kind = 'magnet'; needed = C.MICROWAVE.heatMagnet; }
     else if (id === World.kindIndex.steam) { kind = 'steam'; needed = C.MICROWAVE.heatSteam; }
+    else if (id === World.kindIndex.gas) { kind = 'gas'; needed = C.MICROWAVE.heatGas; }
     if (!kind) { this._mwKey = null; this.mwBeam = { tx, ty, heat: 0, needed: 0, kind: null }; return; }
 
     // Heat is per-target: moving the beam elsewhere starts over
@@ -428,6 +429,22 @@ const Game = {
 
     if (kind === 'nuke') {
       this.armNuke(tx, ty);        // "safe disposal", as promised
+    } else if (kind === 'gas') {
+      // The vapor flashes over the moment the beam touches it — remote
+      // detonation is the whole point, but standing close still hurts
+      World.blast(tx, ty, 1).forEach(nn => this.armNuke(nn.x, nn.y));
+      Particles.explosion(cx, cy, 1.2);
+      Particles.burst(cx, cy, 20, { color: '#9fe870', speed: 7, life: 0.5, size: 0.12, glow: true });
+      Audio.play('gas');
+      this.shake(0.7);
+      const pd = Math.hypot(Player.x - cx, Player.y - cy);
+      if (pd < 2.4 && !Player.dead) {
+        const feet = C.rowToFeet(ty);
+        const raw = Math.round(((feet - 3000) / 15) * (1 - Player.heatResist()) * (1 - pd / 3));
+        const dmg = Math.max(1, Math.min(raw, Math.floor(Player.hullCap() * C.GAS_DMG_CAP)));
+        Player.damage(dmg, 'gas');
+      }
+      this.toast('Gas pocket ignited from range!');
     } else if (kind === 'magnet') {
       // Superheated lodestone bursts, taking its own tile with it
       World.clear(tx, ty);
@@ -1481,8 +1498,10 @@ const Game = {
     const b = this.mwBeam;
     if (!b) return;
     const T = C.TILE;
-    const px = (Player.x - this.cam.x) * T;
-    const py = (Player.y - this.cam.y) * T - T * 0.42;
+    // Origin = the dish mount on the roof (drawPod places it at local
+    // (-0.18, -0.46), and the pod sprite mirrors with facing)
+    const px = (Player.x - this.cam.x) * T + (Player.facing < 0 ? T * 0.18 : -T * 0.18);
+    const py = (Player.y - this.cam.y) * T - T * 0.46;
     const tx2 = (b.tx + 0.5 - this.cam.x) * T;
     const ty2 = (b.ty + 0.5 - this.cam.y) * T;
     const ang = Math.atan2(ty2 - py, tx2 - px);

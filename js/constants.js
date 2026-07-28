@@ -118,7 +118,8 @@ const C = {
   // blast), ghosts burn (stacks with the flashlight), and the worm cooks —
   // its ONLY weakness. Heat on rocks/springs resets if you switch targets;
   // worm heat is cumulative.
-  MICROWAVE: { heatNuke: 0.6, heatMagnet: 2, heatSteam: 2, heatWorm: 10 },
+  // heatGas is near-instant: microwaves + combustible vapor = immediate ignition
+  MICROWAVE: { heatNuke: 0.6, heatMagnet: 2, heatSteam: 2, heatWorm: 10, heatGas: 0.15 },
 
   // --- Upgrades (Autobuy 2000). Price ladder 750/2k/5k/20k/100k/500k. ---
   // Buying a fuel tank fills it; buying a hull fully repairs.
