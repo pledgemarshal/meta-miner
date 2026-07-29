@@ -3773,11 +3773,16 @@ const Game = {
     ctx.fillStyle = g;
     ctx.fillText(title, C.VIEW_W / 2, C.VIEW_H * 0.3);
     ctx.shadowBlur = 0;
+    // Subtitle stretched to span the same width as the title
+    const titleW = ctx.measureText(title).width;
+    const sub = 'A fan remake vibe coded with love';
     ctx.font = '19px Verdana';
+    const subSize = Math.round(19 * titleW / ctx.measureText(sub).width);
+    ctx.font = `${subSize}px Verdana`;
     ctx.fillStyle = '#efe9dc';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 6;
-    ctx.fillText('A fan remake vibe coded with love', C.VIEW_W / 2, C.VIEW_H * 0.3 + 40);
+    ctx.fillText(sub, C.VIEW_W / 2, C.VIEW_H * 0.3 + subSize + 26);
     ctx.shadowBlur = 0;
 
     const hasSave = !!this.loadSaveData();
