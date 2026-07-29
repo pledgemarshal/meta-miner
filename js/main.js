@@ -1344,7 +1344,6 @@ const Game = {
       r.rocketCd -= dt;
       if (r.rocketCd <= 0 && !r.mining && dist < C.ROCKET.lockRange && !r.flying) {
         r.attack = { t: C.ROCKET.aimSecs, lostT: 0 };
-        Audio.say('Target acquired');
         Audio.play('lockBeep');
         this.warn('⚠ TARGET LOCK — NUCLEAR ORDNANCE SPOOLING!', '#ff5540');
         continue;
@@ -1416,6 +1415,14 @@ const Game = {
         wp = r.path[0] || null;
       }
       const grounded = World.isSolid(Math.floor(r.x), Math.floor(r.y + 0.55)) && r.vy >= 0;
+      // Gun range with a clear line of fire: stop advancing and shoot instead
+      if (grounded && dist <= R.laserRange
+          && this.hasLineOfSight(r.x, r.y - 0.15, Player.x, Player.y)) {
+        r.flying = false;
+        r.vx = 0;
+        r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);
+        // (its pistol logic below takes it from here)
+      } else {
       const tx = wp ? wp.x + 0.5 : Player.x;
       const ty = wp ? wp.y + 0.5 : Player.y;
       const dxw = tx - r.x, dyw = ty - r.y;
@@ -1424,6 +1431,12 @@ const Game = {
         r.flying = true;
         r.vy = -R.flySpeed;
         r.vx = Math.max(-R.flySpeed, Math.min(R.flySpeed, dxw * 3));
+      } else if (!grounded && dyw <= 0.35) {
+        // Airborne with a level waypoint: stay on the jet and carry across —
+        // dropping to a walk mid-air just meant bouncing at every ledge
+        r.flying = true;
+        r.vx = Math.max(-R.flySpeed, Math.min(R.flySpeed, dxw * 3));
+        r.vy = Math.max(-R.flySpeed, Math.min(R.flySpeed * 0.7, dyw * 3));
       } else if (dyw > 0.35 && !grounded) {
         // Descending: fall with a gentle steer, no jet
         r.flying = false;
@@ -1434,6 +1447,7 @@ const Game = {
         r.flying = false;
         r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);
         r.vx = Math.abs(dxw) > 0.08 ? Math.sign(dxw) * R.walkSpeed : 0;
+      }
       }
       // Rocket wash only while the jet is actually lit
       if (r.flying && Math.random() < dt * 30) {
@@ -1559,6 +1573,11 @@ const Game = {
     };
     this.rockets.push(rk);
     r.rocketRef = rk;
+    // The callout comes exactly once per automaton, at the moment of launch
+    if (!r.saidAcquired) {
+      r.saidAcquired = true;
+      Audio.say('Target acquired');
+    }
     Audio.play('rocketLaunch');
     this.warn('☢ NUCLEAR ROCKET INBOUND — MICROWAVE IT!', '#ff5540');
   },
