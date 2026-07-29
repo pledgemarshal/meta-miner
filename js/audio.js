@@ -296,29 +296,37 @@ const Audio = {
   },
 
   // Warhead countdown beep: pitch and urgency handed in by the caller
-  // Robotic voice line: the deepest male voice available, pitch floored and
-  // slowed to a machine drawl, over a WebAudio menace bed — sub-bass drone,
-  // dissonant metallic beat-frequency ring and a static burst
+  // Robotic voice line: deepest male voice, pitch floored, chopped into a
+  // staccato machine cadence with a quieter echo repeat — over a WebAudio
+  // cyber bed of data chirps, sub-bass drone and beating metallic tones
   say(text) {
     if (this.muted) return;
     try {
-      const u = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
+      const synth = window.speechSynthesis;
+      const voices = synth.getVoices();
       const pick = voices.find(v => /david|mark|male/i.test(v.name) && /en/i.test(v.lang))
         || voices.find(v => /en/i.test(v.lang));
-      if (pick) u.voice = pick;
-      u.pitch = 0;
-      u.rate = 0.62;
-      u.volume = Math.max(0, Math.min(1, this.sfxVol));
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      // Full stops between words force hard mechanical pauses
+      const stacc = text.trim().split(/\s+/).join('. ') + '.';
+      synth.cancel();
+      const speak = (vol, rate) => {
+        const u = new SpeechSynthesisUtterance(stacc);
+        if (pick) u.voice = pick;
+        u.pitch = 0;
+        u.rate = rate;
+        u.volume = Math.max(0, Math.min(1, vol));
+        synth.speak(u);
+      };
+      speak(this.sfxVol, 0.8);           // the announcement
+      speak(this.sfxVol * 0.35, 0.9);    // queued echo, like a PA bouncing off rock
     } catch (e) {}
     // The machine underneath the words
-    this.noise(0.18, 0.2, 3800);                       // vox static crackle
-    this.tone(55, 1.6, 'sawtooth', 0.16, 40);          // sub-bass dread
-    this.tone(196, 1.4, 'square', 0.05, 190);          // dissonant metallic pair,
-    this.tone(208, 1.4, 'square', 0.05, 200);          // beating against each other
-    this.noise(0.12, 0.12, 2600, 1.35);                // squelch tail
+    [2600, 1900, 1300].forEach((f, i) => this.tone(f, 0.05, 'square', 0.11, null, i * 0.07));  // boot-up data chirps
+    this.noise(0.18, 0.2, 3800, 0.2);                  // vox static crackle
+    this.tone(55, 1.8, 'sawtooth', 0.16, 40, 0.15);    // sub-bass dread
+    this.tone(196, 1.6, 'square', 0.05, 190, 0.15);    // dissonant metallic pair,
+    this.tone(208, 1.6, 'square', 0.05, 200, 0.15);    // beating against each other
+    this.noise(0.12, 0.12, 2600, 1.7);                 // squelch tail
   },
 
   beep(pitch, vol) {

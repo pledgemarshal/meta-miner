@@ -1322,18 +1322,7 @@ const Game = {
         r.flying = false;
         r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);   // stay planted even if the floor goes
         this.moveRobot(r, dt);
-        // The lock needs line of sight — break it long enough and it aborts
-        if (!this.hasLineOfSight(r.x, r.y - 0.3, Player.x, Player.y)) {
-          A.lostT = (A.lostT || 0) + dt;
-          if (A.lostT > 0.6) {
-            r.attack = null;
-            r.rocketCd = 8 + Math.random() * 4;
-            this.toast('Target lock broken — it recalibrates…');
-            continue;
-          }
-        } else {
-          A.lostT = 0;
-        }
+        // The designator sees straight through rock — there is no hiding
         const prevT = A.t;
         A.t -= dt;
         if (Math.ceil(A.t) < Math.ceil(prevT)) Audio.play('lockBeep');
@@ -1353,8 +1342,7 @@ const Game = {
       }
       // Lock-on trigger: grounded, in range, line of sight, off cooldown
       r.rocketCd -= dt;
-      if (r.rocketCd <= 0 && !r.mining && dist < C.ROCKET.lockRange && !r.flying
-          && this.hasLineOfSight(r.x, r.y - 0.3, Player.x, Player.y)) {
+      if (r.rocketCd <= 0 && !r.mining && dist < C.ROCKET.lockRange && !r.flying) {
         r.attack = { t: C.ROCKET.aimSecs, lostT: 0 };
         Audio.say('Target acquired');
         Audio.play('lockBeep');
@@ -1588,11 +1576,23 @@ const Game = {
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
       rk.ang += Math.max(-RK.turnRate * dt, Math.min(RK.turnRate * dt, diff));
-      const sp = RK.speed * Math.min(1, 0.4 + rk.age / 0.7);   // soft launch
+      // It bores straight through rock at half pace — walls are no shelter
+      const inRock = World.isSolid(Math.floor(rk.x), Math.floor(rk.y));
+      const sp = RK.speed * (inRock ? RK.groundSpeedMult : 1) * Math.min(1, 0.4 + rk.age / 0.7);
       rk.x += Math.cos(rk.ang) * sp * dt;
       rk.y += Math.sin(rk.ang) * sp * dt;
-      // Exhaust trail
-      if (Math.random() < dt * 40) {
+      rk.inRock = inRock;
+      if (inRock) {
+        // Grinding through the strata: dust squeezing out along its path
+        if (Math.random() < dt * 30) {
+          Particles.spawn({
+            x: rk.x + (Math.random() - 0.5) * 0.4, y: rk.y + (Math.random() - 0.5) * 0.4,
+            vx: (Math.random() - 0.5) * 2, vy: (Math.random() - 0.5) * 2,
+            life: 0.4, size: 0.08, color: '#8a6a4a', gravity: 4,
+          });
+        }
+      } else if (Math.random() < dt * 40) {
+        // Open-air exhaust trail
         Particles.spawn({
           x: rk.x - Math.cos(rk.ang) * 0.3, y: rk.y - Math.sin(rk.ang) * 0.3,
           vx: -Math.cos(rk.ang) * 2 + (Math.random() - 0.5), vy: -Math.sin(rk.ang) * 2 + (Math.random() - 0.5),
@@ -1600,11 +1600,21 @@ const Game = {
           color: Math.random() < 0.5 ? '#ffb347' : '#8a8a84', glow: Math.random() < 0.5,
         });
       }
+      // Detonation: the beam, the pod, or any creature it meets — never rock
       let boom = rk.heat >= RK.cookSecs || rk.age > RK.lifetime;
-      // Brief launch grace so it can clear its own tunnel ceiling
-      if (!boom && rk.age > 0.3 && World.isSolid(Math.floor(rk.x), Math.floor(rk.y))) boom = true;
       if (!boom && !Player.dead && Player.teleporting <= 0
           && Math.hypot(rk.x - Player.x, rk.y - Player.y) < 0.6) boom = true;
+      if (!boom) {
+        for (const rb of this.robots) {
+          if (rb === rk.owner) continue;
+          if (Math.hypot(rb.x - rk.x, rb.y - rk.y) < 0.6) { boom = true; break; }
+        }
+      }
+      const w2 = this.worm;
+      if (!boom && w2 && !w2.leaving
+          && [{ x: w2.x, y: w2.y }, ...(w2.segPos || [])].some(p => Math.hypot(p.x - rk.x, p.y - rk.y) < 1.1)) boom = true;
+      if (!boom && this.ghost && this.ghost.fading <= 0
+          && Math.hypot(this.ghost.x - rk.x, this.ghost.y - rk.y) < 0.7) boom = true;
       if (boom) {
         this.rockets.splice(i, 1);
         if (rk.owner) {
@@ -3864,36 +3874,97 @@ const Game = {
         aim: r.aim || 0, zapT: r.zapT, time: this.time + r.age * 0.37,
         crouch: r.crouchT || 0,
       });
-      // Lock-on: a red designator beam from its back tracking the pod, with
-      // the launch countdown burning over its head
-      if (r.attack) {
+      // Laser module: an armored turret that rises out of its back, swivels
+      // onto the pod, and pours the designator beam from its lens
+      const crouch = r.crouchT || 0;
+      if (crouch > 0.05) {
         const px = (Player.x - this.cam.x) * T, py = (Player.y - this.cam.y) * T;
-        const bx = sx - r.facing * T * 0.22, by = sy - T * 0.5;
+        const rise = Math.min(1, crouch);
+        const mx = sx - r.facing * T * 0.14;
+        const my = sy - T * 0.3 - T * 0.34 * rise;
+        const aimAng = Math.atan2(py - my, px - mx);
         ctx.save();
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.strokeStyle = `rgba(255,45,30,${0.55 + 0.3 * Math.sin(this.time * 30)})`;
-        ctx.lineWidth = Math.max(1, T * 0.02);
+        // Mount arm out of the backpack
+        ctx.strokeStyle = '#31353c';
+        ctx.lineWidth = Math.max(2, T * 0.06);
         ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(px + (Math.random() - 0.5) * 3, py + (Math.random() - 0.5) * 3);
+        ctx.moveTo(sx - r.facing * T * 0.18, sy - T * 0.12);
+        ctx.lineTo(mx, my + T * 0.08);
         ctx.stroke();
-        // The dot on the hull
-        ctx.fillStyle = 'rgba(255,60,40,0.9)';
-        ctx.beginPath(); ctx.arc(px, py, T * 0.045, 0, Math.PI * 2); ctx.fill();
-        // Converging lock ring
-        const lp = 1 - r.attack.t / C.ROCKET.aimSecs;
-        ctx.strokeStyle = `rgba(255,60,40,${0.4 + 0.4 * lp})`;
-        ctx.lineWidth = Math.max(1, T * 0.03);
-        ctx.beginPath(); ctx.arc(px, py, T * (0.9 - 0.55 * lp), 0, Math.PI * 2); ctx.stroke();
-        // Countdown
-        ctx.font = `bold ${Math.round(T * 0.5)}px Verdana`;
-        ctx.textAlign = 'center';
-        ctx.shadowColor = '#ff2010';
-        ctx.shadowBlur = 12;
-        ctx.fillStyle = '#ff5540';
-        ctx.fillText(String(Math.max(1, Math.ceil(r.attack.t))), sx, sy - T * 0.85);
-        ctx.shadowBlur = 0;
+        ctx.translate(mx, my);
+        // Swivel base
+        ctx.fillStyle = '#2c3036';
+        ctx.beginPath(); ctx.arc(0, T * 0.06, T * 0.07, 0, Math.PI * 2); ctx.fill();
+        ctx.rotate(aimAng);
+        // Armored turret head: beveled block with cooling fins
+        let g = ctx.createLinearGradient(0, -T * 0.12, 0, T * 0.12);
+        g.addColorStop(0, '#5a616b');
+        g.addColorStop(0.5, '#3c434f');
+        g.addColorStop(1, '#23262c');
+        ctx.fillStyle = g;
+        Sprites.rr(ctx, -T * 0.16, -T * 0.115, T * 0.32, T * 0.23, T * 0.035);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = Math.max(1, T * 0.015);
+        Sprites.rr(ctx, -T * 0.16, -T * 0.115, T * 0.32, T * 0.23, T * 0.035);
+        ctx.stroke();
+        // Cooling fins along the top
+        ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+        for (let f = 0; f < 3; f++) {
+          const fx = -T * 0.1 + f * T * 0.08;
+          ctx.beginPath(); ctx.moveTo(fx, -T * 0.115); ctx.lineTo(fx, -T * 0.05); ctx.stroke();
+        }
+        // Emitter barrel + lens
+        ctx.fillStyle = '#23262c';
+        ctx.fillRect(T * 0.14, -T * 0.05, T * 0.1, T * 0.1);
+        const firing = !!r.attack;
+        ctx.fillStyle = firing ? '#ff4030' : '#6a2620';
+        ctx.beginPath(); ctx.arc(T * 0.25, 0, T * 0.035, 0, Math.PI * 2); ctx.fill();
+        if (firing) {
+          ctx.globalCompositeOperation = 'lighter';
+          const lg = ctx.createRadialGradient(T * 0.25, 0, 1, T * 0.25, 0, T * 0.16);
+          lg.addColorStop(0, 'rgba(255,80,60,0.9)');
+          lg.addColorStop(1, 'rgba(255,80,60,0)');
+          ctx.fillStyle = lg;
+          ctx.fillRect(T * 0.05, -T * 0.2, T * 0.4, T * 0.4);
+        }
         ctx.restore();
+
+        // The beam itself: thick hot core in a wide glow, straight through
+        // rock or anything else — fired from the lens muzzle
+        if (r.attack) {
+          const ex = mx + Math.cos(aimAng) * T * 0.27;
+          const ey = my + Math.sin(aimAng) * T * 0.27;
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const flick = 0.75 + 0.25 * Math.sin(this.time * 34);
+          ctx.strokeStyle = `rgba(255,60,70,${0.28 * flick})`;
+          ctx.lineWidth = Math.max(3, T * 0.11);
+          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(px, py); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,90,90,${0.55 * flick})`;
+          ctx.lineWidth = Math.max(2, T * 0.05);
+          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(px, py); ctx.stroke();
+          ctx.strokeStyle = `rgba(255,225,220,${0.9 * flick})`;
+          ctx.lineWidth = Math.max(1, T * 0.018);
+          ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(px + (Math.random() - 0.5) * 2, py + (Math.random() - 0.5) * 2); ctx.stroke();
+          // The dot on the hull
+          ctx.fillStyle = 'rgba(255,60,40,0.9)';
+          ctx.beginPath(); ctx.arc(px, py, T * 0.05, 0, Math.PI * 2); ctx.fill();
+          // Converging lock ring
+          const lp = 1 - r.attack.t / C.ROCKET.aimSecs;
+          ctx.strokeStyle = `rgba(255,60,40,${0.4 + 0.4 * lp})`;
+          ctx.lineWidth = Math.max(1, T * 0.03);
+          ctx.beginPath(); ctx.arc(px, py, T * (0.9 - 0.55 * lp), 0, Math.PI * 2); ctx.stroke();
+          // Countdown
+          ctx.font = `bold ${Math.round(T * 0.5)}px Verdana`;
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#ff2010';
+          ctx.shadowBlur = 12;
+          ctx.fillStyle = '#ff5540';
+          ctx.fillText(String(Math.max(1, Math.ceil(r.attack.t))), sx, sy - T * 0.85);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
       }
       // Under the beam: jagged electric arcs crawl across the chassis
       if (r.zapT > 0) {

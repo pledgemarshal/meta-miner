@@ -1947,17 +1947,17 @@ const Sprites = {
     ctx.fillStyle = dark;
     this.rr(ctx, -T * 0.24, -T * 0.14, T * 0.09, T * 0.24, T * 0.03);
     ctx.fill();
-    // Crouched: the back hatch pops and the targeting designator rises
+    // Crouched: the back hatch swings open (the turret module itself is drawn
+    // in world space by drawRobotFx so the beam stays attached to its lens)
     if (crouch > 0.3) {
-      const rise = (crouch - 0.3) / 0.7;
-      ctx.fillStyle = mid;
-      ctx.fillRect(-T * 0.225, -T * 0.14 - T * 0.16 * rise, T * 0.045, T * 0.16 * rise);
+      const open = (crouch - 0.3) / 0.7;
       ctx.fillStyle = dark;
-      this.rr(ctx, -T * 0.26, -T * 0.14 - T * 0.2 * rise, T * 0.11, T * 0.06, T * 0.02);
+      ctx.save();
+      ctx.translate(-T * 0.24, -T * 0.14);
+      ctx.rotate(-1.1 * open);
+      this.rr(ctx, 0, -T * 0.02, T * 0.09, T * 0.04, T * 0.015);
       ctx.fill();
-      // The red designator lens, burning
-      ctx.fillStyle = `rgba(255,45,30,${0.5 + 0.5 * Math.sin((r.time || 0) * 20)})`;
-      ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.14 - T * 0.17 * rise, T * 0.028, 0, P2); ctx.fill();
+      ctx.restore();
     }
     // Core lamp on the chest — heartbeat red, dead when dormant
     const corePulse = r.dormant ? 0.12 : 0.5 + 0.5 * Math.sin((r.time || 0) * 5);

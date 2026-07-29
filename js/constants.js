@@ -159,9 +159,12 @@ const C = {
   // meets rock, pod or beam — cookSecs of microwave sets it off mid-air.
   // The blast is a half-scale nuke that hurts EVERYTHING, its owner included.
   // First lock always comes within ~6 s of deployment; never again within cd.
+  // The designator sees THROUGH rock (no hiding), and the rocket burrows
+  // through terrain at groundSpeedMult pace — it only detonates on the beam,
+  // the pod, or another creature. lifetime is a distant fail-safe.
   ROCKET: { speed: 2.4, turnRate: 2.2, aimSecs: 3, cookSecs: 3, lockRange: 13,
-            firstDelayMin: 1.5, firstDelayMax: 5, cd: 30,
-            blastRadius: 2, dmgRadius: 4, maxDmg: 75, lifetime: 12 },
+            firstDelayMin: 1.5, firstDelayMax: 5, cd: 30, groundSpeedMult: 0.5,
+            blastRadius: 2, dmgRadius: 4, maxDmg: 75, lifetime: 30 },
 
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
   // bay doors and charge (chargeSecs); release at full charge to detonate a
