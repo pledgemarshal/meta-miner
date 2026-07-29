@@ -1645,7 +1645,8 @@ const Game = {
 
     if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff(); return; }
     // Shop menus pause the world (and the fuel drain), as in the original
-    if (UI.isOpen()) { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff(); return; }
+    // Menus pause EVERYTHING — the world, its enemies, even drifting sparks
+    if (UI.isOpen()) { Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff(); return; }
 
     // Magnetite fields flip the controls before the pod ever sees them
     this.updateMagnet(dt);
@@ -3798,7 +3799,7 @@ const Game = {
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
     ctx.shadowBlur = 5;
     const lines = [
-      'Arrows / WASD — fly & drill      E — enter buildings      N — mute',
+      'Arrows / WASD — fly & drill      E — enter buildings      Esc — pause',
       'Items: F fuel · R repair · X dynamite · C plastic · T teleport · M transmitter',
       'Sell minerals at the processor. Refuel often. Watch your hull. Dig deep…',
     ];
