@@ -162,8 +162,11 @@ const C = {
   // The designator sees THROUGH rock (no hiding), and the rocket burrows
   // through terrain at groundSpeedMult pace — it only detonates on the beam,
   // the pod, or another creature. lifetime is a distant fail-safe.
+  // noLosLock: if it can't draw a line of fire on a nearby pod for this many
+  // seconds, it skips the wait and goes straight to the rocket lock.
   ROCKET: { speed: 2.4, turnRate: 2.2, aimSecs: 3, cookSecs: 3, lockRange: 13,
-            firstDelayMin: 1.5, firstDelayMax: 5, cd: 30, groundSpeedMult: 0.5,
+            firstDelayMin: 1.5, firstDelayMax: 5, cd: 15, groundSpeedMult: 0.5,
+            noLosLock: 4,
             blastRadius: 2, dmgRadius: 4, maxDmg: 75, lifetime: 30 },
 
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the

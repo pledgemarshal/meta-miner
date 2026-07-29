@@ -1342,7 +1342,17 @@ const Game = {
       }
       // Lock-on trigger: grounded, in range, line of sight, off cooldown
       r.rocketCd -= dt;
-      if (r.rocketCd <= 0 && !r.mining && dist < C.ROCKET.lockRange && !r.flying) {
+      // Impatience clock: a nearby pod it can't draw a line of fire on for
+      // noLosLock seconds gets the rocket treatment early — hiding buys nothing
+      if (dist < C.ROCKET.lockRange
+          && !this.hasLineOfSight(r.x, r.y - 0.15, Player.x, Player.y)) {
+        r.noLosT = (r.noLosT || 0) + dt;
+      } else {
+        r.noLosT = 0;
+      }
+      if ((r.rocketCd <= 0 || r.noLosT >= C.ROCKET.noLosLock)
+          && !r.mining && dist < C.ROCKET.lockRange) {
+        r.noLosT = 0;
         r.attack = { t: C.ROCKET.aimSecs, lostT: 0 };
         Audio.play('lockBeep');
         this.warn('⚠ TARGET LOCK — NUCLEAR ORDNANCE SPOOLING!', '#ff5540');
@@ -1638,7 +1648,7 @@ const Game = {
         this.rockets.splice(i, 1);
         if (rk.owner) {
           rk.owner.rocketRef = null;
-          rk.owner.rocketCd = RK.cd + Math.random() * 8;   // never twice inside 30 s
+          rk.owner.rocketCd = RK.cd + Math.random() * 4;   // ~15 s between salvos
         }
         this.miniNuke(rk.x, rk.y);
       }
