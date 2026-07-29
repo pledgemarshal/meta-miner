@@ -1,5 +1,7 @@
 # Motherload Remake
 
+Still a work in progress - need better pictures for characters, Final Boss needs work, and final "zone" could use a little more inspiration!
+
 A faithful fan remake of the classic 2004 mining game — same controls, same gameplay
 loop, same progression and boss — rebuilt from scratch with modernized, higher-fidelity
 graphics. All code, artwork (procedurally drawn on canvas), and text are original.
