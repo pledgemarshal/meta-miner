@@ -34,3 +34,5 @@ synthesized live with WebAudio.
 
 - "Airglow" by [Stellardrone](https://stellardrone.bandcamp.com/) — from the album
   *Light Years*, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+- "Chaos Theory" by [Karl Casey @ White Bat Audio](https://karlcasey.bandcamp.com/album/white-bat-60) —
+  from the album *White Bat 60*; plays during security-automaton fights.

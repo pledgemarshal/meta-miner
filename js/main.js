@@ -1643,7 +1643,12 @@ const Game = {
     // Music sits forward on the title screen, tucks behind the mining underground
     Audio.setMusicLevel(this.state === 'title' ? 0.5 : 0.18);
 
-    if (this.state !== 'play') { Particles.update(dt); Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff(); return; }
+    if (this.state !== 'play') {
+      Particles.update(dt);
+      if (this.state !== 'dialog') Audio.setBattleMusic(false);   // fight's over (or never was)
+      Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff();
+      return;
+    }
     // Shop menus pause the world (and the fuel drain), as in the original
     // Menus pause EVERYTHING — the world, its enemies, even drifting sparks
     if (UI.isOpen()) { Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff(); return; }
@@ -1669,6 +1674,9 @@ const Game = {
     this.updateServers(dt);
     this.updateRobots(dt);
     this.updateEmp(dt);
+    // Battle track while a vault door is opening or an automaton is hunting;
+    // the ambient track returns once the last one falls or powers down
+    Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant));
     this.checkPyramids();
 
     // Fuel-low banner: fires each time fuel crosses down through the warn line
@@ -3806,7 +3814,7 @@ const Game = {
     lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.68 + i * 26));
     ctx.font = '13px Verdana';
     ctx.fillStyle = '#aaa498';
-    ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 26 + 20);
+    ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0  ·  "Chaos Theory" by Karl Casey @ White Bat Audio', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 26 + 20);
     ctx.shadowBlur = 0;
     ctx.restore();
   },

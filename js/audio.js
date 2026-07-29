@@ -39,6 +39,9 @@ const Audio = {
 
   // Note: this object shadows window.Audio, so the element is created via DOM
   music: null,
+  battle: null,        // "Chaos Theory" by Karl Casey @ White Bat Audio — automaton fights
+  battleMix: 0,        // 0 = ambient track, 1 = battle track (crossfaded)
+  battleTarget: 0,
   initMusic() {
     const el = document.createElement('audio');
     el.src = 'audio/airglow.mp3';
@@ -46,6 +49,12 @@ const Audio = {
     el.volume = 0.5;
     el.preload = 'auto';
     this.music = el;
+    const bt = document.createElement('audio');
+    bt.src = 'audio/chaos-theory.mp3';
+    bt.loop = true;
+    bt.volume = 0;
+    bt.preload = 'auto';
+    this.battle = bt;
     // Start the moment the game opens — browsers may veto autoplay until the
     // first interaction, so every early signal retries: file ready, page
     // becoming visible, first click/touch/key anywhere.
@@ -64,9 +73,24 @@ const Audio = {
   },
 
   // Louder on the title screen, a quiet companion while mining;
-  // scaled by the user's music volume setting
+  // scaled by the user's music volume setting. Called every frame, so the
+  // ambient/battle crossfade is smoothed here too.
   setMusicLevel(v) {
-    if (this.music) this.music.volume += (v * this.musicVol - this.music.volume) * 0.08;
+    this.battleMix += (this.battleTarget - this.battleMix) * 0.03;
+    // Fully faded out: stop the battle track and rewind it for next time
+    if (this.battleTarget === 0 && this.battleMix < 0.005 && this.battle && !this.battle.paused) {
+      this.battle.pause();
+      try { this.battle.currentTime = 0; } catch (e) {}
+    }
+    if (this.music) this.music.volume += (v * this.musicVol * (1 - this.battleMix) - this.music.volume) * 0.08;
+    if (this.battle) this.battle.volume = Math.max(0, Math.min(1, 0.42 * this.musicVol * this.battleMix));
+  },
+
+  // Battle music: fades in when the vault door opens, back out when the
+  // automaton falls (or powers down)
+  setBattleMusic(on) {
+    this.battleTarget = on ? 1 : 0;
+    if (on && this.battle && this.battle.paused && !this.muted) this.battle.play().catch(() => {});
   },
 
   ensure() {
@@ -91,6 +115,10 @@ const Audio = {
     if (this.music) {
       this.music.muted = this.muted;
       if (!this.muted) this.startMusic();
+    }
+    if (this.battle) {
+      this.battle.muted = this.muted;
+      if (!this.muted && this.battleTarget > 0 && this.battle.paused) this.battle.play().catch(() => {});
     }
     return this.muted;
   },
