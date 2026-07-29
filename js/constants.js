@@ -151,7 +151,7 @@ const C = {
   // place and reboots when you return. doorSecs: the vault door slide-open;
   // emergeSecs: boot-up pause in the doorway before the hunt begins.
   ROBOT: { walkSpeed: 0.75, flySpeed: 1.5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
-           laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
+           laserRange: 11, cookTime: 20, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
            mineSecs: 0.5, doorSecs: 0.9, emergeSecs: 0.8 },
   // --- Nuclear rocket: the automaton's heavy option. It stops, bends over,
   // and a back-mounted designator locks onto the pod for aimSecs (with a
