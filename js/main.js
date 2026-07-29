@@ -1006,9 +1006,49 @@ const Game = {
     this.worm = null;
     Audio.setRumble(0);
     Audio.play('wormRoar');
+    Audio.play('splat');
     Particles.explosion(w.x, w.y, 2);
-    for (const p of w.segPos) {
-      Particles.burst(p.x, p.y, 10, { color: '#9dff5a', speed: 5, life: 0.7, size: 0.12, glow: true });
+    // The whole body bursts: every segment throws off cooked meat slabs,
+    // stringy innards and a wet spray of ichor that rains back down
+    const gibColors = ['#7ec24d', '#9dff5a', '#5a8a30', '#b8e08a', '#8a4038', '#c95f4f'];
+    for (const p of [{ x: w.x, y: w.y }, ...w.segPos]) {
+      // Chunky gibs arcing out under gravity
+      for (let i = 0; i < 9; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 3 + Math.random() * 8;
+        Particles.spawn({
+          x: p.x + (Math.random() - 0.5) * 0.8, y: p.y + (Math.random() - 0.5) * 0.8,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 3.5,
+          life: 0.9 + Math.random() * 0.9,
+          size: 0.12 + Math.random() * 0.13,
+          color: gibColors[Math.floor(Math.random() * gibColors.length)],
+          gravity: 11,
+        });
+      }
+      // Fine ichor spray, faster and glowing
+      for (let i = 0; i < 12; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = 5 + Math.random() * 10;
+        Particles.spawn({
+          x: p.x, y: p.y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2,
+          life: 0.5 + Math.random() * 0.6,
+          size: 0.05 + Math.random() * 0.05,
+          color: Math.random() < 0.7 ? '#9dff5a' : '#d8ffa8',
+          glow: true, gravity: 8,
+        });
+      }
+    }
+    // A few big slow slabs from the head end for punctuation
+    for (let i = 0; i < 5; i++) {
+      Particles.spawn({
+        x: w.x, y: w.y,
+        vx: (Math.random() - 0.5) * 7, vy: -4 - Math.random() * 4,
+        life: 1.4 + Math.random() * 0.6,
+        size: 0.22 + Math.random() * 0.1,
+        color: Math.random() < 0.5 ? '#7ec24d' : '#8a4038',
+        gravity: 12,
+      });
     }
     Player.money += C.WORM.bounty;
     this.popup(w.x, w.y - 1, '+$' + C.WORM.bounty.toLocaleString(), '#9dff5a');

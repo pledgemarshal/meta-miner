@@ -255,6 +255,13 @@ const Audio = {
         this.tone(1400, 0.12, 'square', 0.08, 400, 0.03);
         break;
       case 'wormRoar': this.tone(70, 1.3, 'sawtooth', 0.24, 32); this.noise(1.3, 0.24, 300); this.tone(115, 0.9, 'square', 0.07, 50, 0.15); break;
+      case 'splat':
+        // Wet burst: heavy squelch + spatter tails
+        this.noise(0.35, 0.45, 500);
+        this.tone(140, 0.3, 'sine', 0.22, 45);
+        this.noise(0.2, 0.25, 1400, 0.08);
+        for (let i = 0; i < 4; i++) this.noise(0.06, 0.12, 2200 + i * 500, 0.12 + i * 0.07);
+        break;
       case 'alarm':
         // Two-tone security klaxon, three sweeps
         for (let i = 0; i < 3; i++) {
