@@ -153,6 +153,16 @@ const C = {
   ROBOT: { walkSpeed: 0.75, flySpeed: 1.5, laserDmg: 50, laserSpeed: 4.5, laserCd: 2.8,
            laserRange: 11, cookTime: 10, punchDmg: 15, punchCd: 1.2, leash: 40, wakeDist: 12,
            mineSecs: 0.5, doorSecs: 0.9, emergeSecs: 0.8 },
+  // --- Nuclear rocket: the automaton's heavy option. It stops, bends over,
+  // and a back-mounted designator locks onto the pod for aimSecs (with a
+  // robotic callout), then launches a slow tracking rocket. It flies until it
+  // meets rock, pod or beam — cookSecs of microwave sets it off mid-air.
+  // The blast is a half-scale nuke that hurts EVERYTHING, its owner included.
+  // First lock always comes within ~6 s of deployment; never again within cd.
+  ROCKET: { speed: 2.4, turnRate: 2.2, aimSecs: 3, cookSecs: 3, lockRange: 13,
+            firstDelayMin: 1.5, firstDelayMax: 5, cd: 30,
+            blastRadius: 2, dmgRadius: 4, maxDmg: 75, lifetime: 12 },
+
   // --- EMP burst: salvaged from a slain automaton's head. Hold Q to open the
   // bay doors and charge (chargeSecs); release at full charge to detonate a
   // pulse that vaporizes ALL blocks (boulders included) within radius tiles

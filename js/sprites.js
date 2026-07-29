@@ -1918,6 +1918,15 @@ const Sprites = {
       ctx.fillRect(footX - T * 0.05, T * 0.42, T * 0.12, T * 0.045);
     }
 
+    // Firing crouch: the upper body bends forward over the planted legs
+    const crouch = r.crouch || 0;
+    ctx.save();
+    if (crouch > 0.01) {
+      ctx.translate(0, T * 0.12);
+      ctx.rotate(0.55 * crouch);
+      ctx.translate(0, -T * 0.12 + T * 0.07 * crouch);
+    }
+
     // Torso: ribbed chassis
     let g = ctx.createLinearGradient(0, -T * 0.18, 0, T * 0.16);
     g.addColorStop(0, light); g.addColorStop(0.55, mid); g.addColorStop(1, dark);
@@ -1938,6 +1947,18 @@ const Sprites = {
     ctx.fillStyle = dark;
     this.rr(ctx, -T * 0.24, -T * 0.14, T * 0.09, T * 0.24, T * 0.03);
     ctx.fill();
+    // Crouched: the back hatch pops and the targeting designator rises
+    if (crouch > 0.3) {
+      const rise = (crouch - 0.3) / 0.7;
+      ctx.fillStyle = mid;
+      ctx.fillRect(-T * 0.225, -T * 0.14 - T * 0.16 * rise, T * 0.045, T * 0.16 * rise);
+      ctx.fillStyle = dark;
+      this.rr(ctx, -T * 0.26, -T * 0.14 - T * 0.2 * rise, T * 0.11, T * 0.06, T * 0.02);
+      ctx.fill();
+      // The red designator lens, burning
+      ctx.fillStyle = `rgba(255,45,30,${0.5 + 0.5 * Math.sin((r.time || 0) * 20)})`;
+      ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.14 - T * 0.17 * rise, T * 0.028, 0, P2); ctx.fill();
+    }
     // Core lamp on the chest — heartbeat red, dead when dormant
     const corePulse = r.dormant ? 0.12 : 0.5 + 0.5 * Math.sin((r.time || 0) * 5);
     ctx.fillStyle = `rgba(255,60,40,${0.25 + 0.6 * corePulse})`;
@@ -2009,6 +2030,7 @@ const Sprites = {
       ctx.fillRect(-T * 0.5, -T * 0.55, T, T * 1.1);
       ctx.globalCompositeOperation = 'source-over';
     }
+    ctx.restore();   // end crouch transform
 
     ctx.restore();
   },

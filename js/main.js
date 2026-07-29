@@ -37,6 +37,7 @@ const Game = {
   roboLasers: [],        // slow dodgeable laser bolts: { x, y, vx, vy, life }
   roboHeads: [],         // dropped automaton heads: { x, y, vy }
   openingDoors: [],      // vault doors mid-slide: { x, y, t, room }
+  rockets: [],           // tracking nuclear rockets: { x, y, ang, heat, age, owner }
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -359,6 +360,7 @@ const Game = {
     this.roboLasers = [];
     this.roboHeads = [];
     this.openingDoors = [];
+    this.rockets = [];
     this.empHolding = false;
     this.empCharge = 0;
     this.empDoors = 0;
@@ -588,6 +590,25 @@ const Game = {
       return;
     }
 
+    // Incoming nuclear rockets: 3 beam-seconds sets one off mid-flight
+    const rkR = 0.75 + (lvl >= 2 ? 0.7 : 0);
+    for (const rk of this.rockets) {
+      if (Math.hypot(rk.x - cx, rk.y - cy) >= rkR) continue;
+      rk.heat += dt * rate;
+      rk.zapT = 0.15;
+      if (Math.random() < dt * 30) {
+        Particles.spawn({
+          x: rk.x + (Math.random() - 0.5) * 0.4, y: rk.y + (Math.random() - 0.5) * 0.4,
+          vx: (Math.random() - 0.5) * 5, vy: -1 - Math.random() * 3,
+          life: 0.3, size: 0.07,
+          color: Math.random() < 0.5 ? '#cfe8ff' : '#ffd97a', glow: true, gravity: 8,
+        });
+      }
+      if (Math.random() < dt * 7) Audio.play('crackle');
+      this.mwBeam = { tx, ty, heat: rk.heat, needed: C.ROCKET.cookSecs, kind: 'rocket' };
+      return;
+    }
+
     // Security automatons: the beam arcs violently off the chassis — sparks
     // fly, the metal heats toward slag, and ~10 beam-seconds ends it
     const robotR = 1.0 + (lvl >= 2 ? 0.8 : 0);
@@ -786,9 +807,10 @@ const Game = {
     let rad = 0;
     for (const f of this.fallout) {
       f.age += dt;
+      const fr = f.r || C.NUKE.dmgRadius;   // mini-nukes leave a smaller hot zone
       const d = Math.hypot(Player.x - (f.x + 0.5), Player.y - (f.y + 0.5));
-      if (d < C.NUKE.dmgRadius) {
-        rad = Math.max(rad, (1 - d / C.NUKE.dmgRadius) * (1 - f.age / C.NUKE.falloutLife));
+      if (d < fr) {
+        rad = Math.max(rad, (1 - d / fr) * (1 - f.age / C.NUKE.falloutLife));
       }
     }
     this.fallout = this.fallout.filter(f => f.age < C.NUKE.falloutLife);
@@ -1120,6 +1142,10 @@ const Game = {
         facing: 1, walkPhase: 0, flying: false, dormant: false, aim: 0,
         cooked: 0, zapT: 0, laserCd: 1.6, punchCd: 0.8, age: 0,
         emergeT: C.ROBOT.emergeSecs, room: d.room,
+        // Nuclear ordnance: first lock lands within ~6 s of deployment
+        rocketCd: C.ROCKET.firstDelayMin + Math.random() * (C.ROCKET.firstDelayMax - C.ROCKET.firstDelayMin),
+        attack: null, rocketRef: null, crouchT: 0,
+        path: null, pathT: 0,
       });
     }
   },
@@ -1178,6 +1204,44 @@ const Game = {
       if (World.isSolid(Math.floor(x0 + (x1 - x0) * t), Math.floor(y0 + (y1 - y0) * t))) return false;
     }
     return true;
+  },
+
+  // Breadth-first route through open tiles toward the pod (capped so it stays
+  // cheap). Falls back to the path to the closest reachable tile when the pod
+  // itself is sealed off — the laser-mining takes it from there.
+  findPath(sx, sy, gx, gy) {
+    const W = C.WORLD_W;
+    if (sx === gx && sy === gy) return null;
+    const key = (x, y) => y * W + x;
+    const came = new Map();
+    const q = [[sx, sy]];
+    came.set(key(sx, sy), -1);
+    let best = null, bestD = Infinity, found = false;
+    for (let qi = 0; qi < q.length && qi < 1400; qi++) {
+      const [x, y] = q[qi];
+      const d = Math.abs(x - gx) + Math.abs(y - gy);
+      if (d < bestD) { bestD = d; best = [x, y]; }
+      if (x === gx && y === gy) { found = true; break; }
+      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+        if (nx <= 0 || nx >= W - 1 || ny <= 1 || ny >= C.GROUND_BOTTOM_ROW) continue;
+        const k = key(nx, ny);
+        if (came.has(k)) continue;
+        if (World.isSolid(nx, ny)) continue;
+        came.set(k, key(x, y));
+        q.push([nx, ny]);
+      }
+    }
+    const end = found ? [gx, gy] : best;
+    if (!end || (end[0] === sx && end[1] === sy)) return null;
+    const path = [];
+    let k = key(end[0], end[1]);
+    while (k !== -1 && k !== key(sx, sy)) {
+      path.push({ x: k % W, y: Math.floor(k / W) });
+      k = came.get(k);
+      if (k === undefined) return null;
+    }
+    path.reverse();
+    return path.length ? path : null;
   },
 
   // Axis-separated tile collision for an automaton (narrower than the pod)
@@ -1243,10 +1307,60 @@ const Game = {
           continue;
         }
       }
-      if (dist * 1 > R.leash || Player.dead) { r.dormant = true; continue; }
+      if ((dist > R.leash || Player.dead) && !r.attack && !r.rocketRef) { r.dormant = true; continue; }
 
       r.facing = dx < 0 ? -1 : 1;
       r.aim = Math.atan2(dy - 0.1, dx);
+
+      // Bend-over pose eases in while aiming or tending a rocket in flight
+      r.crouchT = Math.max(0, Math.min(1, (r.crouchT || 0) + ((r.attack || r.rocketRef) ? dt * 4 : -dt * 4)));
+
+      // --- Nuclear rocket: lock-on countdown, frozen in its firing crouch ---
+      if (r.attack) {
+        const A = r.attack;
+        r.vx = 0;
+        r.flying = false;
+        r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);   // stay planted even if the floor goes
+        this.moveRobot(r, dt);
+        // The lock needs line of sight — break it long enough and it aborts
+        if (!this.hasLineOfSight(r.x, r.y - 0.3, Player.x, Player.y)) {
+          A.lostT = (A.lostT || 0) + dt;
+          if (A.lostT > 0.6) {
+            r.attack = null;
+            r.rocketCd = 8 + Math.random() * 4;
+            this.toast('Target lock broken — it recalibrates…');
+            continue;
+          }
+        } else {
+          A.lostT = 0;
+        }
+        const prevT = A.t;
+        A.t -= dt;
+        if (Math.ceil(A.t) < Math.ceil(prevT)) Audio.play('lockBeep');
+        if (A.t <= 0) {
+          r.attack = null;
+          this.fireRocket(r);
+        }
+        continue;
+      }
+      // Rocket in the air: the automaton stands stock-still and watches
+      if (r.rocketRef) {
+        r.vx = 0;
+        r.flying = false;
+        r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);
+        this.moveRobot(r, dt);
+        continue;
+      }
+      // Lock-on trigger: grounded, in range, line of sight, off cooldown
+      r.rocketCd -= dt;
+      if (r.rocketCd <= 0 && !r.mining && dist < C.ROCKET.lockRange && !r.flying
+          && this.hasLineOfSight(r.x, r.y - 0.3, Player.x, Player.y)) {
+        r.attack = { t: C.ROCKET.aimSecs, lostT: 0 };
+        Audio.say('Target acquired');
+        Audio.play('lockBeep');
+        this.warn('⚠ TARGET LOCK — NUCLEAR ORDNANCE SPOOLING!', '#ff5540');
+        continue;
+      }
 
       // No progress for a while? Nothing stops it: it lasers the material
       // away tile by tile, cutting straight toward the pod
@@ -1301,40 +1415,49 @@ const Game = {
         }
       }
 
-      // Movement: walk at half pace; kick in the rocket when the pod is above
-      // or a wall/rack wants climbing over
+      // Movement: follow a BFS route through the tunnels; the jet only lights
+      // when it genuinely has to climb — on the ground it just walks
+      r.pathT = (r.pathT || 0) - dt;
+      if (r.pathT <= 0) {
+        r.path = this.findPath(Math.floor(r.x), Math.floor(r.y), Math.floor(Player.x), Math.floor(Player.y));
+        r.pathT = 0.45;
+      }
+      let wp = null;
+      if (r.path && r.path.length) {
+        while (r.path.length && Math.hypot(r.path[0].x + 0.5 - r.x, r.path[0].y + 0.5 - r.y) < 0.4) r.path.shift();
+        wp = r.path[0] || null;
+      }
       const grounded = World.isSolid(Math.floor(r.x), Math.floor(r.y + 0.55)) && r.vy >= 0;
-      const aheadX = Math.floor(r.x + Math.sign(dx) * 0.45);
-      const rowY = Math.floor(r.y);
-      const blockedAhead = World.isSolid(aheadX, rowY);
-      // It can start a climb if there's air above it OR above the obstacle
-      const canClimb = !World.isSolid(Math.floor(r.x), rowY - 1) || !World.isSolid(aheadX, rowY - 1);
-      r.flying = dy < -0.8 || (blockedAhead && canClimb && dy < 0.5);
-      if (r.flying) {
-        // A wall in the way at this level? Boost UP first, then over
-        const wallAtLevel = World.isSolid(Math.floor(r.x + Math.sign(dx) * 0.6), rowY);
-        if (wallAtLevel && dy > -3) {
-          r.vx = Math.sign(dx) * R.flySpeed * 0.35;
-          r.vy = -R.flySpeed;
-        } else {
-          r.vx = (dx / dist) * R.flySpeed;
-          r.vy = (dy / dist) * R.flySpeed;
-        }
-        // Rocket wash
-        if (Math.random() < dt * 30) {
-          Particles.spawn({
-            x: r.x + (Math.random() - 0.5) * 0.2, y: r.y + 0.45,
-            vx: (Math.random() - 0.5) * 1.5, vy: 2.5 + Math.random() * 2,
-            life: 0.35, size: 0.09,
-            color: Math.random() < 0.5 ? '#ffb347' : '#8fd8ff', glow: true,
-          });
-        }
+      const tx = wp ? wp.x + 0.5 : Player.x;
+      const ty = wp ? wp.y + 0.5 : Player.y;
+      const dxw = tx - r.x, dyw = ty - r.y;
+      if (dyw < -0.25) {
+        // Next tile is above: rocket boost up
+        r.flying = true;
+        r.vy = -R.flySpeed;
+        r.vx = Math.max(-R.flySpeed, Math.min(R.flySpeed, dxw * 3));
+      } else if (dyw > 0.35 && !grounded) {
+        // Descending: fall with a gentle steer, no jet
+        r.flying = false;
+        r.vy = Math.min(r.vy + C.GRAVITY * dt, 10);
+        r.vx = Math.max(-R.walkSpeed, Math.min(R.walkSpeed, dxw * 2));
       } else {
+        // Walking the floor
+        r.flying = false;
         r.vy = Math.min(r.vy + C.GRAVITY * dt, 14);
-        if (grounded) r.vx = Math.abs(dx) > 0.35 ? Math.sign(dx) * R.walkSpeed : 0;
+        r.vx = Math.abs(dxw) > 0.08 ? Math.sign(dxw) * R.walkSpeed : 0;
+      }
+      // Rocket wash only while the jet is actually lit
+      if (r.flying && Math.random() < dt * 30) {
+        Particles.spawn({
+          x: r.x + (Math.random() - 0.5) * 0.2, y: r.y + 0.45,
+          vx: (Math.random() - 0.5) * 1.5, vy: 2.5 + Math.random() * 2,
+          life: 0.35, size: 0.09,
+          color: Math.random() < 0.5 ? '#ffb347' : '#8fd8ff', glow: true,
+        });
       }
       this.moveRobot(r, dt);
-      if (!r.flying && Math.abs(r.vx) > 0.1) r.walkPhase += dt * 9;
+      if (!r.flying && grounded && Math.abs(r.vx) > 0.1) r.walkPhase += dt * 9;
 
       // Servo whine when close — dread you can hear
       if (dist < 8 && Math.random() < dt * 1.2) Audio.play('servo');
@@ -1437,6 +1560,109 @@ const Game = {
       this.popup(r.x, r.y - 1, '+$' + C.SERVER.salvage.toLocaleString(), '#8fd8ff');
       this.toast(`Automaton scrapped: +$${C.SERVER.salvage.toLocaleString()}`);
     }
+  },
+
+  // --- The automaton's nuclear rocket ---
+  fireRocket(r) {
+    const rk = {
+      x: r.x - r.facing * 0.15, y: r.y - 0.3,
+      ang: -Math.PI / 2,          // pops straight up out of the back, then arcs over
+      heat: 0, zapT: 0, age: 0, owner: r,
+    };
+    this.rockets.push(rk);
+    r.rocketRef = rk;
+    Audio.play('rocketLaunch');
+    this.warn('☢ NUCLEAR ROCKET INBOUND — MICROWAVE IT!', '#ff5540');
+  },
+
+  updateRockets(dt) {
+    const RK = C.ROCKET;
+    for (let i = this.rockets.length - 1; i >= 0; i--) {
+      const rk = this.rockets[i];
+      rk.age += dt;
+      if (rk.zapT > 0) rk.zapT -= dt;
+      // Steer the heading toward the pod with a capped turn rate — slow
+      // enough to outrun, wide enough to bait into walls
+      const want = Math.atan2(Player.y - rk.y, Player.x - rk.x);
+      let diff = want - rk.ang;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      rk.ang += Math.max(-RK.turnRate * dt, Math.min(RK.turnRate * dt, diff));
+      const sp = RK.speed * Math.min(1, 0.4 + rk.age / 0.7);   // soft launch
+      rk.x += Math.cos(rk.ang) * sp * dt;
+      rk.y += Math.sin(rk.ang) * sp * dt;
+      // Exhaust trail
+      if (Math.random() < dt * 40) {
+        Particles.spawn({
+          x: rk.x - Math.cos(rk.ang) * 0.3, y: rk.y - Math.sin(rk.ang) * 0.3,
+          vx: -Math.cos(rk.ang) * 2 + (Math.random() - 0.5), vy: -Math.sin(rk.ang) * 2 + (Math.random() - 0.5),
+          life: 0.5, size: 0.09,
+          color: Math.random() < 0.5 ? '#ffb347' : '#8a8a84', glow: Math.random() < 0.5,
+        });
+      }
+      let boom = rk.heat >= RK.cookSecs || rk.age > RK.lifetime;
+      // Brief launch grace so it can clear its own tunnel ceiling
+      if (!boom && rk.age > 0.3 && World.isSolid(Math.floor(rk.x), Math.floor(rk.y))) boom = true;
+      if (!boom && !Player.dead && Player.teleporting <= 0
+          && Math.hypot(rk.x - Player.x, rk.y - Player.y) < 0.6) boom = true;
+      if (boom) {
+        this.rockets.splice(i, 1);
+        if (rk.owner) {
+          rk.owner.rocketRef = null;
+          rk.owner.rocketCd = RK.cd + Math.random() * 8;   // never twice inside 30 s
+        }
+        this.miniNuke(rk.x, rk.y);
+      }
+    }
+  },
+
+  // Half-scale nuclear detonation: same theater, smaller crater — and it
+  // plays no favorites. Owner, other enemies and pod all take it.
+  miniNuke(cx, cy) {
+    const RK = C.ROCKET;
+    const tx = Math.floor(cx), ty = Math.floor(cy);
+    World.blast(tx, ty, RK.blastRadius).forEach(c => this.armNuke(c.x, c.y, C.NUKE.chainFuse, true));
+    Audio.play('nukeBlast');
+    this.shake(1.8);
+    this.nukeFlash = 0.45;
+    this.shockwaves.push({ x: cx, y: cy, age: 0, scale: 0.5 });
+    this.nukeClouds.push({ x: cx, y: cy, age: 0, seed: (tx * 31 + ty * 7) % 100, scale: 0.5 });
+    this.fallout.push({ x: tx, y: ty, age: 0, r: RK.dmgRadius });
+    Particles.explosion(cx, cy, 2);
+    for (let i = 0; i < 24; i++) {
+      Particles.spawn({
+        x: cx + (Math.random() - 0.5) * 2, y: cy + (Math.random() - 0.5) * 1.5,
+        vx: (Math.random() - 0.5) * 3, vy: -2.5 - Math.random() * 5,
+        life: 0.9 + Math.random() * 1,
+        size: 0.15 + Math.random() * 0.2,
+        color: Math.random() < 0.55 ? (Math.random() < 0.5 ? '#ff9a3c' : '#ffd97a') : '#6b6b66',
+        glow: Math.random() < 0.5,
+      });
+    }
+    const pd = Math.hypot(Player.x - cx, Player.y - cy);
+    if (!Player.dead && Player.teleporting <= 0 && pd < RK.dmgRadius) {
+      const dmg = Math.round(RK.maxDmg * (1 - pd / (RK.dmgRadius + 0.5)));
+      if (dmg > 0) Player.damage(dmg, 'nuke');
+    }
+    for (const r of this.robots) {
+      const d = Math.hypot(r.x - cx, r.y - cy);
+      if (d < RK.dmgRadius) {
+        r.cooked += 5 * (1 - d / (RK.dmgRadius + 0.5));
+        r.zapT = 0.3;
+        if (r.dormant) r.dormant = false;
+      }
+    }
+    const w = this.worm;
+    if (w && !w.leaving && Math.hypot(w.x - cx, w.y - cy) < RK.dmgRadius) {
+      w.cooked = (w.cooked || 0) + 4;
+      w.zapT = 0.3;
+    }
+    const g = this.ghost;
+    if (g && g.fading <= 0 && Math.hypot(g.x - cx, g.y - cy) < RK.dmgRadius) {
+      g.exposure += 2;
+      g.zapT = 0.3;
+    }
+    this.toast('Tactical nuclear detonation!');
   },
 
   // Picking up the head: Mr. Natas slips, then covers — and you gain the EMP
@@ -1713,6 +1939,7 @@ const Game = {
     this.updateMeat(dt);
     this.updateServers(dt);
     this.updateRobots(dt);
+    this.updateRockets(dt);
     this.updateEmp(dt);
     // Battle track while a vault door is opening or an automaton is hunting;
     // the ambient track returns once the last one falls or powers down
@@ -2810,6 +3037,12 @@ const Game = {
 
       ctx.save();
       ctx.globalAlpha = fade * 0.92;
+      // Mini-nukes render the whole cloud at reduced scale about its base
+      if (m.scale && m.scale !== 1) {
+        ctx.translate(cx, baseY);
+        ctx.scale(m.scale, m.scale);
+        ctx.translate(-cx, -baseY);
+      }
 
       // Dark mass behind the whole cloud so the puffs read against a silhouette
       const sil = ctx.createRadialGradient(cx, capY + T * 0.6, T * 0.4, cx, capY + T * 0.8, T * 3.6);
@@ -2906,7 +3139,7 @@ const Game = {
       const sx = (s.x - this.cam.x) * T;
       const sy = (s.y - this.cam.y) * T;
       const t = s.age / 1.2;                                    // 0..1
-      const R = (0.6 + t * C.NUKE.shockRadius) * T;
+      const R = (0.6 + t * C.NUKE.shockRadius * (s.scale || 1)) * T;
       const a = (1 - t) * 0.85;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
@@ -3629,7 +3862,39 @@ const Game = {
         // Booting: the eyes stutter on and off before it commits to the hunt
         dormant: r.dormant || (r.emergeT > 0 && Math.sin(this.time * 26) < 0.1),
         aim: r.aim || 0, zapT: r.zapT, time: this.time + r.age * 0.37,
+        crouch: r.crouchT || 0,
       });
+      // Lock-on: a red designator beam from its back tracking the pod, with
+      // the launch countdown burning over its head
+      if (r.attack) {
+        const px = (Player.x - this.cam.x) * T, py = (Player.y - this.cam.y) * T;
+        const bx = sx - r.facing * T * 0.22, by = sy - T * 0.5;
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.strokeStyle = `rgba(255,45,30,${0.55 + 0.3 * Math.sin(this.time * 30)})`;
+        ctx.lineWidth = Math.max(1, T * 0.02);
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.lineTo(px + (Math.random() - 0.5) * 3, py + (Math.random() - 0.5) * 3);
+        ctx.stroke();
+        // The dot on the hull
+        ctx.fillStyle = 'rgba(255,60,40,0.9)';
+        ctx.beginPath(); ctx.arc(px, py, T * 0.045, 0, Math.PI * 2); ctx.fill();
+        // Converging lock ring
+        const lp = 1 - r.attack.t / C.ROCKET.aimSecs;
+        ctx.strokeStyle = `rgba(255,60,40,${0.4 + 0.4 * lp})`;
+        ctx.lineWidth = Math.max(1, T * 0.03);
+        ctx.beginPath(); ctx.arc(px, py, T * (0.9 - 0.55 * lp), 0, Math.PI * 2); ctx.stroke();
+        // Countdown
+        ctx.font = `bold ${Math.round(T * 0.5)}px Verdana`;
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#ff2010';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#ff5540';
+        ctx.fillText(String(Math.max(1, Math.ceil(r.attack.t))), sx, sy - T * 0.85);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
       // Under the beam: jagged electric arcs crawl across the chassis
       if (r.zapT > 0) {
         ctx.save();
@@ -3677,6 +3942,72 @@ const Game = {
       gl.addColorStop(1, 'rgba(255,120,80,0)');
       ctx.fillStyle = gl;
       ctx.beginPath(); ctx.arc(T * 0.18, 0, T * 0.2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // Nuclear rockets: grey casing, red nose, trefoil on the flank, hot tail
+    for (const rk of this.rockets) {
+      const sx = (rk.x - this.cam.x) * T, sy = (rk.y - this.cam.y) * T;
+      if (sx < -T * 2 || sx > C.VIEW_W + T * 2 || sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      ctx.save();
+      ctx.translate(sx, sy);
+      if (rk.zapT > 0) ctx.translate((Math.random() - 0.5) * T * 0.05, (Math.random() - 0.5) * T * 0.05);
+      ctx.rotate(rk.ang);
+      // Exhaust flame
+      ctx.globalCompositeOperation = 'lighter';
+      const fl = T * (0.25 + Math.random() * 0.12);
+      const fg = ctx.createLinearGradient(-T * 0.3, 0, -T * 0.3 - fl, 0);
+      fg.addColorStop(0, 'rgba(255,220,140,0.95)');
+      fg.addColorStop(0.5, 'rgba(255,140,50,0.7)');
+      fg.addColorStop(1, 'rgba(255,90,30,0)');
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.moveTo(-T * 0.28, -T * 0.06);
+      ctx.lineTo(-T * 0.28 - fl, 0);
+      ctx.lineTo(-T * 0.28, T * 0.06);
+      ctx.closePath(); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      // Body
+      const hf = Math.min(1, rk.heat / C.ROCKET.cookSecs);
+      const g = ctx.createLinearGradient(0, -T * 0.11, 0, T * 0.11);
+      g.addColorStop(0, hf > 0.5 ? '#ffb27e' : '#d5d9de');
+      g.addColorStop(0.5, hf > 0.5 ? '#e8926a' : '#9ba0a8');
+      g.addColorStop(1, '#5c6066');
+      ctx.fillStyle = g;
+      Sprites.rr(ctx, -T * 0.3, -T * 0.11, T * 0.5, T * 0.22, T * 0.08);
+      ctx.fill();
+      // Red nose cone
+      ctx.fillStyle = '#c22619';
+      ctx.beginPath();
+      ctx.moveTo(T * 0.2, -T * 0.11);
+      ctx.quadraticCurveTo(T * 0.38, 0, T * 0.2, T * 0.11);
+      ctx.closePath(); ctx.fill();
+      // Tail fins
+      ctx.fillStyle = '#5c6066';
+      ctx.beginPath(); ctx.moveTo(-T * 0.3, -T * 0.1); ctx.lineTo(-T * 0.38, -T * 0.2); ctx.lineTo(-T * 0.24, -T * 0.1); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-T * 0.3, T * 0.1); ctx.lineTo(-T * 0.38, T * 0.2); ctx.lineTo(-T * 0.24, T * 0.1); ctx.fill();
+      // Nuclear trefoil on the flank
+      ctx.fillStyle = '#ffd23e';
+      ctx.beginPath(); ctx.arc(-T * 0.05, 0, T * 0.085, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#22252b';
+      for (let b = 0; b < 3; b++) {
+        const a0 = b * (Math.PI * 2 / 3) - 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-T * 0.05, 0);
+        ctx.arc(-T * 0.05, 0, T * 0.08, a0, a0 + Math.PI / 3);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(-T * 0.05, 0, T * 0.022, 0, Math.PI * 2); ctx.fill();
+      // Cooking glow as the beam works on it
+      if (hf > 0.1) {
+        ctx.globalCompositeOperation = 'lighter';
+        const hg = ctx.createRadialGradient(0, 0, 1, 0, 0, T * 0.5);
+        hg.addColorStop(0, `rgba(255,150,70,${0.5 * hf})`);
+        hg.addColorStop(1, 'rgba(255,150,70,0)');
+        ctx.fillStyle = hg;
+        ctx.fillRect(-T * 0.5, -T * 0.5, T, T);
+        ctx.globalCompositeOperation = 'source-over';
+      }
       ctx.restore();
     }
 

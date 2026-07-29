@@ -43,6 +43,8 @@ const Audio = {
   battleMix: 0,        // 0 = ambient track, 1 = battle track (crossfaded)
   battleTarget: 0,
   initMusic() {
+    // Warm the speech-synth voice list (loads async in Chrome)
+    try { window.speechSynthesis.getVoices(); } catch (e) {}
     const el = document.createElement('audio');
     el.src = 'audio/airglow.mp3';
     el.loop = true;
@@ -270,6 +272,12 @@ const Audio = {
         }
         break;
       case 'servo': this.tone(240, 0.12, 'sawtooth', 0.05, 340); break;
+      case 'lockBeep': this.tone(1250, 0.09, 'square', 0.16); this.tone(1250, 0.05, 'square', 0.1, null, 0.12); break;
+      case 'rocketLaunch':
+        this.noise(0.6, 0.4, 1200);
+        this.tone(160, 0.55, 'sawtooth', 0.2, 420);
+        this.noise(0.3, 0.25, 2600, 0.05);
+        break;
       case 'roboBoom':
         // Metal coming apart: blast + ringing shrapnel
         this.noise(0.6, 0.45, 1100);
@@ -288,6 +296,31 @@ const Audio = {
   },
 
   // Warhead countdown beep: pitch and urgency handed in by the caller
+  // Robotic voice line: the deepest male voice available, pitch floored and
+  // slowed to a machine drawl, over a WebAudio menace bed — sub-bass drone,
+  // dissonant metallic beat-frequency ring and a static burst
+  say(text) {
+    if (this.muted) return;
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      const pick = voices.find(v => /david|mark|male/i.test(v.name) && /en/i.test(v.lang))
+        || voices.find(v => /en/i.test(v.lang));
+      if (pick) u.voice = pick;
+      u.pitch = 0;
+      u.rate = 0.62;
+      u.volume = Math.max(0, Math.min(1, this.sfxVol));
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+    // The machine underneath the words
+    this.noise(0.18, 0.2, 3800);                       // vox static crackle
+    this.tone(55, 1.6, 'sawtooth', 0.16, 40);          // sub-bass dread
+    this.tone(196, 1.4, 'square', 0.05, 190);          // dissonant metallic pair,
+    this.tone(208, 1.4, 'square', 0.05, 200);          // beating against each other
+    this.noise(0.12, 0.12, 2600, 1.35);                // squelch tail
+  },
+
   beep(pitch, vol) {
     this.tone(pitch, 0.07, 'square', vol || 0.16);
   },
