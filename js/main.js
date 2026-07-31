@@ -2528,6 +2528,19 @@ const Game = {
           continue;
         }
         let tex = null, ftex = null;   // ftex: frozen-soil variant for the permafrost band
+        // Hell's bedrock bands render as 2x2 glass cubicles of trapped tech
+        // bros, forever coding. Each tile clips its quarter of the shared cell.
+        if (id === 2 && (y >= C.WORLD_H - 2 || (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW))) {
+          const cellX = Math.floor(x / 2) * 2;
+          const cellY = y >= C.WORLD_H - 2 ? C.WORLD_H - 2 : C.GROUND_BOTTOM_ROW - 1;
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(sx, sy, T + 0.5, T + 0.5);
+          ctx.clip();
+          Sprites.drawHellCubicle(ctx, sx - (x - cellX) * T, sy - (y - cellY) * T, cellX, cellY, this.time);
+          ctx.restore();
+          continue;
+        }
         if (id === 1) { drawSoil(sx, sy, v); }
         else if (id === 2) { tex = Sprites.stone[band]; ftex = Sprites.frozenStone[band]; }
         else if (id === 3) tex = Sprites.lavaBase;

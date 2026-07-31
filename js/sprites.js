@@ -2530,6 +2530,231 @@ const Sprites = {
     ctx.restore();
   },
 
+  // Hell's bedrock, reimagined: 2x2-tile glass cubicles holding the missing
+  // tech bros — trapped, exhausted, and still shipping code. Seeded per cell
+  // so hair, hoodie, facing, props and posture all vary down the hallway.
+  drawHellCubicle(ctx, sx, sy, cx, cy, t) {
+    const T = C.TILE, W = T * 2, H = T * 2;
+    let h = (cx * 374761393 + cy * 668265263) >>> 0;
+    h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
+    const rnd = k => ((h >> (k % 23)) & 255) / 255;
+    const facing = rnd(3) < 0.5 ? 1 : -1;
+    const skin = ['#e8c9a8', '#c9a077', '#8a6244', '#f0d6b8', '#a87b52'][Math.floor(rnd(5) * 5) % 5];
+    const hood = ['#3a4152', '#2c2f36', '#454b3a', '#4a3040', '#37474f', '#5a2e2e'][Math.floor(rnd(7) * 6) % 6];
+    const hairC = ['#2c2018', '#4a3626', '#151312', '#6a4a28', '#3d3d42'][Math.floor(rnd(9) * 5) % 5];
+    const hairStyle = Math.floor(rnd(13) * 3) % 3;   // 0 messy, 1 flat, 2 beanie
+    const phase = rnd(11) * 6.28;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    // Room shell
+    let g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#14161d'); g.addColorStop(1, '#1d2028');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#23262e';
+    ctx.fillRect(0, H - T * 0.18, W, T * 0.18);   // floor
+    // Weak ceiling light + cone
+    ctx.fillStyle = '#3a3f47';
+    ctx.fillRect(W / 2 - T * 0.18, T * 0.06, T * 0.36, T * 0.05);
+    g = ctx.createLinearGradient(0, T * 0.1, 0, H * 0.8);
+    g.addColorStop(0, `rgba(220,230,210,${0.06 + 0.02 * Math.sin(t * 11 + phase)})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - T * 0.15, T * 0.11);
+    ctx.lineTo(W / 2 + T * 0.15, T * 0.11);
+    ctx.lineTo(W / 2 + T * 0.55, H * 0.8);
+    ctx.lineTo(W / 2 - T * 0.55, H * 0.8);
+    ctx.fill();
+
+    // Mirror everything room-side around the center for facing variety
+    ctx.save();
+    ctx.translate(W / 2, 0);
+    ctx.scale(facing, 1);
+    ctx.translate(-W / 2, 0);
+
+    // Wall decor on the wall behind the bro: tally marks or a poster
+    const decor = Math.floor(rnd(17) * 3) % 3;
+    if (decor === 0) {
+      // Days counted in chalk
+      ctx.strokeStyle = 'rgba(200,205,215,0.35)';
+      ctx.lineWidth = Math.max(1, T * 0.02);
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(T * 0.22 + i * T * 0.07, T * 0.5);
+        ctx.lineTo(T * 0.24 + i * T * 0.07, T * 0.72);
+        ctx.stroke();
+      }
+      ctx.beginPath(); ctx.moveTo(T * 0.18, T * 0.7); ctx.lineTo(T * 0.5, T * 0.54); ctx.stroke();
+    } else if (decor === 1) {
+      // Motivational poster, mandatory
+      ctx.fillStyle = '#2c3a52';
+      ctx.fillRect(T * 0.16, T * 0.42, T * 0.5, T * 0.36);
+      ctx.fillStyle = '#7fb4e8';
+      ctx.font = `bold ${Math.round(T * 0.13)}px Verdana`;
+      ctx.textAlign = 'center';
+      ctx.fillText('SHIP', T * 0.41, T * 0.57);
+      ctx.fillText('IT', T * 0.41, T * 0.71);
+    } else {
+      // The company logo, watching
+      ctx.strokeStyle = `rgba(120,170,255,${0.3 + 0.15 * Math.sin(t * 2 + phase)})`;
+      ctx.lineWidth = Math.max(1.5, T * 0.035);
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(T * 0.4 + s * T * 0.08, T * 0.56, T * 0.07, 0, Math.PI * 2); ctx.stroke();
+      }
+    }
+
+    // Desk with laptop, cups, cans — bro sits on the right, faces left
+    const deskY = H - T * 0.62;
+    ctx.fillStyle = '#3a2f22';
+    ctx.fillRect(T * 0.14, deskY, T * 0.95, T * 0.08);
+    ctx.fillStyle = '#2c241a';
+    ctx.fillRect(T * 0.2, deskY + T * 0.08, T * 0.07, T * 0.36);
+    ctx.fillRect(T * 0.96, deskY + T * 0.08, T * 0.07, T * 0.36);
+    // Laptop: base + screen tilted toward the bro, glow + crawling code lines
+    ctx.fillStyle = '#20242c';
+    ctx.fillRect(T * 0.52, deskY - T * 0.035, T * 0.42, T * 0.035);
+    ctx.save();
+    ctx.translate(T * 0.52, deskY - T * 0.02);
+    ctx.rotate(-0.18);
+    ctx.fillStyle = '#191d24';
+    ctx.fillRect(-T * 0.05, -T * 0.5, T * 0.08, T * 0.5);
+    const flick = 0.75 + 0.15 * Math.sin(t * 13 + phase) + 0.1 * Math.sin(t * 31 + phase * 2);
+    ctx.fillStyle = `rgba(140,190,240,${0.5 * flick})`;
+    ctx.fillRect(T * 0.03, -T * 0.48, T * 0.045, T * 0.46);
+    ctx.restore();
+    // Screen light on the bro's face
+    g = ctx.createRadialGradient(T * 0.6, deskY - T * 0.3, T * 0.03, T * 0.6, deskY - T * 0.3, T * 0.7);
+    g.addColorStop(0, `rgba(140,190,240,${0.14 * flick})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, deskY - T, T * 1.6, T * 1.2);
+    // Beverage graveyard
+    const cups = 1 + Math.floor(rnd(19) * 3) % 3;
+    for (let i = 0; i < cups; i++) {
+      const cxp = T * (0.24 + i * 0.13);
+      if (i % 2 === 0) {
+        ctx.fillStyle = '#d8d3c8';
+        ctx.fillRect(cxp, deskY - T * 0.13, T * 0.09, T * 0.13);
+      } else {
+        ctx.fillStyle = '#3a8a4a';
+        ctx.fillRect(cxp, deskY - T * 0.15, T * 0.07, T * 0.15);
+      }
+    }
+    // Steam off the freshest cup
+    ctx.strokeStyle = 'rgba(220,230,240,0.22)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    ctx.beginPath();
+    ctx.moveTo(T * 0.28, deskY - T * 0.16);
+    ctx.quadraticCurveTo(T * (0.28 + 0.04 * Math.sin(t * 2.2 + phase)), deskY - T * 0.28, T * 0.28, deskY - T * 0.4);
+    ctx.stroke();
+
+    // THE BRO. Slumped on a stool, running on caffeine and fear.
+    const droopU = ((t / 3.4 + phase) % 1 + 1) % 1;
+    const droop = (droopU < 0.75 ? Math.pow(droopU / 0.75, 2) : (1 - droopU) / 0.25) * T * 0.1;
+    // Stool
+    ctx.fillStyle = '#2c2f36';
+    ctx.fillRect(T * 1.38, H - T * 0.48, T * 0.3, T * 0.06);
+    ctx.fillRect(T * 1.5, H - T * 0.42, T * 0.07, T * 0.26);
+    // Legs folded toward the desk
+    ctx.fillStyle = '#31353f';
+    ctx.fillRect(T * 1.08, H - T * 0.56, T * 0.42, T * 0.14);
+    ctx.fillRect(T * 1.02, H - T * 0.46, T * 0.14, T * 0.3);
+    // Slouched hoodie torso, leaning into the screen
+    ctx.save();
+    ctx.translate(T * 1.42, H - T * 0.52);
+    ctx.rotate(-0.16 - droop * 0.012);
+    ctx.fillStyle = hood;
+    this.rr(ctx, -T * 0.3, -T * 0.72, T * 0.56, T * 0.76, T * 0.14);
+    ctx.fill();
+    // Hood bunched at the neck
+    ctx.fillStyle = this.shade(hood, -0.25);
+    ctx.beginPath(); ctx.arc(-T * 0.05, -T * 0.66, T * 0.14, Math.PI, 0); ctx.fill();
+    // Typing forearms: alternating pecks at the keyboard
+    ctx.strokeStyle = hood;
+    ctx.lineWidth = T * 0.09;
+    ctx.lineCap = 'round';
+    for (const [i, armPh] of [[0, 0], [1, Math.PI / 2]]) {
+      const bob = Math.abs(Math.sin(t * 9 + phase + armPh)) * T * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(-T * 0.18, -T * 0.34 + i * T * 0.06);
+      ctx.lineTo(-T * 0.62, -T * 0.1 - bob);
+      ctx.stroke();
+      ctx.fillStyle = skin;
+      ctx.beginPath(); ctx.arc(-T * 0.64, -T * 0.09 - bob, T * 0.05, 0, Math.PI * 2); ctx.fill();
+    }
+    // Head, drooping with exhaustion then snapping back up
+    ctx.translate(-T * 0.04, -T * 0.78 + droop);
+    ctx.rotate(-droop * 0.025);
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(0, 0, T * 0.2, 0, Math.PI * 2); ctx.fill();
+    // Hair / beanie
+    if (hairStyle === 2) {
+      ctx.fillStyle = ['#7a3a3a', '#3a5a7a', '#4a4a30'][Math.floor(rnd(21) * 3) % 3];
+      ctx.beginPath(); ctx.arc(0, -T * 0.04, T * 0.2, Math.PI * 1.0, Math.PI * 2.0); ctx.fill();
+      ctx.fillRect(-T * 0.2, -T * 0.08, T * 0.4, T * 0.05);
+    } else {
+      ctx.fillStyle = hairC;
+      ctx.beginPath(); ctx.arc(0, -T * 0.03, T * 0.2, Math.PI * 0.95, Math.PI * 2.05); ctx.fill();
+      if (hairStyle === 0) {
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.moveTo(-T * 0.14 + i * T * 0.09, -T * 0.16);
+          ctx.lineTo(-T * 0.1 + i * T * 0.09, -T * 0.3 - (i % 2) * T * 0.04);
+          ctx.lineTo(-T * 0.06 + i * T * 0.09, -T * 0.16);
+          ctx.fill();
+        }
+      }
+    }
+    // Profile face: half-lidded eye, heavy bag, flat mouth
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-T * 0.09, T * 0.0, T * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#2c3a52';
+    ctx.beginPath(); ctx.arc(-T * 0.1, T * 0.005, T * 0.022, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = skin;
+    ctx.fillRect(-T * 0.14, -T * 0.045, T * 0.1, T * 0.028);   // heavy eyelid
+    ctx.strokeStyle = 'rgba(80,60,90,0.55)';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    ctx.beginPath(); ctx.arc(-T * 0.09, T * 0.05, T * 0.05, 0.2, Math.PI - 0.4); ctx.stroke();   // eye bag
+    ctx.beginPath(); ctx.moveTo(-T * 0.16, T * 0.12); ctx.lineTo(-T * 0.06, T * 0.12); ctx.stroke();  // mouth
+    ctx.restore();
+
+    ctx.restore();   // end facing mirror
+
+    // Glass front: sheen streaks and, in some cells, a smudged handprint
+    ctx.save();
+    g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0.15, 'rgba(200,220,255,0)');
+    g.addColorStop(0.3, 'rgba(200,220,255,0.07)');
+    g.addColorStop(0.38, 'rgba(200,220,255,0)');
+    g.addColorStop(0.6, 'rgba(200,220,255,0.05)');
+    g.addColorStop(0.72, 'rgba(200,220,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    if (rnd(15) < 0.55) {
+      const hx = T * (0.4 + rnd(6) * 1.1), hy = T * (0.5 + rnd(8) * 0.9);
+      ctx.fillStyle = 'rgba(220,230,245,0.09)';
+      ctx.beginPath(); ctx.ellipse(hx, hy, T * 0.09, T * 0.12, 0.3, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.arc(hx - T * 0.07 + i * T * 0.05, hy - T * 0.15, T * 0.026, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    // Cell frame + hell's red cast so the band still sits in the scene
+    ctx.fillStyle = 'rgba(60,10,5,0.16)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#0c0d11';
+    ctx.lineWidth = Math.max(2, T * 0.09);
+    ctx.strokeRect(0, 0, W, H);
+    ctx.strokeStyle = '#3a3f47';
+    ctx.lineWidth = Math.max(1.5, T * 0.045);
+    ctx.strokeRect(T * 0.05, T * 0.05, W - T * 0.1, H - T * 0.1);
+    ctx.restore();
+  },
+
   // The chrome skull under the polymer face. `lit`: red LEDs on (they stutter
   // while booting mid-cinematic). `small`: form-1 head scale during the
   // face-off. The Caesar fringe is PAINTED ON the metal — it came standard.
