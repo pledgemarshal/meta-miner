@@ -407,14 +407,20 @@ const Audio = {
     const g = this.ctx.createGain();
     osc.type = 'sawtooth';
     osc.frequency.value = 55;
-    g.gain.value = 0.07;
+    // Lowpass tames the sawtooth's upper harmonics — on small laptop speakers
+    // the raw buzz was all highs and no body. Gain compensates the lost energy.
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 320;
+    lp.Q.value = 0.8;
+    g.gain.value = 0.13;
     const lfo = this.ctx.createOscillator();
     const lfoG = this.ctx.createGain();
     lfo.frequency.value = 18; lfoG.gain.value = 20;
     lfo.connect(lfoG); lfoG.connect(osc.frequency);
-    osc.connect(g); g.connect(this.master);
+    osc.connect(lp); lp.connect(g); g.connect(this.master);
     osc.start(); lfo.start();
-    this.drillNode = { osc, g, lfo };
+    this.drillNode = { osc, g, lfo, lp };
   },
 
   stop(name) {
