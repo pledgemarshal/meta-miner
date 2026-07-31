@@ -11,6 +11,20 @@ const UI = {
     this.toastBox = document.createElement('div');
     this.toastBox.id = 'toasts';
     document.getElementById('game-container').appendChild(this.toastBox);
+    window.addEventListener('resize', () => this.fitPanel(this.activePanel));
+  },
+
+  // Smaller screens: shrink the whole panel to fit the window instead of
+  // growing a scrollbar — everything scales down together
+  fitPanel(p) {
+    if (!p) return;
+    p.style.zoom = '';
+    p.style.maxHeight = '';
+    const avail = window.innerHeight * 0.92;
+    if (p.scrollHeight > avail) {
+      p.style.zoom = String(Math.max(0.5, avail / p.scrollHeight));
+      p.style.maxHeight = 'none';
+    }
   },
 
   toast(msg) {
@@ -89,6 +103,7 @@ const UI = {
     this.overlay.appendChild(p);
     this.activePanel = p;
     this.onClose = spec.onClose || null;
+    this.fitPanel(p);
     return p;
   },
 
@@ -267,6 +282,7 @@ const UI = {
     this.overlay.appendChild(p);
     this.activePanel = p;
     this.onClose = onDone || null;
+    this.fitPanel(p);
   },
 
   drawPortrait(canvas, kind) {
