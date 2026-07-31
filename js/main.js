@@ -4553,7 +4553,7 @@ const Game = {
     ctx.save();
     ctx.textAlign = 'center';
     // Big title with warm glow — shrink to fit narrow windows
-    const title = 'MOTHERLOAD - REVAMPED';
+    const title = 'META-MINER';
     ctx.font = 'bold 64px Verdana';
     if (ctx.measureText(title).width > C.VIEW_W * 0.92) {
       const size = Math.floor(64 * (C.VIEW_W * 0.92) / ctx.measureText(title).width);
@@ -4567,11 +4567,13 @@ const Game = {
     ctx.fillStyle = g;
     ctx.fillText(title, C.VIEW_W / 2, C.VIEW_H * 0.3);
     ctx.shadowBlur = 0;
-    // Subtitle stretched to span the same width as the title
+    // Subtitle sized to sit comfortably under the title (a little wider than
+    // the title itself, since the credit line runs long)
     const titleW = ctx.measureText(title).width;
-    const sub = 'A fan remake vibe coded with love';
+    const sub = 'A vibe-coded spiritual successor to Motherload (XGen Studios, 2004)';
     ctx.font = '19px Verdana';
-    const subSize = Math.round(19 * titleW / ctx.measureText(sub).width);
+    const subTarget = Math.min(C.VIEW_W * 0.88, titleW * 1.5);
+    const subSize = Math.round(19 * subTarget / ctx.measureText(sub).width);
     ctx.font = `${subSize}px Verdana`;
     ctx.fillStyle = '#efe9dc';
     ctx.shadowColor = 'rgba(0,0,0,0.8)';
@@ -4600,6 +4602,9 @@ const Game = {
     ctx.font = '13px Verdana';
     ctx.fillStyle = '#aaa498';
     ctx.fillText('Music: "Airglow" by Stellardrone — CC BY 4.0  ·  "Chaos Theory" by Karl Casey @ White Bat Audio', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 26 + 20);
+    ctx.font = '12px Verdana';
+    ctx.fillStyle = '#8f8a80';
+    ctx.fillText('Not affiliated with or endorsed by XGen Studios. All code, art, and writing are original.', C.VIEW_W / 2, C.VIEW_H * 0.68 + lines.length * 26 + 42);
     ctx.shadowBlur = 0;
     ctx.restore();
   },
