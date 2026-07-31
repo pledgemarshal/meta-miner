@@ -235,7 +235,8 @@ const Game = {
   // --- Fuel-depot guide: BFS home through the player's own tunnels, then a
   // sky leg over to the pump. Recomputed twice a second so it tracks the pod.
   fuelPumpPos() {
-    return { x: C.BUILDINGS.fuel.x + C.BUILDINGS.fuel.w + 1.5, y: -0.55 };
+    // The pump bollard sprite sits at the fuel building's right edge
+    return { x: C.BUILDINGS.fuel.x + C.BUILDINGS.fuel.w - 0.27, y: -0.9 };
   },
 
   buildFuelGuidePath() {
@@ -4409,7 +4410,8 @@ const Game = {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const spacing = 1.15;
-    let carry = spacing - ((this.time * 1.6) % spacing);   // chevrons flow toward the depot
+    // Offset grows with time so the chevrons march TOWARD the depot
+    let carry = (this.time * 1.6) % spacing;
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i], b = pts[i + 1];
       const segLen = Math.hypot(b.x - a.x, b.y - a.y);
