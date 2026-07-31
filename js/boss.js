@@ -1,8 +1,12 @@
-// The final boss. Two forms, fought in the Hell arena below the world floor.
-// He can only be hurt by explosives detonated at his feet — exactly like the classic.
+// The final boss: Mark Zucker-ore himself, waiting at the far end of Hell's
+// long hallway, checking his phone. Form 1 is the CEO. Empty his health and
+// the face comes off — form 2 is the chrome endoskeleton underneath.
+// He can only be hurt by explosives detonated at his feet — exactly like the
+// classic — or slow-roasted with the microwave cannon.
 
 const Boss = {
   active: false,
+  waiting: false,      // standing at the end of the hall, fight not yet started
   defeated: false,
   form: 1,
   hp: 0,
@@ -11,19 +15,26 @@ const Boss = {
   facing: 1,
   animTime: 0,
   hitFlash: 0,
-  attack: null,        // 'laser' | 'cane' | 'claw' | 'fireball'
+  attack: null,        // 'laser' | 'cane' | 'claw' | 'fireball' — internal keys; the visuals are themed per form
   attackT: 0,
   attackCd: 2,
   laserAngle: 0,
   laserDir: 1,
-  fireballs: [],       // {x, y, vx, vy, life}
-  betweenForms: false,
+  fireballs: [],       // form 2 plasma orbs {x, y, vx, vy, life}
+  betweenForms: false, // face-off cinematic + reveal dialog in progress
+  faceFallT: 0,        // cinematic clock: mask detaches, falls, robot eyes boot
+  _dialogShown: false,
 
   arenaTop() { return C.GROUND_BOTTOM_ROW + 1; },
   arenaBottom() { return C.WORLD_H - 2; },
+  // The Hell gap drops the player in at x=29 (far right), so the corner
+  // office is at the far LEFT end of the hallway
+  homeX() { return 4.5; },
+  engageDist: 6,
 
   reset() {
     this.active = false;
+    this.waiting = false;
     this.defeated = false;
     this.form = 1;
     this.hp = C.BOSS.form1HP;
@@ -31,36 +42,55 @@ const Boss = {
     this.attackCd = 2.5;
     this.fireballs = [];
     this.betweenForms = false;
-    this.x = C.WORLD_W / 2;
+    this.faceFallT = 0;
+    this._dialogShown = false;
+    this.x = this.homeX();
     this.y = this.arenaBottom() - 0.01;
   },
 
+  // Called the moment the player drops into Hell: he is present and WAITING —
+  // doomscrolling at the end of the hall — not yet fighting
   start() {
     if (this.active || this.defeated) return;
     this.active = true;
+    this.waiting = true;
     this.form = 1;
     this.hp = C.BOSS.form1HP;
     this.attackCd = 2.5;
     this.fireballs = [];
-    this.x = C.WORLD_W / 2;
+    this.x = this.homeX();
     this.y = this.arenaBottom() - 0.01;
+  },
+
+  // The intern has arrived at the corner office
+  engage() {
+    if (!this.waiting) return;
+    this.waiting = false;
+    this.attackCd = 1.6;
     Audio.play('roar');
     Game.shake(1.0);
     Game.toast('Your contract is being terminated.');
   },
 
-  // Player fled the arena: fight resets, HP restored (as in the original)
+  // Player fled the arena: fight resets, HP restored (as in the original),
+  // and he goes back to his phone
   abort() {
     if (!this.active) return;
     this.active = false;
+    this.waiting = false;
     this.attack = null;
     this.fireballs = [];
+    this.betweenForms = false;
+    this._dialogShown = false;
     this.hp = this.form === 1 ? C.BOSS.form1HP : C.BOSS.form2HP;
+    this.x = this.homeX();
   },
 
-  // Sustained microwave damage — slower than explosives, but steady
+  // Sustained microwave damage — slower than explosives, but steady.
+  // Cooking him mid-doomscroll counts as scheduling the meeting.
   microwave(dt, rate) {
     if (!this.active || this.betweenForms || this.defeated) return;
+    if (this.waiting) this.engage();
     this.hp -= C.BOSS.mwDps * rate * dt;
     this.hitFlash = Math.max(this.hitFlash, 0.1);
     if (this.hp <= 0) {
@@ -77,6 +107,7 @@ const Boss = {
     const direct = dx <= radius + 0.9 && dy <= radius + 1.6;
     const glancing = !direct && dx <= radius + 2.6 && dy <= radius + 3.2;
     if (!direct && !glancing) return;
+    if (this.waiting) this.engage();
     const full = itemKey === 'plastic' ? C.BOSS.plasticDmg : C.BOSS.dynamiteDmg;
     const dmg = direct ? full : C.BOSS.glancingDmg;
     this.hp -= dmg;
@@ -89,22 +120,31 @@ const Boss = {
     }
   },
 
+  // Form 1 down: the $2.3B face detaches. Cinematic first, then the reveal
+  // dialog (revealDialog), then form 2 boots up.
   transition() {
     this.betweenForms = true;
+    this.faceFallT = 0;
+    this._dialogShown = false;
     this.attack = null;
     this.fireballs = [];
+    Audio.play('clank');
+    Game.shake(0.6);
+  },
+
+  revealDialog() {
     Game.pauseForDialog();
     UI.transmission({
-      from: 'MR. NATAS',
-      portrait: 'satan',
-      signal: 'SIGNAL SOURCE: EVERYWHERE',
-      text: 'You think you\'ve won? That suit was a courtesy — a kindness for mortal eyes.\n\nI have worn a thousand shapes and mastered every evil this universe has devised. Behold the last thing your colleagues ever saw.',
+      from: 'MARK ZUCKER-ORE — CEO of Meta-Minerals Inc.',
+      portrait: 'natas',
+      signal: 'SIGNAL SOURCE: RIGHT IN FRONT OF YOU',
+      text: 'Ow. That face cost the company $2.3 billion. Polymer skin. Focus-grouped smile. 87% approval in trust surveys.\n\nNo matter. Faces are for INVESTOR CALLS. What stands before you now is pure infrastructure: the ZUCKER-TRON 9000.\n\nYour colleagues were converted into engagement metrics. Prepare to be onboarded.',
     }, () => {
       Game.resumeFromDialog();
       this.betweenForms = false;
       this.form = 2;
       this.hp = C.BOSS.form2HP;
-      this.attackCd = 2;
+      this.attackCd = 1.6;
       Audio.play('roar');
       Game.shake(1.4);
     });
@@ -121,7 +161,15 @@ const Boss = {
   },
 
   bossActiveNearPlayer() {
-    return this.active && !this.betweenForms;
+    return this.active && !this.waiting && !this.betweenForms;
+  },
+
+  // Where the sweeping beam comes from: the raised phone (form 1) or the
+  // burning LED eyes (form 2)
+  laserOrigin() {
+    return this.form === 1
+      ? { x: this.x + this.facing * 0.55, y: this.y - 2.1 }
+      : { x: this.x, y: this.y - 3.75 };
   },
 
   update(dt) {
@@ -133,10 +181,28 @@ const Boss = {
     // Player fled upward out of the arena?
     if (Player.y < this.arenaTop() - 3) { this.abort(); return; }
 
+    // Face-off cinematic: mask falls (~0.9s), robot eyes stutter awake, then
+    // the reveal dialog fires once
+    if (this.betweenForms) {
+      this.faceFallT += dt;
+      if (this.faceFallT > 0.2 && this.faceFallT < 1.6 && Math.random() < dt * 16) {
+        Particles.sparks(this.x + (Math.random() - 0.5) * 0.5, this.y - 2.75);
+      }
+      if (this.faceFallT >= 2.6 && !this._dialogShown) {
+        this._dialogShown = true;
+        this.revealDialog();
+      }
+      return;
+    }
+
     const P = Player;
     this.facing = P.x > this.x ? 1 : -1;
 
-    if (this.betweenForms) return;
+    // Doomscrolling until the intern walks into the corner office
+    if (this.waiting) {
+      if (!P.dead && Math.abs(P.x - this.x) < this.engageDist && P.y > this.arenaTop() - 2) this.engage();
+      return;
+    }
 
     // Slow stalk toward the player along the floor
     const speed = this.form === 1 ? 1.6 : 2.1;
@@ -168,7 +234,7 @@ const Boss = {
       if (this.attackCd <= 0) this.pickAttack();
     }
 
-    // Fireballs
+    // Plasma orbs (form 2)
     for (let i = this.fireballs.length - 1; i >= 0; i--) {
       const f = this.fireballs[i];
       f.life -= dt;
@@ -179,7 +245,7 @@ const Boss = {
       if (f.y > this.arenaBottom() - 0.3) { f.y = this.arenaBottom() - 0.3; f.vy = -Math.abs(f.vy) * 0.85; }
       if (f.x < 1.5 || f.x > C.WORLD_W - 1.5) f.vx *= -1;
       if (Math.random() < dt * 40) {
-        Particles.spawn({ x: f.x, y: f.y, vx: (Math.random() - 0.5) * 2, vy: -1 - Math.random() * 2, life: 0.3, size: 0.12, color: '#ff9a3c', glow: true });
+        Particles.spawn({ x: f.x, y: f.y, vx: (Math.random() - 0.5) * 2, vy: -1 - Math.random() * 2, life: 0.3, size: 0.12, color: '#7db8ff', glow: true });
       }
       if (f.life <= 0) { this.fireballs.splice(i, 1); continue; }
       if (Math.abs(P.x - f.x) < 0.8 && Math.abs(P.y - f.y) < 0.8 && (f.hitCd || 0) <= 0) {
@@ -193,15 +259,18 @@ const Boss = {
   pickAttack() {
     const dist = Math.abs(Player.x - this.x);
     if (this.form === 1) {
+      // Up close: the NDA binder slam. At range: the KPI beam from his phone.
       this.attack = dist < 3.5 && Math.random() < 0.6 ? 'cane' : 'laser';
-      if (this.attack === 'laser') {
-        this.laserDir = Math.random() < 0.5 ? 1 : -1;
-        this.laserAngle = this.laserDir > 0 ? -Math.PI * 0.85 : -Math.PI * 0.15;
-        Audio.play('laser');
-      }
     } else {
-      this.attack = dist < 4.5 && Math.random() < 0.55 ? 'claw' : 'fireball';
+      // Up close: hydraulic claw. At range: plasma orbs or the red eye-beam.
+      const r = Math.random();
+      this.attack = dist < 4.5 && r < 0.45 ? 'claw' : (r < 0.78 ? 'fireball' : 'laser');
       if (this.attack === 'fireball') Audio.play('fireball');
+    }
+    if (this.attack === 'laser') {
+      this.laserDir = Math.random() < 0.5 ? 1 : -1;
+      this.laserAngle = this.laserDir > 0 ? -Math.PI * 0.85 : -Math.PI * 0.15;
+      Audio.play('laser');
     }
     this.attackT = 0;
   },
@@ -210,15 +279,14 @@ const Boss = {
     const P = Player;
     switch (this.attack) {
       case 'laser': {
-        // Sweeping arc beam from the monocle
+        // Sweeping arc beam — from the phone (form 1) or the eyes (form 2)
         const dur = 1.6;
         this.laserAngle += this.laserDir * (Math.PI * 0.7 / dur) * dt;
-        const ox = this.x + this.facing * 0.15, oy = this.y - 2.9;
-        // Damage if the beam line passes near the pod
+        const o = this.laserOrigin();
         const beamLen = 14;
-        const ex = ox + Math.cos(this.laserAngle) * beamLen;
-        const ey = oy + Math.sin(this.laserAngle) * beamLen;
-        const d = this.pointToSegment(P.x, P.y, ox, oy, ex, ey);
+        const ex = o.x + Math.cos(this.laserAngle) * beamLen;
+        const ey = o.y + Math.sin(this.laserAngle) * beamLen;
+        const d = this.pointToSegment(P.x, P.y, o.x, o.y, ex, ey);
         if (d < 0.7 && (this._laserCd || 0) <= 0) {
           P.damage(C.BOSS.laserDmg, 'laser');
           P.vx += Math.sign(P.x - this.x || 1) * 10;
@@ -230,9 +298,10 @@ const Boss = {
         break;
       }
       case 'cane': {
+        // The NDA binder slam
         const dur = 0.7;
         if (this.attackT > dur * 0.4 && this.attackT < dur * 0.75) {
-          // Tightened: only the swing arc in front of him, not a room-wide box
+          // Only the swing arc in front of him, not a room-wide box
           if (Math.abs(P.x - this.x) < 2.4 && Math.abs(P.y - (this.y - 1.5)) < 1.7 && (this._caneHit !== true)) {
             P.damage(C.BOSS.caneDmg, 'cane');
             P.vx = Math.sign(P.x - this.x || 1) * 18;
@@ -248,7 +317,7 @@ const Boss = {
         const dur = 1.0;
         const reach = Math.sin(Math.min(Math.PI, this.attackT * 4)) * 3.2;
         const cx = this.x + this.facing * (1 + reach);
-        // Tightened: the claw itself, not the air around it
+        // The claw itself, not the air around it
         if (Math.abs(P.x - cx) < 1.05 && Math.abs(P.y - (this.y - 2.1)) < 1.8 && this._clawHit !== true) {
           P.damage(C.BOSS.clawDmg, 'claw');
           P.vx = this.facing * 16;
@@ -292,17 +361,23 @@ const Boss = {
     const sy = (this.y - cam.y) * C.TILE;
     Sprites.drawBoss(ctx, sx, sy, this);
 
-    // Laser beam
+    // Sweeping beam: cold Meta-blue from the phone, furnace-red from the eyes
     if (this.attack === 'laser') {
-      const ox = sx + this.facing * C.TILE * 0.15, oy = sy - C.TILE * 2.9;
+      const o = this.laserOrigin();
+      const ox = (o.x - cam.x) * C.TILE, oy = (o.y - cam.y) * C.TILE;
       const len = 14 * C.TILE;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const ex = ox + Math.cos(this.laserAngle) * len;
       const ey = oy + Math.sin(this.laserAngle) * len;
       const g = ctx.createLinearGradient(ox, oy, ex, ey);
-      g.addColorStop(0, 'rgba(255,240,180,0.95)');
-      g.addColorStop(1, 'rgba(255,80,40,0)');
+      if (this.form === 1) {
+        g.addColorStop(0, 'rgba(190,230,255,0.95)');
+        g.addColorStop(1, 'rgba(40,110,255,0)');
+      } else {
+        g.addColorStop(0, 'rgba(255,240,180,0.95)');
+        g.addColorStop(1, 'rgba(255,80,40,0)');
+      }
       ctx.strokeStyle = g;
       ctx.lineWidth = 7;
       ctx.lineCap = 'round';
@@ -313,21 +388,22 @@ const Boss = {
       ctx.restore();
     }
 
-    // Fireballs
+    // Plasma orbs
     for (const f of this.fireballs) {
       const fx = (f.x - cam.x) * C.TILE, fy = (f.y - cam.y) * C.TILE;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(fx, fy, 2, fx, fy, C.TILE * 0.5);
-      g.addColorStop(0, '#fff3c0');
-      g.addColorStop(0.4, '#ff9a3c');
-      g.addColorStop(1, 'rgba(255,60,20,0)');
+      g.addColorStop(0, '#eef6ff');
+      g.addColorStop(0.4, '#6aa8ff');
+      g.addColorStop(1, 'rgba(30,80,255,0)');
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(fx, fy, C.TILE * 0.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
 
-    // Boss HP bar
+    // Boss HP bar — only once the meeting has started
+    if (this.waiting) return;
     const frac = Math.max(0, this.hp / (this.form === 1 ? C.BOSS.form1HP : C.BOSS.form2HP));
     ctx.save();
     ctx.fillStyle = 'rgba(10,10,14,0.7)';
@@ -335,15 +411,16 @@ const Boss = {
     ctx.fill();
     if (frac > 0) {
       const g = ctx.createLinearGradient(C.VIEW_W / 2 - 176, 0, C.VIEW_W / 2 + 176, 0);
-      g.addColorStop(0, '#ff3020'); g.addColorStop(1, '#8a0f30');
+      if (this.form === 1) { g.addColorStop(0, '#ff3020'); g.addColorStop(1, '#8a0f30'); }
+      else { g.addColorStop(0, '#5aa8ff'); g.addColorStop(1, '#1c3f9a'); }
       ctx.fillStyle = g;
       Sprites.rr(ctx, C.VIEW_W / 2 - 176, C.VIEW_H - 40, 352 * frac, 12, 4);
       ctx.fill();
     }
     ctx.font = 'bold 11px Verdana';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffb0a0';
-    ctx.fillText(this.form === 1 ? 'MR. NATAS' : 'SATAN', C.VIEW_W / 2, C.VIEW_H - 50);
+    ctx.fillStyle = this.form === 1 ? '#ffb0a0' : '#a8c8ff';
+    ctx.fillText(this.form === 1 ? 'MARK ZUCKER-ORE' : 'ZUCKER-TRON 9000', C.VIEW_W / 2, C.VIEW_H - 50);
     ctx.restore();
   },
 

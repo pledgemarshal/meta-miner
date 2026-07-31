@@ -2143,126 +2143,206 @@ const Sprites = {
     const flash = boss.hitFlash > 0;
 
     if (boss.form === 1) {
-      // Mark Zucker-ore: tall suited figure, horns, monocle, cane
+      // --- FORM 1: Mark Zucker-ore, CEO — grey tee, khakis, sneakers, phone ---
       const h = T * 3.2, w = T * 1.3;
       ctx.translate(0, breathe);
-      // Legs
-      ctx.fillStyle = flash ? '#fff' : '#16151a';
-      ctx.fillRect(-w * 0.28, -h * 0.35, w * 0.2, h * 0.35);
-      ctx.fillRect(w * 0.08, -h * 0.35, w * 0.2, h * 0.35);
-      // Coat
-      const coat = ctx.createLinearGradient(0, -h, 0, 0);
-      coat.addColorStop(0, flash ? '#fff' : '#26232c');
-      coat.addColorStop(1, flash ? '#ddd' : '#121016');
-      ctx.fillStyle = coat;
-      this.rr(ctx, -w / 2, -h * 0.82, w, h * 0.5, T * 0.15);
-      ctx.fill();
-      // Shirt + tie
-      ctx.fillStyle = flash ? '#eee' : '#d8d3c8';
-      ctx.fillRect(-w * 0.1, -h * 0.8, w * 0.2, h * 0.22);
-      ctx.fillStyle = '#8a1520';
-      ctx.fillRect(-w * 0.04, -h * 0.8, w * 0.08, h * 0.2);
-      // Head
-      ctx.fillStyle = flash ? '#fff' : '#b03830';
-      ctx.beginPath(); ctx.arc(0, -h * 0.92, T * 0.34, 0, Math.PI * 2); ctx.fill();
-      // Horns
-      ctx.fillStyle = flash ? '#fff' : '#3a3038';
-      for (const s of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(s * T * 0.18, -h * 0.92 - T * 0.22);
-        ctx.quadraticCurveTo(s * T * 0.42, -h * 0.92 - T * 0.5, s * T * 0.28, -h * 0.92 - T * 0.62);
-        ctx.quadraticCurveTo(s * T * 0.3, -h * 0.92 - T * 0.42, s * T * 0.08, -h * 0.92 - T * 0.3);
+      const ft = boss.betweenForms ? boss.faceFallT : -1;
+
+      // Sneakers: white with green heel stripes
+      const sneaker = (sx2, scale) => {
+        const s = scale || 1;
+        ctx.fillStyle = flash ? '#fff' : '#f0efe8';
+        this.rr(ctx, sx2 - T * 0.16 * s, -T * 0.16 * s, T * 0.46 * s, T * 0.16 * s, T * 0.06 * s);
         ctx.fill();
+        ctx.fillStyle = '#3a8a4a';
+        ctx.fillRect(sx2 - T * 0.13 * s, -T * 0.14 * s, T * 0.05 * s, T * 0.1 * s);
+        ctx.fillRect(sx2 - T * 0.05 * s, -T * 0.14 * s, T * 0.05 * s, T * 0.1 * s);
+      };
+      // Khaki slacks
+      ctx.fillStyle = flash ? '#fff' : '#b3a077';
+      ctx.fillRect(-w * 0.3, -h * 0.38, w * 0.24, h * 0.34);
+      ctx.fillRect(w * 0.06, -h * 0.38, w * 0.24, h * 0.34);
+      sneaker(-w * 0.18); sneaker(w * 0.18);
+      // The grey crew-neck
+      const tee = ctx.createLinearGradient(0, -h * 0.85, 0, -h * 0.3);
+      tee.addColorStop(0, flash ? '#fff' : '#8a8f98');
+      tee.addColorStop(1, flash ? '#ddd' : '#5e636c');
+      ctx.fillStyle = tee;
+      this.rr(ctx, -w / 2, -h * 0.84, w, h * 0.5, T * 0.14);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(30,32,38,0.5)';
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      ctx.beginPath(); ctx.arc(0, -h * 0.84, T * 0.14, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+
+      // Front arm + phone: raised while doomscrolling or firing the KPI beam,
+      // otherwise hanging at his side. Slack during the face-off cinematic.
+      const phoneUp = (boss.waiting || boss.attack === 'laser') && ft < 0;
+      ctx.strokeStyle = flash ? '#fff' : '#6e737c';
+      ctx.lineWidth = T * 0.16;
+      ctx.lineCap = 'round';
+      const shX = w * 0.36, shY = -h * 0.76;
+      if (phoneUp) {
+        const px = T * 0.55, py = -h * 0.66;
+        ctx.beginPath(); ctx.moveTo(shX, shY); ctx.quadraticCurveTo(w * 0.62, -h * 0.6, px, py); ctx.stroke();
+        // The phone itself
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(-0.35);
+        ctx.fillStyle = '#16181d';
+        this.rr(ctx, -T * 0.07, -T * 0.16, T * 0.14, T * 0.3, T * 0.03);
+        ctx.fill();
+        const scr = ctx.createLinearGradient(0, -T * 0.14, 0, T * 0.12);
+        const glow = boss.attack === 'laser' ? 1 : 0.55 + 0.25 * Math.sin(t * 2.7);
+        scr.addColorStop(0, `rgba(150,200,255,${glow})`);
+        scr.addColorStop(1, `rgba(60,110,230,${glow * 0.8})`);
+        ctx.fillStyle = scr;
+        this.rr(ctx, -T * 0.05, -T * 0.13, T * 0.1, T * 0.24, T * 0.02);
+        ctx.fill();
+        ctx.restore();
+        // Screen light spilling onto the face
+        if (boss.waiting) {
+          const spill = ctx.createRadialGradient(px, py, T * 0.03, px, py, T * 0.7);
+          spill.addColorStop(0, `rgba(140,190,255,${0.2 + 0.1 * Math.sin(t * 2.7)})`);
+          spill.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = spill;
+          ctx.beginPath(); ctx.arc(px, py, T * 0.7, 0, Math.PI * 2); ctx.fill();
+        }
+      } else {
+        ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(w * 0.46, -h * 0.42); ctx.stroke();
       }
-      // Eyes + monocle
-      ctx.fillStyle = '#ffdf5e';
-      ctx.beginPath(); ctx.arc(T * 0.12, -h * 0.94, T * 0.05, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(-T * 0.12, -h * 0.94, T * 0.05, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#ffd23e';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(T * 0.12, -h * 0.94, T * 0.1, 0, Math.PI * 2); ctx.stroke();
-      // Cane
-      ctx.strokeStyle = flash ? '#fff' : '#5a4a2f';
-      ctx.lineWidth = T * 0.09;
-      ctx.beginPath();
-      const caneA = boss.attack === 'cane' ? Math.sin(boss.attackT * 12) * 0.8 : 0.15;
-      ctx.moveTo(w * 0.5, -h * 0.6);
-      ctx.lineTo(w * 0.5 + Math.sin(caneA) * T * 1.1, -h * 0.6 + Math.cos(caneA) * T * 1.1);
-      ctx.stroke();
+
+      // The NDA binder slam (melee): a corporate brick of paperwork
+      if (boss.attack === 'cane') {
+        const swing = Math.sin(boss.attackT * 12) * 0.8;
+        ctx.save();
+        ctx.translate(-w * 0.42, -h * 0.72);
+        ctx.rotate(swing);
+        ctx.strokeStyle = flash ? '#fff' : '#6e737c';
+        ctx.lineWidth = T * 0.14;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, T * 0.75); ctx.stroke();
+        ctx.translate(0, T * 0.95);
+        ctx.rotate(0.2);
+        ctx.fillStyle = '#e8e4da';
+        this.rr(ctx, -T * 0.3, -T * 0.22, T * 0.6, T * 0.44, T * 0.04);
+        ctx.fill();
+        ctx.fillStyle = '#8a1520';
+        ctx.fillRect(-T * 0.3, -T * 0.22, T * 0.09, T * 0.44);
+        ctx.strokeStyle = 'rgba(40,40,45,0.5)';
+        ctx.lineWidth = Math.max(1, T * 0.015);
+        for (let i = 1; i < 4; i++) {
+          ctx.beginPath(); ctx.moveTo(-T * 0.16, -T * 0.22 + i * T * 0.11); ctx.lineTo(T * 0.26, -T * 0.22 + i * T * 0.11); ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      const headY = -h * 0.92;
+      if (ft < 0) {
+        // Human(ish) head: pale polymer skin, Caesar fringe, unblinking stare
+        ctx.fillStyle = flash ? '#fff' : '#e8c9a8';
+        ctx.beginPath(); ctx.arc(0, headY, T * 0.34, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = flash ? '#eee' : '#4a3626';
+        ctx.beginPath(); ctx.arc(0, headY, T * 0.34, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+        ctx.fillRect(-T * 0.34, headY - T * 0.2, T * 0.68, T * 0.1);
+        // Wide unblinking eyes — the right one has that little red glint
+        for (const s of [-1, 1]) {
+          ctx.fillStyle = '#fff';
+          ctx.beginPath(); ctx.arc(s * T * 0.13, headY + T * 0.02, T * 0.075, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#2c3a52';
+          ctx.beginPath(); ctx.arc(s * T * 0.13 + T * 0.02, headY + T * 0.02, T * 0.035, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#ff3a2a';
+        ctx.beginPath(); ctx.arc(T * 0.15, headY + T * 0.01, T * 0.016, 0, Math.PI * 2); ctx.fill();
+        // A perfectly neutral mouth
+        ctx.strokeStyle = 'rgba(90,60,45,0.8)';
+        ctx.lineWidth = Math.max(1.5, T * 0.025);
+        ctx.beginPath(); ctx.moveTo(-T * 0.08, headY + T * 0.18); ctx.lineTo(T * 0.1, headY + T * 0.18); ctx.stroke();
+      } else {
+        // FACE-OFF CINEMATIC: chrome skull under the mask, eyes booting up
+        this.bossSkull(ctx, T, 0, headY, t, flash, ft > 1.1 && (ft > 1.9 || Math.sin(ft * 34) > -0.2), true);
+        // The $2.3B face, tumbling to the floor
+        const p = Math.min(1, ft / 0.85);
+        const mx = T * 0.55 * p;
+        const my = headY + (Math.abs(headY) - T * 0.14) * p * p;
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(p * 2.8);
+        ctx.fillStyle = '#e8c9a8';
+        ctx.beginPath(); ctx.arc(0, 0, T * 0.32, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#4a3626';
+        ctx.beginPath(); ctx.arc(0, 0, T * 0.32, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+        ctx.fillRect(-T * 0.32, -T * 0.19, T * 0.64, T * 0.09);
+        // Empty eye holes
+        ctx.fillStyle = '#1a1216';
+        for (const s of [-1, 1]) {
+          ctx.beginPath(); ctx.arc(s * T * 0.13, T * 0.02, T * 0.06, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+      }
     } else {
-      // Satan form: hulking cyborg demon with chest furnace
+      // --- FORM 2: ZUCKER-TRON 9000 — chrome endoskeleton, shirt in tatters,
+      // infinity-core chest… and he kept the sneakers on ---
       const h = T * 3.8, w = T * 2.2;
       ctx.translate(0, breathe);
-      // Legs (digitigrade)
-      ctx.fillStyle = flash ? '#fff' : '#511';
+      // Piston legs
       for (const s of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(s * w * 0.22, -h * 0.4);
-        ctx.lineTo(s * w * 0.34, -h * 0.18);
-        ctx.lineTo(s * w * 0.2, 0);
-        ctx.lineTo(s * w * 0.38, 0);
-        ctx.lineTo(s * w * 0.44, -h * 0.2);
-        ctx.lineTo(s * w * 0.3, -h * 0.42);
+        ctx.fillStyle = flash ? '#fff' : '#4a4f57';
+        ctx.fillRect(s * w * 0.28 - T * 0.11, -h * 0.42, T * 0.22, h * 0.2);
+        ctx.fillStyle = flash ? '#eee' : '#7c828c';
+        ctx.fillRect(s * w * 0.28 - T * 0.07, -h * 0.24, T * 0.14, h * 0.24);
+        // Piston highlight
+        ctx.fillStyle = 'rgba(220,230,240,0.5)';
+        ctx.fillRect(s * w * 0.28 - T * 0.02, -h * 0.24, T * 0.03, h * 0.22);
+        // Knee servo
+        ctx.fillStyle = flash ? '#fff' : '#31353b';
+        ctx.beginPath(); ctx.arc(s * w * 0.28, -h * 0.23, T * 0.09, 0, Math.PI * 2); ctx.fill();
+        // Still wearing the sneakers (they were comfortable)
+        ctx.fillStyle = flash ? '#fff' : '#f0efe8';
+        this.rr(ctx, s * w * 0.28 - T * 0.2, -T * 0.19, T * 0.56, T * 0.19, T * 0.07);
         ctx.fill();
+        ctx.fillStyle = '#3a8a4a';
+        ctx.fillRect(s * w * 0.28 - T * 0.16, -T * 0.16, T * 0.06, T * 0.12);
+        ctx.fillRect(s * w * 0.28 - T * 0.06, -T * 0.16, T * 0.06, T * 0.12);
       }
-      // Torso
-      const torso = ctx.createLinearGradient(0, -h, 0, -h * 0.3);
-      torso.addColorStop(0, flash ? '#fff' : '#8a1f14');
-      torso.addColorStop(1, flash ? '#ccc' : '#4a0f0a');
+      // Chrome torso
+      const torso = ctx.createLinearGradient(0, -h * 0.9, 0, -h * 0.3);
+      torso.addColorStop(0, flash ? '#fff' : '#8a9099');
+      torso.addColorStop(1, flash ? '#ccc' : '#3f444c');
       ctx.fillStyle = torso;
-      this.rr(ctx, -w / 2, -h * 0.88, w, h * 0.52, T * 0.3);
+      this.rr(ctx, -w / 2, -h * 0.88, w, h * 0.52, T * 0.22);
       ctx.fill();
-      // Metal plating (cyborg half)
-      ctx.fillStyle = flash ? '#eee' : '#6e747c';
-      this.rr(ctx, 0, -h * 0.88, w / 2, h * 0.52, T * 0.3);
-      ctx.fill();
+      // Panel seams + rivets
       ctx.strokeStyle = '#31353b';
       ctx.lineWidth = 2;
-      for (let i = 1; i < 4; i++) {
-        ctx.beginPath(); ctx.moveTo(w * 0.5 * i / 4, -h * 0.88); ctx.lineTo(w * 0.5 * i / 4, -h * 0.36); ctx.stroke();
+      for (const px of [-w * 0.25, 0, w * 0.25]) {
+        ctx.beginPath(); ctx.moveTo(px, -h * 0.88); ctx.lineTo(px, -h * 0.36); ctx.stroke();
       }
-      // Chest furnace
-      const furn = ctx.createRadialGradient(-w * 0.15, -h * 0.6, T * 0.05, -w * 0.15, -h * 0.6, T * 0.4);
-      const pulse = 0.6 + 0.4 * Math.sin(t * 5);
-      furn.addColorStop(0, `rgba(255,230,120,${pulse})`);
-      furn.addColorStop(0.5, `rgba(255,120,30,${pulse * 0.9})`);
-      furn.addColorStop(1, 'rgba(60,10,5,0.9)');
-      ctx.fillStyle = furn;
-      ctx.beginPath(); ctx.arc(-w * 0.15, -h * 0.6, T * 0.34, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#2a2d33';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      // Grate
-      ctx.strokeStyle = 'rgba(30,30,35,0.8)';
-      ctx.lineWidth = 2;
-      for (let i = -1; i <= 1; i++) {
-        ctx.beginPath();
-        ctx.moveTo(-w * 0.15 - T * 0.3, -h * 0.6 + i * T * 0.12);
-        ctx.lineTo(-w * 0.15 + T * 0.3, -h * 0.6 + i * T * 0.12);
-        ctx.stroke();
+      ctx.fillStyle = 'rgba(230,240,250,0.4)';
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath(); ctx.arc(-w * 0.38 + i * w * 0.25, -h * 0.82, Math.max(1, T * 0.02), 0, Math.PI * 2); ctx.fill();
       }
-      // Head: demon skull with metal jaw
-      ctx.fillStyle = flash ? '#fff' : '#8a1f14';
-      ctx.beginPath(); ctx.arc(0, -h * 0.97, T * 0.4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = flash ? '#eee' : '#6e747c';
-      this.rr(ctx, -T * 0.32, -h * 0.97, T * 0.64, T * 0.32, T * 0.08);
-      ctx.fill();
-      // Burning eyes
-      ctx.shadowColor = '#ff4020';
-      ctx.shadowBlur = 12;
-      ctx.fillStyle = '#ffdf30';
-      ctx.beginPath(); ctx.arc(-T * 0.15, -h * 1.0, T * 0.07, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(T * 0.15, -h * 1.0, T * 0.07, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
-      // Big horns
-      ctx.fillStyle = flash ? '#fff' : '#2c2530';
-      for (const s of [-1, 1]) {
+      // Shreds of the grey crew-neck still snagged on the shoulders
+      ctx.fillStyle = flash ? '#ddd' : '#6a6f78';
+      for (const [tx, tw2, tl] of [[-w * 0.46, T * 0.22, T * 0.5], [-w * 0.2, T * 0.16, T * 0.34], [w * 0.3, T * 0.2, T * 0.42]]) {
         ctx.beginPath();
-        ctx.moveTo(s * T * 0.2, -h * 1.05 - T * 0.15);
-        ctx.quadraticCurveTo(s * T * 0.75, -h * 1.05 - T * 0.55, s * T * 0.5, -h * 1.05 - T * 0.95);
-        ctx.quadraticCurveTo(s * T * 0.45, -h * 1.05 - T * 0.5, s * T * 0.05, -h * 1.05 - T * 0.28);
+        ctx.moveTo(tx, -h * 0.88);
+        ctx.lineTo(tx + tw2, -h * 0.88);
+        ctx.lineTo(tx + tw2 * 0.5 + Math.sin(t * 3 + tx) * T * 0.04, -h * 0.88 + tl);
+        ctx.closePath();
         ctx.fill();
       }
+      // Infinity core: the company logo, load-bearing
+      const pulse = 0.6 + 0.4 * Math.sin(t * 4);
+      ctx.save();
+      ctx.shadowColor = '#4a9eff';
+      ctx.shadowBlur = 14 * pulse;
+      ctx.strokeStyle = `rgba(190,224,255,${0.75 + 0.25 * pulse})`;
+      ctx.lineWidth = T * 0.075;
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(s * T * 0.15, -h * 0.62, T * 0.13, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+      // Skull (shared with the face-off cinematic), fully booted
+      this.bossSkull(ctx, T, 0, -h * 0.97, t, flash, true, false);
       // Claw arm (attacks)
       if (boss.attack === 'claw') {
         const ext = Math.sin(Math.min(Math.PI, boss.attackT * 4)) * T * 2.4;
@@ -2285,5 +2365,54 @@ const Sprites = {
       }
     }
     ctx.restore();
+  },
+
+  // The chrome skull under the polymer face. `lit`: red LEDs on (they stutter
+  // while booting mid-cinematic). `small`: form-1 head scale during the
+  // face-off. The Caesar fringe is PAINTED ON the metal — it came standard.
+  bossSkull(ctx, T, cx, cy, t, flash, lit, small) {
+    const r = small ? T * 0.32 : T * 0.4;
+    const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.4, r * 0.1, cx, cy, r * 1.1);
+    g.addColorStop(0, flash ? '#fff' : '#c2c8d0');
+    g.addColorStop(0.6, flash ? '#eee' : '#8a9099');
+    g.addColorStop(1, flash ? '#ccc' : '#4a4f57');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    // Painted-on fringe
+    ctx.fillStyle = 'rgba(50,42,38,0.85)';
+    ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI * 1.05, Math.PI * 1.95); ctx.fill();
+    ctx.fillRect(cx - r, cy - r * 0.55, r * 2, r * 0.24);
+    // Jaw vents
+    ctx.fillStyle = flash ? '#eee' : '#3a3f47';
+    Sprites.rr(ctx, cx - r * 0.72, cy + r * 0.38, r * 1.44, r * 0.5, r * 0.14);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,17,20,0.8)';
+    ctx.lineWidth = Math.max(1, T * 0.016);
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(cx - r * 0.5 + i * r * 0.38, cy + r * 0.46);
+      ctx.lineTo(cx - r * 0.5 + i * r * 0.38 + r * 0.22, cy + r * 0.76);
+      ctx.stroke();
+    }
+    // Red LED eyes
+    if (lit) {
+      ctx.save();
+      ctx.shadowColor = '#ff3020';
+      ctx.shadowBlur = 12;
+      ctx.fillStyle = '#ff5a3a';
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(cx + s * r * 0.4, cy + r * 0.02, r * 0.16, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#ffd9c8';
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(cx + s * r * 0.4, cy + r * 0.02, r * 0.06, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#1a1216';
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.arc(cx + s * r * 0.4, cy + r * 0.02, r * 0.14, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   },
 };

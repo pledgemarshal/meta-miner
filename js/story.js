@@ -78,10 +78,10 @@ const Story = {
       text: 'You are making a grave mistake, little digger. Continue and you will be terminated— ...ahem. Fired. You will be FIRED.\n\nLast warning. Some doors should stay buried.',
     },
     10900: {
-      from: '??? ',
-      portrait: 'satan',
+      from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
+      portrait: 'natas',
       signal: 'SIGNAL SOURCE: DIRECTLY BELOW',
-      text: 'Enough theater. You want the truth, worm? Your missing colleagues found me. They dug so very well — right into my parlor. As will you.\n\nCome then, contractor. Your contract ends where all contracts end: in fire. THIS is your termination notice.',
+      text: 'Fine. You clearly read the whole contract. Section twelve: termination shall be conducted IN PERSON, at the desk of the CEO.\n\nMy desk is at the bottom of this shaft, at the end of the long hallway. I have cleared my calendar for you, intern.\n\nDo bring your badge.',
     },
   },
 

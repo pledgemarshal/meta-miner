@@ -243,6 +243,15 @@ const UI = {
       }
       this.close();
       Game.cheatEmpDrop();
+    } else if (code === 'zuck') {
+      // Corner-office elevator: only from the surface
+      if (Player.depthFeet() > 5 || Game.inHell() || Player.dead) {
+        Audio.play('denied');
+        this.toast('That code only answers from the surface.');
+        return;
+      }
+      this.close();
+      Game.cheatZuckDrop();
     } else {
       Audio.play('denied');
       this.toast('Unrecognized code.');

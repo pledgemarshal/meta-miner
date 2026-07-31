@@ -1991,6 +1991,49 @@ const Game = {
     this.toast('The ground swallows you. 4,600 ft, instantly.');
   },
 
+  // 'zuck': the corner-office elevator. Straight to Hell's hallway, 100 ft
+  // from the waiting CEO, with everything in the company catalog installed.
+  cheatZuckDrop() {
+    for (const cat of Object.keys(C.UPGRADES)) Player.tiers[cat] = C.UPGRADES[cat].tiers.length - 1;
+    Player.fuel = Player.fuelCap();
+    Player.hull = Player.hullCap();
+    Player.hasMicrowave = true;
+    Player.mwLevel = 2;
+    Player.hasEmpHead = true;
+    Player.empCharges = C.EMP.charges;
+    Player.hasRefueled = true;
+    Player.tutorialDone = true;
+    Player.fuelGuideCount = 3;
+    Player.oreGuideCount = 3;
+    Object.assign(Player.items, { fuelTank: 3, nanobots: 3, dynamite: 8, plastic: 8, teleporter: 1, transmitter: 1 });
+    // Silence every remaining transmission on the way down — bonuses included
+    // (it's a cheat; take the money)
+    Story.seen[0] = true;
+    Story.seen.firstOre = true;
+    for (const t of C.TRANSMISSIONS) {
+      if (Story.seen[t.depth]) continue;
+      Story.seen[t.depth] = true;
+      if (t.bonus) Player.money += t.bonus;
+    }
+    // Drop onto the hallway floor, 100 ft (8 tiles) from the corner office
+    Player.x = Boss.homeX() + 8;
+    Player.y = Boss.arenaBottom() - 0.51;
+    Player.vx = 0;
+    Player.vy = 0;
+    Player.drilling = null;
+    Player.fallStartY = null;
+    Player.frost = 0;
+    Player.maxDepth = Math.max(Player.maxDepth || 0, Player.depthFeet());
+    // Snap the camera — no 11,000 ft lerp
+    this.cam.x = Math.max(0, Math.min(C.WORLD_W - C.VIEW_W / C.TILE, Player.x - C.VIEW_W / C.TILE / 2));
+    this.cam.y = Math.max(-C.SURFACE_ROWS, Math.min(C.WORLD_H - C.VIEW_H / C.TILE, Player.y - C.VIEW_H / C.TILE / 2));
+    Audio.play('teleport');
+    Particles.burst(Player.x, Player.y, 30, { color: '#7de0ff', speed: 6, life: 0.9, size: 0.11, glow: true });
+    this.shake(0.8);
+    this.warn('CHEAT ACCEPTED — ELEVATOR TO THE CORNER OFFICE', '#8fd8ff');
+    this.toast('Full loadout installed. HR is expecting you — 100 ft to your left.');
+  },
+
   // --- Save / load (mirrors the original save machine: gear + cash, not tunnels) ---
   save() {
     const data = {
@@ -2099,7 +2142,7 @@ const Game = {
     this.updateEmp(dt);
     // Battle track while a vault door is opening or an automaton is hunting;
     // the ambient track returns once the last one falls or powers down
-    Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant));
+    Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant) || Boss.bossActiveNearPlayer());
     this.checkPyramids();
 
     // Movement tutorial: appears 2 s after the first dialog closes, fades
@@ -4652,16 +4695,16 @@ const Game = {
     ctx.shadowColor = '#ffd23e';
     ctx.shadowBlur = 26;
     ctx.fillStyle = '#ffd97a';
-    ctx.fillText('THE DEVIL IS DEFEATED', C.VIEW_W / 2, C.VIEW_H * 0.26);
+    ctx.fillText('THE CEO IS DEFEATED', C.VIEW_W / 2, C.VIEW_H * 0.26);
     ctx.shadowBlur = 0;
     ctx.font = '15px Verdana';
     ctx.fillStyle = '#d8d3c8';
     const lines = [
-      'The thing wearing Mark Zucker-ore\'s face collapses into cooling slag.',
-      'The missing miners are avenged, and Mars is free of its buried tyrant.',
+      'The Zucker-Tron 9000 collapses in a shower of sparks and shareholder value.',
+      'The missing miners are avenged, and Mars is free of its buried middle management.',
       '',
       'Spoils of victory:',
-      'Company shares, infernal relics & hazard pay — $' + C.BOSS.victoryCash.toLocaleString(),
+      'Company shares, scrap chrome & hazard pay — $' + C.BOSS.victoryCash.toLocaleString(),
       '',
       'Final wealth: $' + Player.money.toLocaleString() + '        Score: ' + this.score.toLocaleString(),
     ];
