@@ -1,4 +1,4 @@
-﻿// Surface buildings: interaction detection + shop menus.
+// Surface buildings: interaction detection + shop menus.
 
 const Shops = {
   // Which building is the pod in front of? (must be on the surface, grounded)
@@ -39,7 +39,7 @@ const Shops = {
     UI.panel({
       noTune: true,
       title: C.BUILDINGS.fuel.name,
-      sub: `Fuel: $${C.FUEL_PRICE.toFixed(2)} per liter â€” tank ${P.fuel.toFixed(1)} / ${P.fuelCap()} L`,
+      sub: `Fuel: $${C.FUEL_PRICE.toFixed(2)} per liter — tank ${P.fuel.toFixed(1)} / ${P.fuelCap()} L`,
       rows: [
         ...[5, 10, 25, 50].map(a => ({
           name: `Buy $${a} of fuel`,
@@ -62,7 +62,7 @@ const Shops = {
     const rows = Object.keys(counts).map(k => {
       const m = C.MINERALS[k];
       return {
-        name: `${m.name} Ã— ${counts[k]}`,
+        name: `${m.name} × ${counts[k]}`,
         detail: `$${m.value.toLocaleString()} each`,
         right: '$' + (m.value * counts[k]).toLocaleString(),
       };
@@ -71,7 +71,7 @@ const Shops = {
     rows.push({
       name: 'Sell all minerals',
       button: {
-        label: `Sell â€” $${total.toLocaleString()}`,
+        label: `Sell — $${total.toLocaleString()}`,
         disabled: total === 0,
         onClick: () => {
           P.money += total;
@@ -120,7 +120,7 @@ const Shops = {
       const statStr = next.disp || (u.unit === '%' ? Math.round(next.stat * 100) : next.stat);
       rows.push({
         name: `${u.label}: ${next.name}`,
-        detail: `${u.desc}  Now: ${u.tiers[cur].disp || (u.unit === '%' ? Math.round(u.tiers[cur].stat * 100) : u.tiers[cur].stat)} â†’ ${statStr} ${u.unit}`,
+        detail: `${u.desc}  Now: ${u.tiers[cur].disp || (u.unit === '%' ? Math.round(u.tiers[cur].stat * 100) : u.tiers[cur].stat)} → ${statStr} ${u.unit}`,
         button: {
           label: '$' + next.price.toLocaleString(),
           disabled: P.money < next.price,
@@ -139,7 +139,7 @@ const Shops = {
     UI.panel({
       noTune: true,
       title: C.BUILDINGS.upgrades.name,
-      sub: `Automated outfitter â€” funds available: $${P.money.toLocaleString()}`,
+      sub: `Automated outfitter — funds available: $${P.money.toLocaleString()}`,
       rows,
     });
   },
@@ -150,7 +150,7 @@ const Shops = {
       const it = C.ITEMS[key];
       return {
         name: `${it.name}  (own ${P.items[key]})`,
-        detail: `${it.desc} â€” hotkey ${it.key}`,
+        detail: `${it.desc} — hotkey ${it.key}`,
         button: {
           label: '$' + it.price.toLocaleString(),
           disabled: P.money < it.price,
@@ -178,13 +178,13 @@ const Shops = {
     const fullCost = missing * C.REPAIR_COST_PER_HP;
     rows.push({
       name: 'Hull repair service',
-      detail: `$${C.REPAIR_COST_PER_HP} per hull point â€” damage: ${missing} HP`,
-      button: { label: `Repair all â€” $${fullCost.toLocaleString()}`, disabled: missing <= 0 || P.money < fullCost, onClick: () => repair(fullCost) },
+      detail: `$${C.REPAIR_COST_PER_HP} per hull point — damage: ${missing} HP`,
+      button: { label: `Repair all — $${fullCost.toLocaleString()}`, disabled: missing <= 0 || P.money < fullCost, onClick: () => repair(fullCost) },
     });
     UI.panel({
       noTune: true,
       title: C.BUILDINGS.items.name,
-      sub: `Supplies & field repairs â€” funds available: $${P.money.toLocaleString()}`,
+      sub: `Supplies & field repairs — funds available: $${P.money.toLocaleString()}`,
       rows,
     });
   },
