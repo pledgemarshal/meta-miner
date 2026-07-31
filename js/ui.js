@@ -14,6 +14,59 @@ const UI = {
     window.addEventListener('resize', () => this.fitPanel(this.activePanel));
   },
 
+  // Hints like "E / Enter — acknowledge" become gold keycaps + bold label,
+  // matching the big interact prompts on the surface buildings
+  buildHint(text) {
+    const hint = document.createElement('div');
+    hint.className = 'close-hint';
+    text.split('·').forEach((seg, si) => {
+      if (si) hint.appendChild(document.createTextNode('   ·   '));
+      const dash = seg.indexOf('—');
+      if (dash < 0) { hint.appendChild(document.createTextNode(seg.trim())); return; }
+      seg.slice(0, dash).split('/').forEach(k => {
+        const kk = document.createElement('span');
+        kk.className = 'key';
+        kk.textContent = k.trim();
+        hint.appendChild(kk);
+      });
+      hint.appendChild(document.createTextNode(' ' + seg.slice(dash + 1).trim()));
+    });
+    return hint;
+  },
+
+  // Fuzzy tune-in: a burst of colorful analog static that clears as the
+  // panel sharpens into focus (paired with the CSS blur-in)
+  staticIn(p) {
+    const cv = document.createElement('canvas');
+    cv.width = Math.max(8, Math.floor(p.offsetWidth / 6));
+    cv.height = Math.max(8, Math.floor(p.offsetHeight / 6));
+    Object.assign(cv.style, {
+      position: 'absolute', inset: '0', width: '100%', height: '100%',
+      borderRadius: 'inherit', pointerEvents: 'none', imageRendering: 'pixelated',
+    });
+    p.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    const t0 = performance.now();
+    const dur = 420;
+    const tick = () => {
+      if (!cv.isConnected) return;
+      const t = (performance.now() - t0) / dur;
+      if (t >= 1 || this.activePanel !== p) { cv.remove(); return; }
+      const img = ctx.createImageData(cv.width, cv.height);
+      const d = img.data;
+      const alpha = 255 * (1 - t) * (1 - t);
+      for (let i = 0; i < d.length; i += 4) {
+        d[i] = Math.random() * 255;
+        d[i + 1] = Math.random() * 255;
+        d[i + 2] = Math.random() * 255;
+        d[i + 3] = Math.random() < 0.85 ? alpha : 0;   // sparse dropout pixels
+      }
+      ctx.putImageData(img, 0, 0);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  },
+
   // Smaller screens: shrink the whole panel to fit the window instead of
   // growing a scrollbar — everything scales down together
   fitPanel(p) {
@@ -96,14 +149,12 @@ const UI = {
       }
       p.appendChild(row);
     }
-    const hint = document.createElement('div');
-    hint.className = 'close-hint';
-    hint.textContent = spec.hint || 'Esc / E — close';
-    p.appendChild(hint);
+    p.appendChild(this.buildHint(spec.hint || 'Esc / E — close'));
     this.overlay.appendChild(p);
     this.activePanel = p;
     this.onClose = spec.onClose || null;
     this.fitPanel(p);
+    this.staticIn(p);
     return p;
   },
 
@@ -275,14 +326,12 @@ const UI = {
     const msg = document.createElement('p');
     msg.textContent = t.text;
     p.appendChild(msg);
-    const hint = document.createElement('div');
-    hint.className = 'close-hint';
-    hint.textContent = 'E / Enter / Esc — acknowledge';
-    p.appendChild(hint);
+    p.appendChild(this.buildHint('E / Enter / Esc — acknowledge'));
     this.overlay.appendChild(p);
     this.activePanel = p;
     this.onClose = onDone || null;
     this.fitPanel(p);
+    this.staticIn(p);
   },
 
   drawPortrait(canvas, kind) {

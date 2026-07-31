@@ -42,6 +42,7 @@ const Player = {
     this.empCharges = C.EMP.charges;   // stored EMP uses; refill over time
     this.roboKills = 0;        // slain automatons; the 2nd halves EMP recharge time
     this.tutorialDone = false; // movement mini-tutorial completed (all 4 keys pressed)
+    this.fuelGuideDone = false; // guided-arrows trip to the fuel depot completed
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -544,6 +545,7 @@ const Player = {
       empCharges: this.empCharges != null ? this.empCharges : C.EMP.charges,
       roboKills: this.roboKills || 0,
       tutorialDone: this.tutorialDone || false,
+      fuelGuideDone: this.fuelGuideDone || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -562,6 +564,7 @@ const Player = {
     this.empCharges = d.empCharges != null ? d.empCharges : C.EMP.charges;
     this.roboKills = d.roboKills || 0;
     this.tutorialDone = !!d.tutorialDone;
+    this.fuelGuideDone = !!d.fuelGuideDone;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

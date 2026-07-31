@@ -38,6 +38,7 @@ html, body {
 /* --- Menus & dialogs (scaled 1.8x for readability) --- */
 .panel {
   pointer-events: auto;
+  position: relative;
   background: linear-gradient(160deg, rgba(24,26,34,0.97), rgba(14,15,20,0.97));
   border: 1px solid rgba(255,178,71,0.45);
   border-radius: 20px;
@@ -48,6 +49,13 @@ html, body {
   max-height: 86vh;
   overflow-y: auto;
   padding: 32px 40px;
+  animation: panelIn 0.45s ease-out;
+}
+
+/* Fuzzy tune-in: the panel sharpens out of a blur while the static clears */
+@keyframes panelIn {
+  from { filter: blur(7px); opacity: 0.35; }
+  to { filter: none; opacity: 1; }
 }
 
 .panel h2 {
@@ -100,7 +108,25 @@ html, body {
 
 .panel .owned { color: #7dffb0; font-size: 22px; font-weight: 700; }
 .panel .money { color: #7dffb0; font-weight: 700; }
-.panel .close-hint { margin-top: 22px; font-size: 20px; color: #77726a; text-align: center; }
+.panel .close-hint {
+  margin-top: 24px;
+  font-size: 21px;
+  font-weight: 700;
+  color: #ffd9a0;
+  text-align: center;
+}
+.panel .close-hint .key {
+  display: inline-block;
+  margin: 0 5px 0 7px;
+  padding: 1px 13px 3px;
+  background: linear-gradient(#f6e2b4, #dfb96e);
+  border: 2px solid #8a6a30;
+  border-bottom-width: 4px;
+  border-radius: 9px;
+  color: #2a1c08;
+  font-weight: 800;
+  font-size: 20px;
+}
 
 /* --- Transmission dialog --- */
 .transmission {

@@ -44,6 +44,10 @@ const Game = {
   tutActive: false,
   tutFade: 0,
   tutKeys: { up: false, left: false, down: false, right: false },
+  // Fuel-depot guide: breadcrumb arrows home, first time the pod digs 4 deep
+  fuelGuideActive: false,
+  fuelGuidePath: null,
+  fuelGuideT: 0,
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -228,6 +232,49 @@ const Game = {
     }
   },
 
+  // --- Fuel-depot guide: BFS home through the player's own tunnels, then a
+  // sky leg over to the pump. Recomputed twice a second so it tracks the pod.
+  fuelPumpPos() {
+    return { x: C.BUILDINGS.fuel.x + C.BUILDINGS.fuel.w + 1.5, y: -0.55 };
+  },
+
+  buildFuelGuidePath() {
+    const W = C.WORLD_W;
+    const pump = this.fuelPumpPos();
+    const sx = Math.max(1, Math.min(W - 2, Math.floor(Player.x)));
+    const sy = Math.max(0, Math.floor(Player.y));
+    const key = (x, y) => y * W + x;
+    const came = new Map();
+    const q = [[sx, sy]];
+    came.set(key(sx, sy), -1);
+    let mouth = null;
+    for (let qi = 0; qi < q.length && qi < 4000; qi++) {
+      const [x, y] = q[qi];
+      if (y === 0) { mouth = [x, y]; break; }
+      // Up-first bias so the route prefers climbing toward daylight
+      for (const [nx, ny] of [[x, y - 1], [x - 1, y], [x + 1, y], [x, y + 1]]) {
+        if (nx <= 0 || nx >= W - 1 || ny < 0 || ny > C.GROUND_BOTTOM_ROW) continue;
+        const k = key(nx, ny);
+        if (came.has(k)) continue;
+        if (World.isSolid(nx, ny)) continue;
+        came.set(k, key(x, y));
+        q.push([nx, ny]);
+      }
+    }
+    if (!mouth) return null;   // sealed in — no honest route to point at
+    const pts = [];
+    let k = key(mouth[0], mouth[1]);
+    while (k !== -1) {
+      pts.push({ x: (k % W) + 0.5, y: Math.floor(k / W) + 0.5 });
+      k = came.get(k);
+      if (k === undefined) return null;
+    }
+    pts.reverse();             // pod → shaft mouth
+    pts.push({ x: mouth[0] + 0.5, y: -0.6 });
+    pts.push({ x: pump.x, y: pump.y });
+    return pts;
+  },
+
   // A movement key was pressed — fill its keycap in; all four ends the lesson
   tutorialKey(dir) {
     if (Player.tutorialDone) return;
@@ -402,6 +449,9 @@ const Game = {
     this.tutActive = false;
     this.tutFade = 0;
     this.tutKeys = { up: false, left: false, down: false, right: false };
+    this.fuelGuideActive = false;
+    this.fuelGuidePath = null;
+    this.fuelGuideT = 0;
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -2028,6 +2078,30 @@ const Game = {
     const tutTarget = this.tutActive && !Player.tutorialDone ? 1 : 0;
     this.tutFade += (tutTarget - this.tutFade) * Math.min(1, dt * 4);
 
+    // Fuel-depot guide: kicks in the first time the pod is 4 tiles under,
+    // breadcrumbs it home, and retires the moment the pump is reached
+    if (!Player.fuelGuideDone) {
+      if (!this.fuelGuideActive && Math.floor(Player.y) >= 4 && !Player.dead) {
+        this.fuelGuideActive = true;
+        this.fuelGuideT = 0;
+        this.toast('Low on fuel? Follow the arrows back to the depot!');
+      }
+      if (this.fuelGuideActive) {
+        this.fuelGuideT -= dt;
+        if (this.fuelGuideT <= 0) {
+          this.fuelGuidePath = this.buildFuelGuidePath();
+          this.fuelGuideT = 0.5;
+        }
+        const pump = this.fuelPumpPos();
+        if (Math.hypot(Player.x - pump.x, Player.y - pump.y) < 2.2) {
+          Player.fuelGuideDone = true;
+          this.fuelGuideActive = false;
+          this.fuelGuidePath = null;
+          this.toast('The fuel depot — top up here whenever the tank runs low!');
+        }
+      }
+    }
+
     // Fuel-low banner: fires each time fuel crosses down through the warn line
     if (this.fuelWarnT > 0) this.fuelWarnT -= dt;
     const fuelFrac = Player.fuel / Player.fuelCap();
@@ -2189,6 +2263,7 @@ const Game = {
     this.drawRobotFx(ctx);
     this.drawGhost(ctx);
     this.drawTutorial(ctx);
+    this.drawFuelGuide(ctx);
     this.drawPopups(ctx);
 
     // Hurt vignette
@@ -4323,6 +4398,64 @@ const Game = {
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = ink(a);
     ctx.fillText('USE KEYBOARD TO MOVE', cx, cy + s * 1.6);
+    ctx.restore();
+  },
+
+  // --- Fuel-depot guide: marching chevrons along the route, beacon at the pump ---
+  drawFuelGuide(ctx) {
+    if (!this.fuelGuideActive || !this.fuelGuidePath || this.fuelGuidePath.length < 2) return;
+    const T = C.TILE;
+    const pts = this.fuelGuidePath;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const spacing = 1.15;
+    let carry = spacing - ((this.time * 1.6) % spacing);   // chevrons flow toward the depot
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      if (segLen < 0.01) continue;
+      const ux = (b.x - a.x) / segLen, uy = (b.y - a.y) / segLen;
+      const ang = Math.atan2(uy, ux);
+      let d = carry;
+      while (d < segLen) {
+        const wx = a.x + ux * d, wy = a.y + uy * d;
+        d += spacing;
+        if (Math.hypot(wx - Player.x, wy - Player.y) < 1.3) continue;   // keep the pod clear
+        const sx = (wx - this.cam.x) * T, sy = (wy - this.cam.y) * T;
+        if (sx < -T || sx > C.VIEW_W + T || sy < -T || sy > C.VIEW_H + T) continue;
+        const pulse = 0.5 + 0.35 * Math.sin(this.time * 4 - (i + d) * 0.9);
+        ctx.strokeStyle = `rgba(255,210,80,${pulse})`;
+        ctx.lineWidth = Math.max(2, T * 0.07);
+        ctx.lineCap = 'round';
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(ang);
+        ctx.beginPath();
+        ctx.moveTo(-T * 0.12, -T * 0.15);
+        ctx.lineTo(T * 0.11, 0);
+        ctx.lineTo(-T * 0.12, T * 0.15);
+        ctx.stroke();
+        ctx.restore();
+      }
+      carry = d - segLen;
+    }
+    // Bouncing beacon over the pump
+    const end = pts[pts.length - 1];
+    const bx = (end.x - this.cam.x) * T;
+    const by = (end.y - 0.75 - this.cam.y) * T + Math.sin(this.time * 5) * T * 0.12;
+    if (bx > -T && bx < C.VIEW_W + T && by > -T * 2 && by < C.VIEW_H + T) {
+      const a = 0.7 + 0.3 * Math.sin(this.time * 5);
+      ctx.fillStyle = `rgba(255,210,80,${a})`;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - T * 0.17, by - T * 0.26);
+      ctx.lineTo(bx + T * 0.17, by - T * 0.26);
+      ctx.closePath();
+      ctx.fill();
+      ctx.font = `bold ${Math.round(T * 0.28)}px Verdana`;
+      ctx.textAlign = 'center';
+      ctx.fillText('FUEL', bx, by - T * 0.42);
+    }
     ctx.restore();
   },
 
