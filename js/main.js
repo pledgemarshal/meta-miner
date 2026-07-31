@@ -2194,8 +2194,9 @@ const Game = {
     // Battle track while a vault door is opening or an automaton is hunting;
     // the ambient track returns once the last one falls or powers down
     Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant) || Boss.bossActiveNearPlayer());
-    // Hold music while the CEO keeps you waiting; a heartbeat under 20% hull;
-    // and the deep pressing quietly into the mix from -2,000 down
+    // Hold music while the CEO keeps you waiting; a heartbeat under 20% hull
+    // (paired with the flashing red HULL bar); and the deep pressing quietly
+    // into the mix from -2,000 down
     Audio.setHoldMusic(this.inHell() && Boss.active && Boss.waiting && !Player.dead);
     const hullFrac = Player.hull / Player.hullCap();
     Audio.setHeartbeat(Player.dead || hullFrac >= 0.2 ? 0 : (0.2 - hullFrac) / 0.2);

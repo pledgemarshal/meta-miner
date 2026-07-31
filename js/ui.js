@@ -508,8 +508,12 @@ const UI = {
       this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
         fuelFrac <= C.FUEL_WARN_FRAC ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
     }
-    // Hull bar
-    this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, P.hull / P.hullCap(), '#7dffb0',
+    // Hull bar — flashes urgent red below 20%, in step with the heartbeat
+    const hullFrac = P.hull / P.hullCap();
+    const hullColor = hullFrac < 0.2
+      ? (Math.sin(Game.time * 8) > 0 ? '#ff4530' : '#8a1810')
+      : '#7dffb0';
+    this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, hullFrac, hullColor,
       `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);
     // Cargo bar — pulses while the refinery guide chevrons are marching
     if (Game.oreGuideActive) {
@@ -695,20 +699,23 @@ const UI = {
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = Math.max(1.5, 2 * U * 0.7);
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
-    // Landmarks: reached ones by name, the next one as ???, the rest unseen
+    // Ticks only for landmarks you've reached — and NO names except the layer
+    // the pod is in right now. The rest stay surprises.
     ctx.font = `${Math.round(9.5 * U)}px Verdana`;
     ctx.textAlign = 'right';
-    let unknownShown = false;
+    const depthNow = Player.depthFeet();
+    let current = this.STRATA[0];
+    for (const s of this.STRATA) if (depthNow >= s.ft) current = s;
     for (const s of this.STRATA) {
-      const discovered = s.ft === 0 || maxD >= s.ft;
-      if (!discovered && unknownShown) break;
+      if (s.ft !== 0 && maxD < s.ft) break;   // unreached landmarks don't exist yet
       const y = yFor(s.ft);
-      ctx.strokeStyle = discovered ? 'rgba(230,225,210,0.55)' : 'rgba(160,200,255,0.55)';
+      ctx.strokeStyle = 'rgba(230,225,210,0.55)';
       ctx.lineWidth = Math.max(1, U);
       ctx.beginPath(); ctx.moveTo(x - 4 * U, y); ctx.lineTo(x + 3 * U * 0.6, y); ctx.stroke();
-      ctx.fillStyle = discovered ? 'rgba(230,225,210,0.8)' : 'rgba(160,200,255,0.85)';
-      ctx.fillText(discovered ? s.label : '???', x - 7 * U, y);
-      if (!discovered) unknownShown = true;
+      if (s === current) {
+        ctx.fillStyle = 'rgba(255,215,110,0.9)';
+        ctx.fillText(s.label, x - 7 * U, y);
+      }
     }
     // The pod, where it currently hangs — twitchy below the altimeter's grave
     const depth = Math.max(0, Math.min(C.DEPTH_MAX, Player.depthFeet()));
