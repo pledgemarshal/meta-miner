@@ -2218,6 +2218,35 @@ const Sprites = {
         ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(w * 0.46, -h * 0.42); ctx.stroke();
       }
 
+      // The headset throw: he pulls a VR headset from behind his back,
+      // hoists it overhead, and lets it fly
+      if (boss.attack === 'headset') {
+        const u = Math.min(1, boss.attackT / 0.55);
+        if (boss.attackT <= 0.55) {
+          const hx = -w * 0.55 + (w * 0.62) * u * u;
+          const hy = -h * 0.38 - (h * 0.74) * u;
+          ctx.strokeStyle = flash ? '#fff' : '#6e737c';
+          ctx.lineWidth = T * 0.15;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-w * 0.34, -h * 0.74);
+          ctx.quadraticCurveTo(-w * 0.72, -h * 0.55, hx, hy);
+          ctx.stroke();
+          ctx.fillStyle = flash ? '#fff' : '#e8c9a8';
+          ctx.beginPath(); ctx.arc(hx, hy, T * 0.07, 0, Math.PI * 2); ctx.fill();
+          Sprites.drawVrHeadset(ctx, hx, hy - T * 0.12, u * 2.2, 0.85);
+        } else {
+          // Follow-through: arm flung forward
+          ctx.strokeStyle = flash ? '#fff' : '#6e737c';
+          ctx.lineWidth = T * 0.15;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(-w * 0.34, -h * 0.74);
+          ctx.quadraticCurveTo(w * 0.2, -h * 1.05, w * 0.62, -h * 0.92);
+          ctx.stroke();
+        }
+      }
+
       // The NDA binder slam (melee): a corporate brick of paperwork
       if (boss.attack === 'cane') {
         const swing = Math.sin(boss.attackT * 12) * 0.8;
@@ -2594,8 +2623,12 @@ const Sprites = {
       ctx.fillStyle = '#7fb4e8';
       ctx.font = `bold ${Math.round(T * 0.13)}px Verdana`;
       ctx.textAlign = 'center';
-      ctx.fillText('SHIP', T * 0.41, T * 0.57);
-      ctx.fillText('IT', T * 0.41, T * 0.71);
+      ctx.save();
+      ctx.translate(T * 0.41, 0);
+      ctx.scale(facing, 1);   // undo the room mirror so the words read forward
+      ctx.fillText('SHIP', 0, T * 0.57);
+      ctx.fillText('IT', 0, T * 0.71);
+      ctx.restore();
     } else {
       // The company logo, watching
       ctx.strokeStyle = `rgba(120,170,255,${0.3 + 0.15 * Math.sin(t * 2 + phase)})`;
@@ -2604,6 +2637,50 @@ const Sprites = {
         ctx.beginPath(); ctx.arc(T * 0.4 + s * T * 0.08, T * 0.56, T * 0.07, 0, Math.PI * 2); ctx.stroke();
       }
     }
+
+    // Ceiling security camera — one per employee, tilted at the desk,
+    // recording light blinking
+    ctx.save();
+    ctx.translate(T * 0.14, T * 0.18);
+    ctx.strokeStyle = '#2c2f36';
+    ctx.lineWidth = T * 0.045;
+    ctx.beginPath(); ctx.moveTo(0, -T * 0.08); ctx.lineTo(T * 0.08, T * 0.04); ctx.stroke();
+    ctx.rotate(0.5);
+    ctx.fillStyle = '#31353f';
+    Sprites.rr(ctx, T * 0.02, 0, T * 0.28, T * 0.13, T * 0.04);
+    ctx.fill();
+    ctx.fillStyle = '#16181d';
+    ctx.fillRect(T * 0.28, T * 0.015, T * 0.06, T * 0.1);
+    ctx.fillStyle = Math.sin(t * 3.1 + phase) > 0 ? '#ff3a2a' : '#5a1f1a';
+    ctx.beginPath(); ctx.arc(T * 0.075, T * 0.045, T * 0.022, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // "AI TOKENS USED" wall counter, ticking ever upward
+    ctx.fillStyle = '#101216';
+    Sprites.rr(ctx, T * 0.86, T * 0.28, T * 0.78, T * 0.34, T * 0.04);
+    ctx.fill();
+    ctx.strokeStyle = '#2c2f36';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    Sprites.rr(ctx, T * 0.86, T * 0.28, T * 0.78, T * 0.34, T * 0.04);
+    ctx.stroke();
+    const toks = (1000000 + Math.floor(rnd(2) * 9000000) + Math.floor(t * (35 + rnd(10) * 90))).toLocaleString();
+    ctx.save();
+    ctx.translate(T * 1.25, 0);
+    ctx.scale(facing, 1);   // counter-flip so the readout reads forward
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#7fe8a0';
+    ctx.font = `bold ${Math.round(T * 0.082)}px Verdana`;
+    ctx.fillText('AI TOKENS USED', 0, T * 0.4);
+    ctx.font = `bold ${Math.round(T * 0.125)}px Verdana`;
+    ctx.fillText(toks, 0, T * 0.56);
+    ctx.restore();
+
+    // Everything on the floor is scaled down so the bros read closer to
+    // pod size (the motivational signage stays full-size, as is tradition)
+    ctx.save();
+    ctx.translate(T * 0.85, H - T * 0.18);
+    ctx.scale(0.78, 0.78);
+    ctx.translate(-T * 0.85, -(H - T * 0.18));
 
     // Desk with laptop, cups, cans — bro sits on the right, faces left
     const deskY = H - T * 0.62;
@@ -2720,6 +2797,7 @@ const Sprites = {
     ctx.beginPath(); ctx.moveTo(-T * 0.16, T * 0.12); ctx.lineTo(-T * 0.06, T * 0.12); ctx.stroke();  // mouth
     ctx.restore();
 
+    ctx.restore();   // end floor-scale group
     ctx.restore();   // end facing mirror
 
     // Glass front: sheen streaks and, in some cells, a smudged handprint
@@ -2752,6 +2830,36 @@ const Sprites = {
     ctx.strokeStyle = '#3a3f47';
     ctx.lineWidth = Math.max(1.5, T * 0.045);
     ctx.strokeRect(T * 0.05, T * 0.05, W - T * 0.1, H - T * 0.1);
+    ctx.restore();
+  },
+
+  // A consumer VR headset: pale shell, dark visor with two faint lenses,
+  // head strap arcing behind. Drawn spinning when airborne.
+  drawVrHeadset(ctx, sx, sy, rot, scale) {
+    const T = C.TILE * (scale || 1);
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(rot || 0);
+    // Strap
+    ctx.strokeStyle = '#3a3f47';
+    ctx.lineWidth = T * 0.055;
+    ctx.beginPath();
+    ctx.arc(T * 0.16, 0, T * 0.19, -Math.PI * 0.55, Math.PI * 0.55);
+    ctx.stroke();
+    // Shell
+    const g = ctx.createLinearGradient(0, -T * 0.14, 0, T * 0.14);
+    g.addColorStop(0, '#f0f1f4'); g.addColorStop(1, '#b8bdc6');
+    ctx.fillStyle = g;
+    Sprites.rr(ctx, -T * 0.26, -T * 0.15, T * 0.44, T * 0.3, T * 0.09);
+    ctx.fill();
+    // Visor face
+    ctx.fillStyle = '#16181d';
+    Sprites.rr(ctx, -T * 0.26, -T * 0.12, T * 0.14, T * 0.24, T * 0.06);
+    ctx.fill();
+    // Lens glints
+    ctx.fillStyle = 'rgba(125,224,255,0.7)';
+    ctx.beginPath(); ctx.arc(-T * 0.19, -T * 0.05, T * 0.025, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-T * 0.19, T * 0.05, T * 0.025, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   },
 

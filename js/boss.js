@@ -15,12 +15,14 @@ const Boss = {
   facing: 1,
   animTime: 0,
   hitFlash: 0,
-  attack: null,        // 'laser' | 'cane' | 'claw' | 'fireball' — internal keys; the visuals are themed per form
+  attack: null,        // 'headset' | 'cane' | 'claw' | 'fireball' | 'laser' — internal keys; visuals themed per form
   attackT: 0,
   attackCd: 2,
   laserAngle: 0,
   laserDir: 1,
   fireballs: [],       // form 2 plasma orbs {x, y, vx, vy, life}
+  headsets: [],        // form 1 thrown VR headsets {x, y, vx, vy, rot, spin, life}
+  aiChantT: 3,         // countdown to the next "AI. AI. AI. AI."
   betweenForms: false, // face-off cinematic + reveal dialog in progress
   faceFallT: 0,        // cinematic clock: mask detaches, falls, robot eyes boot
   _dialogShown: false,
@@ -41,6 +43,7 @@ const Boss = {
     this.attack = null;
     this.attackCd = 2.5;
     this.fireballs = [];
+    this.headsets = [];
     this.betweenForms = false;
     this.faceFallT = 0;
     this._dialogShown = false;
@@ -76,6 +79,7 @@ const Boss = {
     }, () => {
       Game.resumeFromDialog();
       this.attackCd = 1.6;
+      this.aiChantT = 2.5;
       Audio.play('roar');
       Game.shake(1.0);
       Game.toast('Your contract is being terminated.');
@@ -90,6 +94,7 @@ const Boss = {
     this.waiting = false;
     this.attack = null;
     this.fireballs = [];
+    this.headsets = [];
     this.betweenForms = false;
     this._dialogShown = false;
     this.hp = this.form === 1 ? C.BOSS.form1HP : C.BOSS.form2HP;
@@ -254,6 +259,15 @@ const Boss = {
     }
     this._touchCd = Math.max(0, (this._touchCd || 0) - dt);
 
+    // The CEO hypes himself up mid-fight
+    if (this.form === 1) {
+      this.aiChantT -= dt;
+      if (this.aiChantT <= 0) {
+        Audio.chantAI();
+        this.aiChantT = 7 + Math.random() * 4;
+      }
+    }
+
     // --- Attacks ---
     if (this.attack) {
       this.attackT += dt;
@@ -261,6 +275,32 @@ const Boss = {
     } else {
       this.attackCd -= dt;
       if (this.attackCd <= 0) this.pickAttack();
+    }
+
+    // Thrown VR headsets: ballistic, spinning, shattering on whatever they meet
+    for (let i = this.headsets.length - 1; i >= 0; i--) {
+      const hs = this.headsets[i];
+      hs.life -= dt;
+      hs.vy += C.GRAVITY * 0.5 * dt;
+      hs.x += hs.vx * dt;
+      hs.y += hs.vy * dt;
+      hs.rot += hs.spin * dt;
+      const shatter = () => {
+        Particles.burst(hs.x, hs.y, 12, { color: '#d8dce2', speed: 4.5, life: 0.5, size: 0.08 });
+        Particles.burst(hs.x, hs.y, 6, { color: '#7de0ff', speed: 3, life: 0.6, size: 0.06, glow: true });
+        Audio.play('clank');
+        this.headsets.splice(i, 1);
+      };
+      if (Math.abs(P.x - hs.x) < 0.75 && Math.abs(P.y - hs.y) < 0.75) {
+        P.damage(C.BOSS.headsetDmg, 'headset');
+        P.vx += Math.sign(hs.vx || 1) * 8;
+        P.vy -= 3;
+        shatter();
+        continue;
+      }
+      if (hs.y > this.arenaBottom() - 0.2 || hs.x < 1.3 || hs.x > C.WORLD_W - 1.3 || hs.life <= 0) {
+        shatter();
+      }
     }
 
     // Plasma orbs (form 2)
@@ -288,8 +328,9 @@ const Boss = {
   pickAttack() {
     const dist = Math.abs(Player.x - this.x);
     if (this.form === 1) {
-      // Up close: the NDA binder slam. At range: the KPI beam from his phone.
-      this.attack = dist < 3.5 && Math.random() < 0.6 ? 'cane' : 'laser';
+      // Up close: the NDA binder slam. At range: a VR headset from behind
+      // his back, hurled at the pod. Try the demo. TRY THE DEMO.
+      this.attack = dist < 3.5 && Math.random() < 0.6 ? 'cane' : 'headset';
     } else {
       // Up close: hydraulic claw. At range: plasma orbs or the red eye-beam.
       const r = Math.random();
@@ -369,6 +410,28 @@ const Boss = {
         if (this.attackT > 0.9) { this._fired = false; this.endAttack(2.2 + Math.random() * 1.2); }
         break;
       }
+      case 'headset': {
+        // Windup (reaching behind his back) is 0.55s, then the throw —
+        // a ballistic lob aimed to land on the pod
+        if (this.attackT > 0.55 && !this._thrown) {
+          this._thrown = true;
+          const ox = this.x + this.facing * 0.35, oy = this.y - 2.9;
+          const dx = P.x - ox, dy = P.y - oy;
+          const tf = Math.max(0.45, Math.min(1.1, Math.hypot(dx, dy) / 10));
+          const g2 = C.GRAVITY * 0.5;
+          this.headsets.push({
+            x: ox, y: oy,
+            vx: dx / tf,
+            vy: dy / tf - 0.5 * g2 * tf,
+            rot: 0,
+            spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 5),
+            life: 4,
+          });
+          Audio.play('fireball');
+        }
+        if (this.attackT > 0.85) { this._thrown = false; this.endAttack(1.9 + Math.random() * 1.3); }
+        break;
+      }
     }
   },
 
@@ -397,7 +460,7 @@ const Boss = {
     Sprites.drawBoss(ctx, sx, sy, this);
     Sprites.drawBossDesk(ctx, ox0, oy0, this.animTime);
 
-    // Sweeping attack beams
+    // Form 2's crackling red eye-beam: pulsing core wrapped in jittering arcs
     if (this.attack === 'laser') {
       const o = this.laserOrigin();
       const ox = (o.x - cam.x) * T, oy = (o.y - cam.y) * T;
@@ -406,65 +469,38 @@ const Boss = {
       const ey = oy + Math.sin(this.laserAngle) * len;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      if (this.form === 1) {
-        // THE ENGAGEMENT STREAM: a firehose of glowing likes from his phone.
-        // Hit by enough thumbs-ups, anything dies.
-        ctx.strokeStyle = 'rgba(120,180,255,0.28)';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
-        const spacing = T * 0.85;
-        const march = (this.animTime * T * 4.2) % spacing;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        for (let d = march; d < len; d += spacing) {
-          const px = ox + Math.cos(this.laserAngle) * d;
-          const py = oy + Math.sin(this.laserAngle) * d;
-          const pulse = 1 + 0.15 * Math.sin(this.animTime * 6 - d * 0.05);
-          ctx.save();
-          ctx.translate(px, py);
-          ctx.rotate(this.laserAngle);
-          ctx.scale(pulse, pulse);
-          ctx.shadowColor = '#4a9eff';
-          ctx.shadowBlur = 14;
-          ctx.fillStyle = 'rgba(56,120,240,0.95)';
-          Sprites.rr(ctx, -T * 0.19, -T * 0.19, T * 0.38, T * 0.38, T * 0.1);
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          ctx.font = `${Math.round(T * 0.26)}px Verdana`;
-          ctx.fillText('👍', 0, T * 0.02);
-          ctx.restore();
+      const g = ctx.createLinearGradient(ox, oy, ex, ey);
+      g.addColorStop(0, 'rgba(255,240,180,0.95)');
+      g.addColorStop(1, 'rgba(255,80,40,0)');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 6 + 3 * Math.sin(this.animTime * 30);
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+      // Electric arcs snapping around the core
+      const nx = -Math.sin(this.laserAngle), ny = Math.cos(this.laserAngle);
+      for (let a = 0; a < 2; a++) {
+        ctx.strokeStyle = `rgba(255,150,110,${0.5 + 0.3 * Math.random()})`;
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        const segs = 9;
+        for (let i = 1; i <= segs; i++) {
+          const d = (len * i) / segs;
+          const jit = (Math.random() - 0.5) * T * 0.5 * (i < segs ? 1 : 0.2);
+          ctx.lineTo(ox + Math.cos(this.laserAngle) * d + nx * jit,
+                     oy + Math.sin(this.laserAngle) * d + ny * jit);
         }
-      } else {
-        // Crackling red eye-beam: pulsing core wrapped in jittering arcs
-        const g = ctx.createLinearGradient(ox, oy, ex, ey);
-        g.addColorStop(0, 'rgba(255,240,180,0.95)');
-        g.addColorStop(1, 'rgba(255,80,40,0)');
-        ctx.strokeStyle = g;
-        ctx.lineWidth = 6 + 3 * Math.sin(this.animTime * 30);
-        ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
-        ctx.lineWidth = 2.5;
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
-        // Electric arcs snapping around the core
-        const nx = -Math.sin(this.laserAngle), ny = Math.cos(this.laserAngle);
-        for (let a = 0; a < 2; a++) {
-          ctx.strokeStyle = `rgba(255,150,110,${0.5 + 0.3 * Math.random()})`;
-          ctx.lineWidth = 1.6;
-          ctx.beginPath();
-          ctx.moveTo(ox, oy);
-          const segs = 9;
-          for (let i = 1; i <= segs; i++) {
-            const d = (len * i) / segs;
-            const jit = (Math.random() - 0.5) * T * 0.5 * (i < segs ? 1 : 0.2);
-            ctx.lineTo(ox + Math.cos(this.laserAngle) * d + nx * jit,
-                       oy + Math.sin(this.laserAngle) * d + ny * jit);
-          }
-          ctx.stroke();
-        }
+        ctx.stroke();
       }
       ctx.restore();
+    }
+
+    // Airborne VR headsets, spinning end over end
+    for (const hs of this.headsets) {
+      Sprites.drawVrHeadset(ctx, (hs.x - cam.x) * T, (hs.y - cam.y) * T, hs.rot, 1);
     }
 
     // Plasma orbs

@@ -329,6 +329,32 @@ const Audio = {
     this.noise(0.12, 0.12, 2600, 1.7);                 // squelch tail
   },
 
+  // The CEO's battle chant: "AI. AI. AI. AI." — spelled out so the TTS bites
+  // off each letter mechanically. A data-chirp soundwave carries it (and
+  // stands alone wherever speechSynthesis is unavailable).
+  chantAI() {
+    if (this.muted) return;
+    try {
+      const synth = window.speechSynthesis;
+      const voices = synth.getVoices();
+      const pick = voices.find(v => /david|mark|male/i.test(v.name) && /en/i.test(v.lang))
+        || voices.find(v => /en/i.test(v.lang));
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance('A. I. A. I. A. I. A. I.');
+      if (pick) u.voice = pick;
+      u.pitch = 0;
+      u.rate = 1.2;
+      u.volume = Math.max(0, Math.min(1, this.sfxVol));
+      synth.speak(u);
+    } catch (e) {}
+    // The soundwave underneath: two-note data pairs, one per "AI"
+    [0, 1, 2, 3].forEach(i => {
+      this.tone(1560, 0.05, 'square', 0.09, null, i * 0.22);
+      this.tone(2340, 0.06, 'square', 0.09, null, i * 0.22 + 0.08);
+    });
+    this.noise(0.1, 0.1, 3200, 0.05);   // vox crackle
+  },
+
   beep(pitch, vol) {
     this.tone(pitch, 0.07, 'square', vol || 0.16);
   },

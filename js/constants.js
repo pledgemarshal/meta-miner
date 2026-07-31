@@ -306,6 +306,7 @@ const C = {
     plasticDmg: 240,
     glancingDmg: 60,
     laserDmg: 14,
+    headsetDmg: 50,              // thrown VR headset — hits like an automaton's laser bolt
     caneDmg: 18,
     clawDmg: 20,
     fireballDmg: 10,             // per touch tick
