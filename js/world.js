@@ -69,9 +69,10 @@ const World = {
 
         // Hell: hollow arena below the impassable floor
         if (y > bottom) { this.grid[i] = 0; continue; }
-        // Impassable floor at -11,000 ft with one drillable gap at the far right
+        // Impassable floor at -11,000 ft with one drillable gap at the far
+        // right — two tiles wide, matching the cubicle cell it replaces
         if (y >= bottom - 1 && y <= bottom) {
-          this.grid[i] = (x === C.HELL_GAP_X) ? 1 : 2;
+          this.grid[i] = (x === C.HELL_GAP_X || x === C.HELL_GAP_X - 1) ? 1 : 2;
           continue;
         }
 
@@ -350,7 +351,7 @@ const World = {
         if (!this.inBounds(x, y) || y < 0) continue;
         if (x === 0 || x === C.WORLD_W - 1 || y >= C.WORLD_H - 2) continue;
         // The impassable floor resists blasting (except the gap column)
-        if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X) continue;
+        if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X && x !== C.HELL_GAP_X - 1) continue;
         const id = this.grid[y * C.WORLD_W + x];
         if (id === 8) { armed.push({ x, y }); continue; }
         if (id === this.kindIndex.serverDoor) continue;   // the sealed door shrugs off explosives
@@ -369,7 +370,7 @@ const World = {
       for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
         if (!this.inBounds(x, y) || y < 0) continue;
         if (x === 0 || x === C.WORLD_W - 1 || y >= C.WORLD_H - 2) continue;
-        if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X) continue;
+        if (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW && x !== C.HELL_GAP_X && x !== C.HELL_GAP_X - 1) continue;
         if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) > radius) continue;
         if (this.grid[y * C.WORLD_W + x] === 8) { armed.push({ x, y }); continue; }
         this.clear(x, y);

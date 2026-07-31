@@ -2619,13 +2619,9 @@ const Game = {
         // Hell's bedrock bands render as 2x2 glass cubicles of trapped tech
         // bros, forever coding. Each tile clips its quarter of the shared cell.
         if (id === 2 && (y >= C.WORLD_H - 2 || (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW))) {
+          // (The cell straddling the Hell-gap shaft is genuine 2-wide dirt in
+          // the grid now, so every stone tile here belongs to a full cubicle.)
           const cellX = Math.floor(x / 2) * 2;
-          // The cell straddling the Hell-gap shaft would render as half a
-          // room — draw those tiles as plain dirt so the throat reads clean
-          if (y <= C.GROUND_BOTTOM_ROW && cellX <= C.HELL_GAP_X && C.HELL_GAP_X <= cellX + 1) {
-            drawSoil(sx, sy, v);
-            continue;
-          }
           const cellY = y >= C.WORLD_H - 2 ? C.WORLD_H - 2 : C.GROUND_BOTTOM_ROW - 1;
           ctx.save();
           ctx.beginPath();
