@@ -38,6 +38,12 @@ const Game = {
   roboHeads: [],         // dropped automaton heads: { x, y, vy }
   openingDoors: [],      // vault doors mid-slide: { x, y, t, room }
   rockets: [],           // tracking nuclear rockets: { x, y, ang, heat, age, owner }
+  // Movement mini-tutorial: pulses a WASD diagram 2 s after the first dialog
+  tutPending: false,
+  tutT: 0,
+  tutActive: false,
+  tutFade: 0,
+  tutKeys: { up: false, left: false, down: false, right: false },
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -138,7 +144,12 @@ const Game = {
         return;
       }
 
-      if (keymap[e.code]) { this.input[keymap[e.code]] = true; e.preventDefault(); return; }
+      if (keymap[e.code]) {
+        this.input[keymap[e.code]] = true;
+        this.tutorialKey(keymap[e.code]);
+        e.preventDefault();
+        return;
+      }
 
       switch (e.code) {
         case 'KeyE': case 'Enter': {
@@ -208,7 +219,25 @@ const Game = {
 
   // --- State helpers ---
   pauseForDialog() { this.prevState = this.state; this.state = 'dialog'; },
-  resumeFromDialog() { this.state = 'play'; },
+  resumeFromDialog() {
+    this.state = 'play';
+    // First dialog dismissed: the movement tutorial arrives 2 s later
+    if (!Player.tutorialDone && !this.tutActive && !this.tutPending) {
+      this.tutPending = true;
+      this.tutT = 2;
+    }
+  },
+
+  // A movement key was pressed — fill its keycap in; all four ends the lesson
+  tutorialKey(dir) {
+    if (Player.tutorialDone) return;
+    this.tutKeys[dir] = true;
+    if (this.tutKeys.up && this.tutKeys.left && this.tutKeys.down && this.tutKeys.right) {
+      Player.tutorialDone = true;
+      this.tutActive = false;
+      this.tutPending = false;
+    }
+  },
   inHell() { return Player.y > C.GROUND_BOTTOM_ROW; },
   bossActive() { return Boss.bossActiveNearPlayer(); },
   overBuildingPad() { return false; },
@@ -368,6 +397,11 @@ const Game = {
     this.empFlash = 0;
     this.empRegenT = 0;
     this._serverIntro = false;
+    this.tutPending = false;
+    this.tutT = 0;
+    this.tutActive = false;
+    this.tutFade = 0;
+    this.tutKeys = { up: false, left: false, down: false, right: false };
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -1985,6 +2019,15 @@ const Game = {
     Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant));
     this.checkPyramids();
 
+    // Movement tutorial: appears 2 s after the first dialog closes, fades
+    // away for good once all four keys have been pressed
+    if (this.tutPending) {
+      this.tutT -= dt;
+      if (this.tutT <= 0) { this.tutPending = false; this.tutActive = true; }
+    }
+    const tutTarget = this.tutActive && !Player.tutorialDone ? 1 : 0;
+    this.tutFade += (tutTarget - this.tutFade) * Math.min(1, dt * 4);
+
     // Fuel-low banner: fires each time fuel crosses down through the warn line
     if (this.fuelWarnT > 0) this.fuelWarnT -= dt;
     const fuelFrac = Player.fuel / Player.fuelCap();
@@ -2145,6 +2188,7 @@ const Game = {
     this.drawGimmickFx(ctx);
     this.drawRobotFx(ctx);
     this.drawGhost(ctx);
+    this.drawTutorial(ctx);
     this.drawPopups(ctx);
 
     // Hurt vignette
@@ -4207,6 +4251,79 @@ const Game = {
       ctx.fillRect(sx - rad, sy - rad, rad * 2, rad * 2);
       ctx.restore();
     }
+  },
+
+  // --- Movement mini-tutorial: a WASD diagram that gently pulses. Pressed
+  // keys fill in and lose their direction arrow; all four ends the lesson. ---
+  drawTutorial(ctx) {
+    if (this.tutFade < 0.01) return;
+    const U = Math.min(1.8, Math.max(1, C.VIEW_W / 1100));
+    const s = 52 * U;                       // keycap size
+    const cx = C.VIEW_W / 2;
+    const cy = C.VIEW_H * 0.72;
+    const pulse = 0.62 + 0.26 * Math.sin(this.time * 2.2);
+    const a = this.tutFade * pulse;
+    const ink = al => `rgba(240,234,222,${al})`;
+
+    const keycap = (x, y, letter, pressed) => {
+      const r = s * 0.16;
+      ctx.lineWidth = Math.max(1.5, s * 0.045);
+      if (pressed) {
+        ctx.fillStyle = ink(a * 0.92);
+        Sprites.rr(ctx, x - s / 2, y - s / 2, s, s, r);
+        ctx.fill();
+        ctx.fillStyle = `rgba(30,27,22,${a})`;
+      } else {
+        ctx.strokeStyle = ink(a);
+        Sprites.rr(ctx, x - s / 2, y - s / 2, s, s, r);
+        ctx.stroke();
+        // Inner bevel line
+        ctx.lineWidth = Math.max(1, s * 0.025);
+        const inset = s * 0.1;
+        Sprites.rr(ctx, x - s / 2 + inset, y - s / 2 + inset, s - inset * 2, s - inset * 2, r * 0.6);
+        ctx.stroke();
+        ctx.fillStyle = ink(a);
+      }
+      ctx.font = `bold ${Math.round(s * 0.42)}px Verdana`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(letter, x, y + s * 0.03);
+    };
+    const arrow = (x, y, dx, dy) => {
+      const len = s * 0.42, head = s * 0.16;
+      ctx.strokeStyle = ink(a);
+      ctx.lineWidth = Math.max(1.5, s * 0.05);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + dx * len, y + dy * len);
+      // Head
+      const ex = x + dx * len, ey = y + dy * len;
+      ctx.moveTo(ex - dx * head - dy * head * 0.7, ey - dy * head - dx * head * 0.7);
+      ctx.lineTo(ex, ey);
+      ctx.lineTo(ex - dx * head + dy * head * 0.7, ey - dy * head + dx * head * 0.7);
+      ctx.stroke();
+    };
+
+    ctx.save();
+    const gap = s * 1.14;
+    const k = this.tutKeys;
+    // W above, A S D across
+    keycap(cx, cy - gap, 'W', k.up);
+    keycap(cx - gap, cy, 'A', k.left);
+    keycap(cx, cy, 'S', k.down);
+    keycap(cx + gap, cy, 'D', k.right);
+    if (!k.up) arrow(cx, cy - gap - s * 0.75, 0, -1);
+    if (!k.left) arrow(cx - gap - s * 0.75, cy, -1, 0);
+    if (!k.down) arrow(cx, cy + s * 0.75, 0, 1);
+    if (!k.right) arrow(cx + gap + s * 0.75, cy, 1, 0);
+    // Caption
+    ctx.font = `bold ${Math.round(15 * U)}px Verdana`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = ink(a);
+    ctx.fillText('USE KEYBOARD TO MOVE', cx, cy + s * 1.6);
+    ctx.restore();
   },
 
   drawPopups(ctx) {

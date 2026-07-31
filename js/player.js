@@ -41,6 +41,7 @@ const Player = {
     this.hasEmpHead = false;   // automaton head in the bay: hold Q to charge the EMP burst
     this.empCharges = C.EMP.charges;   // stored EMP uses; refill over time
     this.roboKills = 0;        // slain automatons; the 2nd halves EMP recharge time
+    this.tutorialDone = false; // movement mini-tutorial completed (all 4 keys pressed)
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -542,6 +543,7 @@ const Player = {
       hasEmpHead: this.hasEmpHead || false,
       empCharges: this.empCharges != null ? this.empCharges : C.EMP.charges,
       roboKills: this.roboKills || 0,
+      tutorialDone: this.tutorialDone || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -559,6 +561,7 @@ const Player = {
     this.hasEmpHead = !!d.hasEmpHead;
     this.empCharges = d.empCharges != null ? d.empCharges : C.EMP.charges;
     this.roboKills = d.roboKills || 0;
+    this.tutorialDone = !!d.tutorialDone;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },
