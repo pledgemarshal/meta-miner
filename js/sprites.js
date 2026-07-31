@@ -1298,16 +1298,20 @@ const Sprites = {
     g.addColorStop(1, '#175a78');
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.ellipse(T * 0.04, -T * 0.16, T * 0.235, T * 0.2, 0, Math.PI, 0); ctx.closePath(); ctx.fill();
-    // Pilot: suit, helmet, tinted visor
+    // Pilot: suit, helmet, tinted visor — clipped to the glass so nothing
+    // pokes out of the dome onto the hull
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(T * 0.04, -T * 0.16, T * 0.235, T * 0.2, 0, Math.PI, 0); ctx.closePath(); ctx.clip();
     ctx.fillStyle = '#c96a20';
-    this.rr(ctx, -T * 0.06, -T * 0.12, T * 0.17, T * 0.11, T * 0.04);
+    this.rr(ctx, -T * 0.06, -T * 0.2, T * 0.17, T * 0.12, T * 0.04);
     ctx.fill();
     ctx.fillStyle = '#e8e4da';
-    ctx.beginPath(); ctx.arc(T * 0.025, -T * 0.18, T * 0.08, 0, P2); ctx.fill();
+    ctx.beginPath(); ctx.arc(T * 0.025, -T * 0.24, T * 0.08, 0, P2); ctx.fill();
     ctx.fillStyle = '#20343f';
-    ctx.beginPath(); ctx.ellipse(T * 0.05, -T * 0.18, T * 0.048, T * 0.038, 0, 0, P2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(T * 0.05, -T * 0.24, T * 0.048, T * 0.038, 0, 0, P2); ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.beginPath(); ctx.ellipse(T * 0.06, -T * 0.19, T * 0.015, T * 0.01, 0, 0, P2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(T * 0.06, -T * 0.25, T * 0.015, T * 0.01, 0, 0, P2); ctx.fill();
+    ctx.restore();
     // Glass reflection arc
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.lineWidth = Math.max(1, T * 0.022);
