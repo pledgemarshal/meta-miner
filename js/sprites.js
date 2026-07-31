@@ -2158,11 +2158,18 @@ const Sprites = {
         ctx.fillRect(sx2 - T * 0.13 * s, -T * 0.14 * s, T * 0.05 * s, T * 0.1 * s);
         ctx.fillRect(sx2 - T * 0.05 * s, -T * 0.14 * s, T * 0.05 * s, T * 0.1 * s);
       };
-      // Khaki slacks
+      // Khaki slacks — seated over the chair while waiting, standing otherwise
       ctx.fillStyle = flash ? '#fff' : '#b3a077';
-      ctx.fillRect(-w * 0.3, -h * 0.38, w * 0.24, h * 0.34);
-      ctx.fillRect(w * 0.06, -h * 0.38, w * 0.24, h * 0.34);
-      sneaker(-w * 0.18); sneaker(w * 0.18);
+      if (boss.waiting) {
+        ctx.fillRect(-w * 0.22, -T * 1.04, T * 0.72, T * 0.26);   // thighs forward
+        ctx.fillRect(T * 0.3, -T * 0.8, T * 0.26, T * 0.8);       // shins down
+        sneaker(T * 0.44);
+        ctx.translate(0, T * 0.34);   // settle the torso into the chair
+      } else {
+        ctx.fillRect(-w * 0.3, -h * 0.38, w * 0.24, h * 0.34);
+        ctx.fillRect(w * 0.06, -h * 0.38, w * 0.24, h * 0.34);
+        sneaker(-w * 0.18); sneaker(w * 0.18);
+      }
       // The grey crew-neck
       const tee = ctx.createLinearGradient(0, -h * 0.85, 0, -h * 0.3);
       tee.addColorStop(0, flash ? '#fff' : '#8a8f98');
@@ -2236,6 +2243,7 @@ const Sprites = {
       }
 
       const headY = -h * 0.92;
+      const burning = (boss.mwBurnT || 0) > 0 && ft < 0;
       if (ft < 0) {
         // Human(ish) head: pale polymer skin, Caesar fringe, unblinking stare
         ctx.fillStyle = flash ? '#fff' : '#e8c9a8';
@@ -2243,19 +2251,67 @@ const Sprites = {
         ctx.fillStyle = flash ? '#eee' : '#4a3626';
         ctx.beginPath(); ctx.arc(0, headY, T * 0.34, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
         ctx.fillRect(-T * 0.34, headY - T * 0.2, T * 0.68, T * 0.1);
-        // Wide unblinking eyes — the right one has that little red glint
-        for (const s of [-1, 1]) {
-          ctx.fillStyle = '#fff';
-          ctx.beginPath(); ctx.arc(s * T * 0.13, headY + T * 0.02, T * 0.075, 0, Math.PI * 2); ctx.fill();
-          ctx.fillStyle = '#2c3a52';
-          ctx.beginPath(); ctx.arc(s * T * 0.13 + T * 0.02, headY + T * 0.02, T * 0.035, 0, Math.PI * 2); ctx.fill();
+        if (burning) {
+          // The polymer face DOES have a panic expression. It was expensive.
+          for (const s of [-1, 1]) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(s * T * 0.13, headY + T * 0.01, T * 0.1, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2c3a52';
+            ctx.beginPath(); ctx.arc(s * T * 0.13, headY - T * 0.02, T * 0.026, 0, Math.PI * 2); ctx.fill();
+            // Eyebrows way up
+            ctx.strokeStyle = 'rgba(60,45,32,0.9)';
+            ctx.lineWidth = Math.max(1.5, T * 0.028);
+            ctx.beginPath();
+            ctx.moveTo(s * T * 0.05, headY - T * 0.16);
+            ctx.lineTo(s * T * 0.2, headY - T * 0.13);
+            ctx.stroke();
+          }
+          // Screaming mouth, wobbling with the flames
+          ctx.fillStyle = '#3a1614';
+          ctx.beginPath();
+          ctx.ellipse(T * 0.01, headY + T * 0.19, T * 0.09, T * 0.12 + Math.sin(t * 18) * T * 0.02, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#a84a42';
+          ctx.beginPath(); ctx.ellipse(T * 0.01, headY + T * 0.24, T * 0.05, T * 0.04, 0, 0, Math.PI * 2); ctx.fill();
+        } else {
+          // Wide unblinking eyes — the right one has that little red glint
+          for (const s of [-1, 1]) {
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(s * T * 0.13, headY + T * 0.02, T * 0.075, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#2c3a52';
+            ctx.beginPath(); ctx.arc(s * T * 0.13 + T * 0.02, headY + T * 0.02, T * 0.035, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.fillStyle = '#ff3a2a';
+          ctx.beginPath(); ctx.arc(T * 0.15, headY + T * 0.01, T * 0.016, 0, Math.PI * 2); ctx.fill();
+          // A perfectly neutral mouth
+          ctx.strokeStyle = 'rgba(90,60,45,0.8)';
+          ctx.lineWidth = Math.max(1.5, T * 0.025);
+          ctx.beginPath(); ctx.moveTo(-T * 0.08, headY + T * 0.18); ctx.lineTo(T * 0.1, headY + T * 0.18); ctx.stroke();
         }
-        ctx.fillStyle = '#ff3a2a';
-        ctx.beginPath(); ctx.arc(T * 0.15, headY + T * 0.01, T * 0.016, 0, Math.PI * 2); ctx.fill();
-        // A perfectly neutral mouth
-        ctx.strokeStyle = 'rgba(90,60,45,0.8)';
-        ctx.lineWidth = Math.max(1.5, T * 0.025);
-        ctx.beginPath(); ctx.moveTo(-T * 0.08, headY + T * 0.18); ctx.lineTo(T * 0.1, headY + T * 0.18); ctx.stroke();
+        // On fire like a spectre: flame tongues licking up the tee and fringe
+        if (burning) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const spots = [[-w * 0.32, -h * 0.4], [w * 0.3, -h * 0.5], [0, -h * 0.64], [-w * 0.16, -h * 0.85], [w * 0.08, headY - T * 0.24]];
+          for (let i = 0; i < spots.length; i++) {
+            const wob = Math.sin(t * 9 + i * 2.4);
+            const fh = T * (0.36 + 0.12 * wob);
+            const fx0 = spots[i][0] + Math.sin(t * 5 + i) * T * 0.03, fy0 = spots[i][1];
+            ctx.fillStyle = 'rgba(255,120,30,0.7)';
+            ctx.beginPath();
+            ctx.moveTo(fx0 - T * 0.1, fy0);
+            ctx.quadraticCurveTo(fx0 - T * 0.11, fy0 - fh * 0.55, fx0 + wob * T * 0.07, fy0 - fh);
+            ctx.quadraticCurveTo(fx0 + T * 0.11, fy0 - fh * 0.55, fx0 + T * 0.1, fy0);
+            ctx.fill();
+            ctx.fillStyle = 'rgba(255,225,130,0.8)';
+            ctx.beginPath();
+            ctx.moveTo(fx0 - T * 0.05, fy0);
+            ctx.quadraticCurveTo(fx0 - T * 0.05, fy0 - fh * 0.35, fx0 + wob * T * 0.04, fy0 - fh * 0.6);
+            ctx.quadraticCurveTo(fx0 + T * 0.05, fy0 - fh * 0.35, fx0 + T * 0.05, fy0);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
       } else {
         // FACE-OFF CINEMATIC: chrome skull under the mask, eyes booting up
         this.bossSkull(ctx, T, 0, headY, t, flash, ft > 1.1 && (ft > 1.9 || Math.sin(ft * 34) > -0.2), true);
@@ -2363,7 +2419,114 @@ const Sprites = {
           ctx.restore();
         }
       }
+      // Under the beam the chrome sears molten, same as the security automatons
+      if ((boss.mwBurnT || 0) > 0) {
+        ctx.globalCompositeOperation = 'lighter';
+        const mg = ctx.createRadialGradient(0, -h * 0.6, T * 0.05, 0, -h * 0.55, T * 1.6);
+        mg.addColorStop(0, 'rgba(255,200,120,0.5)');
+        mg.addColorStop(1, 'rgba(255,120,40,0)');
+        ctx.fillStyle = mg;
+        ctx.fillRect(-w * 0.8, -h * 1.2, w * 1.6, h * 1.25);
+        // Panel seams glowing hot
+        ctx.strokeStyle = `rgba(255,170,80,${0.6 + 0.3 * Math.sin(t * 14)})`;
+        ctx.lineWidth = 2.5;
+        for (const px of [-w * 0.25, 0, w * 0.25]) {
+          ctx.beginPath(); ctx.moveTo(px, -h * 0.88); ctx.lineTo(px, -h * 0.36); ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+      }
     }
+    ctx.restore();
+  },
+
+  // The corner office set: a big leather chair (drawn BEHIND the boss)…
+  drawBossChair(ctx, sx, sy, t) {
+    const T = C.TILE;
+    ctx.save();
+    ctx.translate(sx, sy);
+    // Caster base: column + star feet + wheels
+    ctx.strokeStyle = '#2c2f36';
+    ctx.lineWidth = T * 0.09;
+    ctx.beginPath(); ctx.moveTo(-T * 0.28, -T * 0.88); ctx.lineTo(-T * 0.28, -T * 0.18); ctx.stroke();
+    ctx.lineWidth = T * 0.06;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(-T * 0.28, -T * 0.18);
+      ctx.lineTo(-T * 0.28 + s * T * 0.34, -T * 0.06);
+      ctx.stroke();
+      ctx.fillStyle = '#191b20';
+      ctx.beginPath(); ctx.arc(-T * 0.28 + s * T * 0.34, -T * 0.05, T * 0.055, 0, Math.PI * 2); ctx.fill();
+    }
+    // Seat + tall leather back with headrest
+    const leather = ctx.createLinearGradient(-T * 1.15, 0, -T * 0.4, 0);
+    leather.addColorStop(0, '#191b22'); leather.addColorStop(1, '#31353f');
+    ctx.fillStyle = leather;
+    this.rr(ctx, -T * 1.0, -T * 1.06, T * 1.5, T * 0.26, T * 0.1);   // seat
+    ctx.fill();
+    this.rr(ctx, -T * 1.18, -T * 2.85, T * 0.48, T * 2.0, T * 0.18); // back
+    ctx.fill();
+    this.rr(ctx, -T * 1.12, -T * 3.02, T * 0.4, T * 0.3, T * 0.12);  // headrest
+    ctx.fill();
+    // Stitch lines
+    ctx.strokeStyle = 'rgba(120,128,140,0.25)';
+    ctx.lineWidth = Math.max(1, T * 0.015);
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-T * 1.14, -T * 2.85 + i * T * 0.5);
+      ctx.lineTo(-T * 0.74, -T * 2.85 + i * T * 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  // …and the executive desk (drawn IN FRONT), monitor logo, coffee and all
+  drawBossDesk(ctx, sx, sy, t) {
+    const T = C.TILE;
+    ctx.save();
+    ctx.translate(sx, sy);
+    // Side panels
+    const wood = ctx.createLinearGradient(0, -T * 1.28, 0, 0);
+    wood.addColorStop(0, '#5a4028'); wood.addColorStop(1, '#332416');
+    ctx.fillStyle = '#42301e';
+    ctx.fillRect(T * 0.92, -T * 1.14, T * 0.16, T * 1.14);
+    ctx.fillRect(T * 2.42, -T * 1.14, T * 0.16, T * 1.14);
+    // Desktop slab
+    ctx.fillStyle = wood;
+    this.rr(ctx, T * 0.72, -T * 1.3, T * 2.05, T * 0.18, T * 0.05);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,220,170,0.14)';
+    ctx.fillRect(T * 0.72, -T * 1.3, T * 2.05, T * 0.045);
+    // Monitor, back to the room, company logo glowing on the shell
+    ctx.fillStyle = '#191b20';
+    ctx.fillRect(T * 1.95, -T * 1.44, T * 0.34, T * 0.16);          // stand
+    this.rr(ctx, T * 1.7, -T * 2.06, T * 0.84, T * 0.66, T * 0.08); // shell
+    ctx.fill();
+    const pulse = 0.6 + 0.4 * Math.sin(t * 2.2);
+    ctx.save();
+    ctx.shadowColor = '#4a9eff';
+    ctx.shadowBlur = 10 * pulse;
+    ctx.strokeStyle = `rgba(150,200,255,${0.5 + 0.3 * pulse})`;
+    ctx.lineWidth = Math.max(1.5, T * 0.035);
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.arc(T * 2.12 + s * T * 0.09, -T * 1.74, T * 0.075, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+    // Coffee mug with steam
+    ctx.fillStyle = '#c8d0da';
+    this.rr(ctx, T * 1.14, -T * 1.5, T * 0.2, T * 0.2, T * 0.03);
+    ctx.fill();
+    ctx.strokeStyle = '#c8d0da';
+    ctx.lineWidth = Math.max(1.5, T * 0.03);
+    ctx.beginPath(); ctx.arc(T * 1.37, -T * 1.4, T * 0.06, -Math.PI * 0.5, Math.PI * 0.5); ctx.stroke();
+    ctx.strokeStyle = 'rgba(220,230,240,0.35)';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(T * 1.24, -T * 1.54);
+    ctx.quadraticCurveTo(T * (1.24 + 0.05 * Math.sin(t * 2.5)), -T * 1.68, T * 1.24, -T * 1.82);
+    ctx.stroke();
+    // A thin stack of NDAs
+    ctx.fillStyle = '#e8e4da';
+    ctx.fillRect(T * 2.62, -T * 1.36, T * 0.34, T * 0.06);
     ctx.restore();
   },
 

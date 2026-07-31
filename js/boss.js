@@ -62,14 +62,24 @@ const Boss = {
     this.y = this.arenaBottom() - 0.01;
   },
 
-  // The intern has arrived at the corner office
+  // The intern has arrived at the corner office: he looks up from the phone,
+  // says his piece, and THEN the fight begins
   engage() {
     if (!this.waiting) return;
     this.waiting = false;
-    this.attackCd = 1.6;
-    Audio.play('roar');
-    Game.shake(1.0);
-    Game.toast('Your contract is being terminated.');
+    Game.pauseForDialog();
+    UI.transmission({
+      from: 'MARK ZUCKER-ORE — CEO of Meta-Minerals Inc.',
+      portrait: 'natas',
+      signal: 'SIGNAL SOURCE: ACROSS THE DESK',
+      text: 'Hello intern, it appears that you\'ve seen too much.\n\nI\'ll have to delete your data myself.',
+    }, () => {
+      Game.resumeFromDialog();
+      this.attackCd = 1.6;
+      Audio.play('roar');
+      Game.shake(1.0);
+      Game.toast('Your contract is being terminated.');
+    });
   },
 
   // Player fled the arena: fight resets, HP restored (as in the original),
@@ -88,11 +98,13 @@ const Boss = {
 
   // Sustained microwave damage — slower than explosives, but steady.
   // Cooking him mid-doomscroll counts as scheduling the meeting.
+  // No white hit-flash here: form 1 catches FIRE (with a face to match),
+  // form 2 sears molten like the security automatons.
   microwave(dt, rate) {
     if (!this.active || this.betweenForms || this.defeated) return;
     if (this.waiting) this.engage();
     this.hp -= C.BOSS.mwDps * rate * dt;
-    this.hitFlash = Math.max(this.hitFlash, 0.1);
+    this.mwBurnT = 0.22;
     if (this.hp <= 0) {
       if (this.form === 1) this.transition();
       else this.win();
@@ -177,6 +189,23 @@ const Boss = {
     if (Game.state !== 'play') return;
     this.animTime += dt;
     if (this.hitFlash > 0) this.hitFlash -= dt;
+    if ((this.mwBurnT || 0) > 0) {
+      this.mwBurnT -= dt;
+      // Burning under the beam: embers off the CEO, molten sparks off the bot
+      if (Math.random() < dt * 22) {
+        Particles.spawn({
+          x: this.x + (Math.random() - 0.5) * 0.9,
+          y: this.y - 0.6 - Math.random() * (this.form === 1 ? 2.4 : 3),
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: -1.5 - Math.random() * 2,
+          life: 0.5 + Math.random() * 0.4,
+          size: 0.09,
+          color: Math.random() < 0.5 ? '#ffb347' : '#ff7a2f',
+          glow: true,
+        });
+      }
+      if (Math.random() < dt * 6) Audio.play('crackle');
+    }
 
     // Player fled upward out of the arena?
     if (Player.y < this.arenaTop() - 3) { this.abort(); return; }
@@ -357,34 +386,84 @@ const Boss = {
 
   draw(ctx, cam) {
     if (!this.active || this.defeated) return;
-    const sx = (this.x - cam.x) * C.TILE;
-    const sy = (this.y - cam.y) * C.TILE;
+    const T = C.TILE;
+    const sx = (this.x - cam.x) * T;
+    const sy = (this.y - cam.y) * T;
+    // The corner office: chair behind him, desk in front. The set stays put
+    // when he stands up to terminate you — the empty chair keeps spinning.
+    const ox0 = (this.homeX() - cam.x) * T;
+    const oy0 = (this.arenaBottom() - cam.y) * T;
+    Sprites.drawBossChair(ctx, ox0, oy0, this.animTime);
     Sprites.drawBoss(ctx, sx, sy, this);
+    Sprites.drawBossDesk(ctx, ox0, oy0, this.animTime);
 
-    // Sweeping beam: cold Meta-blue from the phone, furnace-red from the eyes
+    // Sweeping attack beams
     if (this.attack === 'laser') {
       const o = this.laserOrigin();
-      const ox = (o.x - cam.x) * C.TILE, oy = (o.y - cam.y) * C.TILE;
-      const len = 14 * C.TILE;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
+      const ox = (o.x - cam.x) * T, oy = (o.y - cam.y) * T;
+      const len = 14 * T;
       const ex = ox + Math.cos(this.laserAngle) * len;
       const ey = oy + Math.sin(this.laserAngle) * len;
-      const g = ctx.createLinearGradient(ox, oy, ex, ey);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
       if (this.form === 1) {
-        g.addColorStop(0, 'rgba(190,230,255,0.95)');
-        g.addColorStop(1, 'rgba(40,110,255,0)');
+        // THE ENGAGEMENT STREAM: a firehose of glowing likes from his phone.
+        // Hit by enough thumbs-ups, anything dies.
+        ctx.strokeStyle = 'rgba(120,180,255,0.28)';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+        const spacing = T * 0.85;
+        const march = (this.animTime * T * 4.2) % spacing;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (let d = march; d < len; d += spacing) {
+          const px = ox + Math.cos(this.laserAngle) * d;
+          const py = oy + Math.sin(this.laserAngle) * d;
+          const pulse = 1 + 0.15 * Math.sin(this.animTime * 6 - d * 0.05);
+          ctx.save();
+          ctx.translate(px, py);
+          ctx.rotate(this.laserAngle);
+          ctx.scale(pulse, pulse);
+          ctx.shadowColor = '#4a9eff';
+          ctx.shadowBlur = 14;
+          ctx.fillStyle = 'rgba(56,120,240,0.95)';
+          Sprites.rr(ctx, -T * 0.19, -T * 0.19, T * 0.38, T * 0.38, T * 0.1);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.font = `${Math.round(T * 0.26)}px Verdana`;
+          ctx.fillText('👍', 0, T * 0.02);
+          ctx.restore();
+        }
       } else {
+        // Crackling red eye-beam: pulsing core wrapped in jittering arcs
+        const g = ctx.createLinearGradient(ox, oy, ex, ey);
         g.addColorStop(0, 'rgba(255,240,180,0.95)');
         g.addColorStop(1, 'rgba(255,80,40,0)');
+        ctx.strokeStyle = g;
+        ctx.lineWidth = 6 + 3 * Math.sin(this.animTime * 30);
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
+        // Electric arcs snapping around the core
+        const nx = -Math.sin(this.laserAngle), ny = Math.cos(this.laserAngle);
+        for (let a = 0; a < 2; a++) {
+          ctx.strokeStyle = `rgba(255,150,110,${0.5 + 0.3 * Math.random()})`;
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(ox, oy);
+          const segs = 9;
+          for (let i = 1; i <= segs; i++) {
+            const d = (len * i) / segs;
+            const jit = (Math.random() - 0.5) * T * 0.5 * (i < segs ? 1 : 0.2);
+            ctx.lineTo(ox + Math.cos(this.laserAngle) * d + nx * jit,
+                       oy + Math.sin(this.laserAngle) * d + ny * jit);
+          }
+          ctx.stroke();
+        }
       }
-      ctx.strokeStyle = g;
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(ex, ey); ctx.stroke();
       ctx.restore();
     }
 

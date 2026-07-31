@@ -135,6 +135,7 @@ const Story = {
         Player.hasMicrowave = true;
         UI.toast('MICROWAVE CANNON online — hold CLICK to fire');
         Audio.play('repair');
+        if (!Player.mwTutDone) Game.mwTutActive = true;   // pulse the click prompt
       }
       Game.resumeFromDialog();
     });

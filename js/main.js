@@ -52,6 +52,9 @@ const Game = {
   oreGuideActive: false,
   oreGuidePath: null,
   oreGuideT: 0,
+  // Microwave click prompt: pulses after the cannon-unlock transmission
+  mwTutActive: false,
+  mwTutFade: 0,
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -485,6 +488,8 @@ const Game = {
     this.oreGuideActive = false;
     this.oreGuidePath = null;
     this.oreGuideT = 0;
+    this.mwTutActive = false;
+    this.mwTutFade = 0;
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -639,6 +644,8 @@ const Game = {
     this.mwBeam = null;
     if (!firing) { Audio.setMicrowave(0); this._mwHeats = {}; this._mwAimX = null; return; }
     Audio.setMicrowave(1);
+    // First beam fired — the click prompt has done its job
+    if (this.mwTutActive) { this.mwTutActive = false; Player.mwTutDone = true; }
 
     // Worm-meat power-ups: each level heats 25% faster; level 2 widens the
     // focus to a 3x3 tile area
@@ -2015,23 +2022,31 @@ const Game = {
       Story.seen[t.depth] = true;
       if (t.bonus) Player.money += t.bonus;
     }
-    // Drop onto the hallway floor, 100 ft (8 tiles) from the corner office
-    Player.x = Boss.homeX() + 8;
-    Player.y = Boss.arenaBottom() - 0.51;
+    // Drop into a bored pocket on the Hell-gap column, 500 ft above the floor
+    // — the last leg is drilled in person, following the ember glow down
+    const row = C.feetToRow(C.rowToFeet(C.GROUND_BOTTOM_ROW) - 500);
+    const cx = C.HELL_GAP_X;
+    for (let y = row - 1; y <= row + 1; y++) {
+      for (let x = cx - 1; x <= cx + 1; x++) World.clear(x, y);
+    }
+    // Same courtesy shaft home as 'emp' — no one gets entombed by a cheat
+    for (let y = 0; y < row - 1; y++) World.clear(cx, y);
+    Player.x = cx + 0.5;
+    Player.y = row + 0.5;
     Player.vx = 0;
     Player.vy = 0;
     Player.drilling = null;
     Player.fallStartY = null;
     Player.frost = 0;
     Player.maxDepth = Math.max(Player.maxDepth || 0, Player.depthFeet());
-    // Snap the camera — no 11,000 ft lerp
+    // Snap the camera — no 10,500 ft lerp
     this.cam.x = Math.max(0, Math.min(C.WORLD_W - C.VIEW_W / C.TILE, Player.x - C.VIEW_W / C.TILE / 2));
     this.cam.y = Math.max(-C.SURFACE_ROWS, Math.min(C.WORLD_H - C.VIEW_H / C.TILE, Player.y - C.VIEW_H / C.TILE / 2));
     Audio.play('teleport');
     Particles.burst(Player.x, Player.y, 30, { color: '#7de0ff', speed: 6, life: 0.9, size: 0.11, glow: true });
     this.shake(0.8);
-    this.warn('CHEAT ACCEPTED — ELEVATOR TO THE CORNER OFFICE', '#8fd8ff');
-    this.toast('Full loadout installed. HR is expecting you — 100 ft to your left.');
+    this.warn('CHEAT ACCEPTED — ELEVATOR TO THE EXECUTIVE FLOOR', '#8fd8ff');
+    this.toast('Full loadout installed. The corner office is 500 ft straight down.');
   },
 
   // --- Save / load (mirrors the original save machine: gear + cash, not tunnels) ---
@@ -2153,6 +2168,8 @@ const Game = {
     }
     const tutTarget = this.tutActive && !Player.tutorialDone ? 1 : 0;
     this.tutFade += (tutTarget - this.tutFade) * Math.min(1, dt * 4);
+    const mwTutTarget = this.mwTutActive && !Player.mwTutDone ? 1 : 0;
+    this.mwTutFade += (mwTutTarget - this.mwTutFade) * Math.min(1, dt * 4);
 
     // Fuel-depot guide: trip 1 arms the first time the pod digs 4 tiles under;
     // trips 2-3 re-arm when the tank next drops into the red (see the warn
@@ -2361,6 +2378,7 @@ const Game = {
     this.drawRobotFx(ctx);
     this.drawGhost(ctx);
     this.drawTutorial(ctx);
+    this.drawMwTutorial(ctx);
     this.drawGuides(ctx);
     this.drawPopups(ctx);
 
@@ -4424,6 +4442,69 @@ const Game = {
       ctx.fillRect(sx - rad, sy - rad, rad * 2, rad * 2);
       ctx.restore();
     }
+  },
+
+  // --- Microwave click prompt: after the cannon-unlock transmission, a mouse
+  // with a flashing left button pulses on screen until the first beam fires ---
+  drawMwTutorial(ctx) {
+    if (this.mwTutFade < 0.01) return;
+    const U = Math.min(1.8, Math.max(1, C.VIEW_W / 1100));
+    const cx = C.VIEW_W / 2;
+    const cy = C.VIEW_H * 0.62;
+    const throb = 1 + 0.08 * Math.sin(this.time * 5);
+    const pulse = 0.62 + 0.32 * Math.sin(this.time * 4);
+    ctx.save();
+    ctx.globalAlpha = this.mwTutFade;
+    ctx.translate(cx, cy);
+    ctx.scale(throb * U, throb * U);
+    // Click-burst lines radiating off the button (like a click, not a halo)
+    ctx.strokeStyle = `rgba(255,220,140,${pulse})`;
+    ctx.lineWidth = 3.4;
+    ctx.lineCap = 'round';
+    for (const a of [-2.4, -1.9, -1.35]) {
+      const r0 = 26 + 5 * Math.sin(this.time * 4);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r0 - 8, Math.sin(a) * r0 - 30);
+      ctx.lineTo(Math.cos(a) * (r0 + 12) - 8, Math.sin(a) * (r0 + 12) - 30);
+      ctx.stroke();
+    }
+    // Mouse body
+    ctx.fillStyle = 'rgba(12,13,18,0.72)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2.6;
+    Sprites.rr(ctx, -21, -30, 42, 62, 20);
+    ctx.fill();
+    ctx.stroke();
+    // Button split lines
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.moveTo(-21, -6); ctx.lineTo(21, -6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(0, -30 + 4); ctx.moveTo(0, -30 + 4); ctx.lineTo(0, -6); ctx.stroke();
+    // LEFT button, flashing
+    ctx.save();
+    ctx.beginPath();
+    Sprites.rr(ctx, -21, -30, 42, 62, 20);
+    ctx.clip();
+    ctx.fillStyle = `rgba(255,210,80,${pulse})`;
+    ctx.fillRect(-21, -30, 21, 24);
+    ctx.restore();
+    // Scroll wheel
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    Sprites.rr(ctx, -2.6, -22, 5.2, 12, 2.6);
+    ctx.fill();
+    ctx.restore();
+    // Caption
+    ctx.save();
+    ctx.globalAlpha = this.mwTutFade;
+    ctx.textAlign = 'center';
+    ctx.font = `bold ${Math.round(15 * U)}px Verdana`;
+    ctx.fillStyle = '#ffd76e';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 6;
+    ctx.fillText('MICROWAVE CANNON ONLINE', cx, cy + 58 * U);
+    ctx.font = `${Math.round(13 * U)}px Verdana`;
+    ctx.fillStyle = '#efe9dc';
+    ctx.fillText('HOLD CLICK ANYWHERE TO FIRE THE BEAM', cx, cy + 80 * U);
+    ctx.restore();
   },
 
   // --- Movement mini-tutorial: a WASD diagram that gently pulses. Pressed
