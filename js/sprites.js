@@ -1337,7 +1337,7 @@ const Sprites = {
     ctx.beginPath(); ctx.arc(-T * 0.2, -T * 0.37, T * 0.07, 0, P2); ctx.fill();
 
     // ---- Microwave Cannon: a parabolic dish popped out of the roof, tracking
-    // the cursor. Only present once Mr. Natas activates it at -4,000 ft. ----
+    // the cursor. Only present once Mark Zucker-ore activates it at -3,000 ft. ----
     if (t.microwave && t.aim != null) {
       const aim = t.facing < 0 ? Math.PI - t.aim : t.aim;
       ctx.save();
@@ -2045,7 +2045,7 @@ const Sprites = {
     const flash = boss.hitFlash > 0;
 
     if (boss.form === 1) {
-      // Mr. Natas: tall suited figure, horns, monocle, cane
+      // Mark Zucker-ore: tall suited figure, horns, monocle, cane
       const h = T * 3.2, w = T * 1.3;
       ctx.translate(0, breathe);
       // Legs

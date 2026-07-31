@@ -1738,12 +1738,12 @@ const Game = {
     this.toast('Tactical nuclear detonation!');
   },
 
-  // Picking up the head: Mr. Natas slips, then covers — and you gain the EMP
+  // Picking up the head: Mark Zucker-ore slips, then covers — and you gain the EMP
   deliverHeadDialogue() {
     Audio.play('radio');
     this.pauseForDialog();
     UI.transmission({
-      from: 'Mr. Natas — Natas Mining Corp.',
+      from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
       text: 'Why are you destroying my... ugh...I mean...ugh...wow! Why are there servers down here? Are you okay? Looks like that machine is doing something? Try holding [Q].',
     }, () => {
@@ -4455,7 +4455,7 @@ const Game = {
     ctx.font = '15px Verdana';
     ctx.fillStyle = '#d8d3c8';
     const lines = [
-      'The thing wearing Mr. Natas\' face collapses into cooling slag.',
+      'The thing wearing Mark Zucker-ore\'s face collapses into cooling slag.',
       'The missing miners are avenged, and Mars is free of its buried tyrant.',
       '',
       'Spoils of victory:',
