@@ -203,6 +203,40 @@ const World = {
       lastRoomY = cy;
     }
 
+    // Wrecks of the radio miners: sealed pockets holding what's left of the
+    // pods you hear on the radio. Pod #3422-2 (the neighbor) near the quake
+    // that sealed him in at ~-4,100; Pod #10043 beside the jackpot vein that
+    // drew the wrong attention at ~-4,500. (Stamped last so the rand() calls
+    // don't shift the rest of the world for existing seeds.)
+    this.wrecks = [];
+    const stampWreck = (key, ft, vein) => {
+      const wy = Math.max(4, C.feetToRow(ft) + Math.floor(rand() * 5) - 2);
+      const wx = 4 + Math.floor(rand() * (W - 8));
+      for (let y = wy - 1; y <= wy; y++) {
+        for (let x = wx - 2; x <= wx + 2; x++) {
+          if (x > 0 && x < W - 1) this.grid[y * W + x] = 0;
+        }
+      }
+      if (vein) {
+        // The vein "goes on forever": a snaking run of ore out of the pocket
+        let vx = wx + 3, vy = wy;
+        for (let i = 0; i < 14; i++) {
+          if (vx > 0 && vx < W - 1 && vy > 2 && vy < C.GROUND_BOTTOM_ROW - 1
+              && this.grid[vy * W + vx] === 1) {
+            this.grid[vy * W + vx] = this.kindIndex[rand() < 0.65 ? 'emerald' : 'goldium'];
+          }
+          const r = rand();
+          if (r < 0.4) vx++;
+          else if (r < 0.6) vx--;
+          else if (r < 0.8) vy++;
+          else vy--;
+        }
+      }
+      this.wrecks.push({ key, x: wx + 0.5, y: wy + 0.5 });
+    };
+    stampWreck('w3422', 4100, false);
+    stampWreck('w10043', 4520, true);
+
     // Dormant nuclear warheads sleeping in the deep rock
     this.nukes = [];
     const nukeRow = C.feetToRow(C.NUKE.min);

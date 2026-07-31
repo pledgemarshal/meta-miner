@@ -112,8 +112,37 @@ const Story = {
     });
   },
 
+  // --- Reactive one-liners: Zucker-ore comments on things the player DID,
+  // not depths they reached. Each fires once per save (seen['q_<key>']),
+  // after a short beat so the dialog doesn't stomp on the explosion. ---
+  quips: {
+    robotKill: 'You destroyed company property, intern. That unit had a family. A PRODUCT family.\n\nThe replacement cost has been deducted from your bonus. There is no bonus.',
+    nuke: 'Legal reminds you that the warheads were buried for a REASON.\n\nMarketing asks how the mushroom cloud looked. Be specific — they need it for the pitch deck.',
+    curse: 'Legal has reviewed your mummy situation and ruled the curse a PRE-EXISTING CONDITION. Your health plan does not cover it.\n\nTry drilling faster than it can haunt.',
+    wormKill: 'You cooked the worm? Outstanding. Gastronomy is a growth vertical at Meta-Minerals.\n\nR&D says eat it. R&D is very insistent.',
+    frozen: 'Telemetry says you are frozen solid. HR has logged this as "taking initiative on cooling costs."\n\nThe microwave points at YOU for a reason, intern.',
+  },
+  pendingQuips: [],
+  quip(key) {
+    if (this.seen['q_' + key] || !this.quips[key]) return;
+    this.seen['q_' + key] = true;
+    this.pendingQuips.push({ key, at: Game.time + 2.2 });
+  },
+
   check() {
     if (Game.state !== 'play' || UI.isOpen()) return;
+    // Queued reactions go out first
+    if (this.pendingQuips.length && Game.time >= this.pendingQuips[0].at) {
+      const q = this.pendingQuips.shift();
+      Audio.play('radio');
+      Game.pauseForDialog();
+      UI.transmission({
+        from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
+        portrait: 'natas',
+        text: this.quips[q.key],
+      }, () => Game.resumeFromDialog());
+      return;
+    }
     const depth = Player.depthFeet();
     // Intro plays immediately at the start
     if (!this.seen[0]) { this.deliver(0); return; }

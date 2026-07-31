@@ -324,6 +324,7 @@ const Player = {
       if (this.cargo.length < this.cargoCap()) {
         this.cargo.push(kind.key);
         Audio.pickup(kind.mineral.value);
+        if (kind.mineral.value >= 20000) Audio.jackpot();   // ruby and up get the money bells
         Game.popup(d.x + 0.5, d.y + 0.2, '+$' + kind.mineral.value.toLocaleString());
         Particles.sparks(d.x + 0.5, d.y + 0.5);
         Story.firstOre();
@@ -342,6 +343,7 @@ const Player = {
       const a = kind.artifact;
       this.money += a.value;
       Audio.pickup(a.value);
+      if (a.value >= 50000) Audio.jackpot();   // big relics ring the bells too
       Game.popup(d.x + 0.5, d.y + 0.2, '+$' + a.value.toLocaleString(), '#ffd76e');
       Game.toast(`${a.name}! +$${a.value.toLocaleString()}`);
       Particles.burst(d.x + 0.5, d.y + 0.5, 14, { color: a.color, speed: 4, life: 0.7, size: 0.08, glow: true });

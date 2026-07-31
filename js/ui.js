@@ -590,6 +590,9 @@ const UI = {
       ix += 58 * U;
     }
 
+    // Strata gauge: the map of anticipation down the right edge
+    this.drawStrataGauge(ctx, U);
+
     // Dense strata warning: pulsing banner just like the fuel alert
     if (Game.rockWarnT > 0) {
       const pulse = 0.35 + 0.65 * Math.abs(Math.sin(Game.time * 6));
@@ -657,6 +660,69 @@ const UI = {
       ctx.shadowBlur = 0;
       ctx.restore();
     }
+    ctx.restore();
+  },
+
+  // --- Strata gauge: a thin depth ruler on the right edge. Landmarks appear
+  // as you reach them; the next one down shows only as "???" — a reason to
+  // keep digging. Deeper than that: nothing. The pod marker jitters once the
+  // altimeter dies at -10,000. Fades in on the first real descent. ---
+  STRATA: [
+    { ft: 0, label: 'SURFACE' },
+    { ft: 800, label: 'SPRINGS' },
+    { ft: 1000, label: 'LODESTONES' },
+    { ft: 1500, label: 'BOULDERS' },
+    { ft: 2000, label: 'PYRAMIDS' },
+    { ft: 3000, label: 'LAVA' },
+    { ft: 4000, label: 'WARHEADS' },
+    { ft: 4750, label: 'GAS' },
+    { ft: 5000, label: 'THE WORM' },
+    { ft: 6000, label: 'PERMAFROST' },
+    { ft: 7700, label: 'SERVER FARMS' },
+    { ft: 10000, label: 'NO SIGNAL' },
+    { ft: 11000, label: 'THE FLOOR' },
+  ],
+  drawStrataGauge(ctx, U) {
+    const maxD = Player.maxDepth || 0;
+    const alpha = Math.max(0, Math.min(1, (maxD - 120) / 200));
+    if (alpha <= 0.01) return;
+    const x = C.VIEW_W - 14 * U;
+    const top = C.VIEW_H * 0.2, bot = C.VIEW_H * 0.86;
+    const yFor = ft => top + (bot - top) * (ft / C.DEPTH_MAX);
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.8;
+    // Spine
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = Math.max(1.5, 2 * U * 0.7);
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
+    // Landmarks: reached ones by name, the next one as ???, the rest unseen
+    ctx.font = `${Math.round(9.5 * U)}px Verdana`;
+    ctx.textAlign = 'right';
+    let unknownShown = false;
+    for (const s of this.STRATA) {
+      const discovered = s.ft === 0 || maxD >= s.ft;
+      if (!discovered && unknownShown) break;
+      const y = yFor(s.ft);
+      ctx.strokeStyle = discovered ? 'rgba(230,225,210,0.55)' : 'rgba(160,200,255,0.55)';
+      ctx.lineWidth = Math.max(1, U);
+      ctx.beginPath(); ctx.moveTo(x - 4 * U, y); ctx.lineTo(x + 3 * U * 0.6, y); ctx.stroke();
+      ctx.fillStyle = discovered ? 'rgba(230,225,210,0.8)' : 'rgba(160,200,255,0.85)';
+      ctx.fillText(discovered ? s.label : '???', x - 7 * U, y);
+      if (!discovered) unknownShown = true;
+    }
+    // The pod, where it currently hangs — twitchy below the altimeter's grave
+    const depth = Math.max(0, Math.min(C.DEPTH_MAX, Player.depthFeet()));
+    let py = yFor(depth);
+    if (Player.depthFeet() > C.ALTIMETER_FAIL) {
+      py += Math.sin(Game.time * 43) * 3.5 + Math.sin(Game.time * 17) * 2.5;
+    }
+    ctx.fillStyle = '#ffd76e';
+    ctx.beginPath();
+    ctx.moveTo(x - 7 * U, py - 4 * U);
+    ctx.lineTo(x - 7 * U, py + 4 * U);
+    ctx.lineTo(x - 1.2 * U, py);
+    ctx.closePath();
+    ctx.fill();
     ctx.restore();
   },
 

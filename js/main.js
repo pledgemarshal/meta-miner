@@ -977,6 +977,7 @@ const Game = {
   },
 
   detonateNuke(n) {
+    Story.quip('nuke');
     World.clear(n.x, n.y);
     // Other warheads caught in the blast chain-arm on a short fuse
     World.blast(n.x, n.y, C.NUKE.blastRadius)
@@ -1217,6 +1218,7 @@ const Game = {
       });
     }
     Player.money += C.WORM.bounty;
+    Story.quip('wormKill');
     this.popup(w.x, w.y - 1, '+$' + C.WORM.bounty.toLocaleString(), '#9dff5a');
     this.toast(`Worm destroyed! Bounty +$${C.WORM.bounty.toLocaleString()}`);
     this.shake(1.2);
@@ -1245,6 +1247,7 @@ const Game = {
     this.warn("THE PHARAOH'S SPIRIT AWAKENS!", '#ffd76e');
     this.shake(1);
     this.spawnGhost({ cursed: true });
+    Story.quip('curse');
   },
 
   // --- AI server rooms: vaults in the deep permafrost. Any casing tile lost
@@ -1699,6 +1702,7 @@ const Game = {
     this.robots.splice(i, 1);
     if (r.room) r.room.robotDown = true;
     Player.roboKills = (Player.roboKills || 0) + 1;
+    Story.quip('robotKill');
     if (Player.roboKills === 2) {
       this.warn('AUTOMATON DATA ASSIMILATED — EMP RECHARGES 2x FASTER!', '#8fd8ff');
     }
@@ -2078,6 +2082,9 @@ const Game = {
       seed: World.seed,
     };
     try { localStorage.setItem(C.SAVE_KEY, JSON.stringify(data)); } catch (e) {}
+    // Remember when and how rich — the death screen reports what a wipe costs
+    this.lastSaveAt = performance.now();
+    this.lastSaveMoney = Player.money;
     this.score = 0;      // saving resets score, as in the original
   },
 
@@ -2093,6 +2100,8 @@ const Game = {
     Player.restore(data.player);
     Story.restore(data.story);
     Boss.restore(data.boss);
+    this.lastSaveAt = performance.now();
+    this.lastSaveMoney = Player.money;
     this.score = 0;
     this.ghost = null;
     this.ghostStage = 0;
@@ -2140,12 +2149,19 @@ const Game = {
     if (this.shakeT > 0) this.shakeT -= dt; else this.shakeMag = 0;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
 
-    // Music sits forward on the title screen, tucks behind the mining underground
-    Audio.setMusicLevel(this.state === 'title' ? 0.5 : 0.18);
+    // Music sits forward on the title screen, tucks behind the mining
+    // underground — and thins further with depth, like pressure on the ears.
+    // Hold music (Hell's waiting room) pushes it nearly out entirely.
+    const depthTaper = 1 - 0.4 * Math.max(0, Math.min(1, Player.depthFeet() / C.DEPTH_MAX));
+    Audio.setMusicLevel(this.state === 'title' ? 0.5 : (Audio.holdNodes ? 0.05 : 0.18 * depthTaper));
 
     if (this.state !== 'play') {
       Particles.update(dt);
-      if (this.state !== 'dialog') Audio.setBattleMusic(false);   // fight's over (or never was)
+      if (this.state !== 'dialog') {
+        Audio.setBattleMusic(false);   // fight's over (or never was)
+        Audio.setHoldMusic(false);
+        Audio.setHeartbeat(0);
+      }
       Audio.setWind(0); Audio.setTreads(0); Audio.setGeyser(0); Audio.setRumble(0); Audio.setMagnet(0); Audio.setMicrowave(0); Audio.thrustOff();
       return;
     }
@@ -2178,6 +2194,12 @@ const Game = {
     // Battle track while a vault door is opening or an automaton is hunting;
     // the ambient track returns once the last one falls or powers down
     Audio.setBattleMusic(this.openingDoors.length > 0 || this.robots.some(r => !r.dormant) || Boss.bossActiveNearPlayer());
+    // Hold music while the CEO keeps you waiting; a heartbeat under 20% hull;
+    // and the deep pressing quietly into the mix from -2,000 down
+    Audio.setHoldMusic(this.inHell() && Boss.active && Boss.waiting && !Player.dead);
+    const hullFrac = Player.hull / Player.hullCap();
+    Audio.setHeartbeat(Player.dead || hullFrac >= 0.2 ? 0 : (0.2 - hullFrac) / 0.2);
+    Audio.setDepthPressure((Player.depthFeet() - 2000) / 9000);
     this.checkPyramids();
 
     // Movement tutorial: appears 2 s after the first dialog closes, fades
@@ -2231,6 +2253,39 @@ const Game = {
       }
     }
 
+    // Black boxes: brushing an unrecovered wreck plays its final log and
+    // pays out the salvage. The wreck itself stays where it died.
+    if (World.wrecks && !Player.dead) {
+      for (const w of World.wrecks) {
+        if (Story.seen['wreck_' + w.key]) continue;
+        if (Math.abs(Player.x - w.x) > 1.2 || Math.abs(Player.y - w.y) > 1.2) continue;
+        Story.seen['wreck_' + w.key] = true;
+        const isNeighbor = w.key === 'w3422';
+        Audio.play('radio');
+        this.pauseForDialog();
+        UI.transmission(isNeighbor ? {
+          from: 'POD #3422-2 — BLACK BOX',
+          portrait: 'miner',
+          signal: 'LOCAL PLAYBACK — FINAL ENTRY',
+          text: '…tell Mara the Jovian tickets are in the blue locker. Tell the kids the tunnels weren\'t scary. Not even at the end.\n\nIt was good digging next to you, neighbor.\n\n[RECOVERED: hazard-pay chit ($15,000) — and a message worth carrying home]',
+        } : {
+          from: 'POD #10043 — BLACK BOX',
+          portrait: 'miner',
+          signal: 'LOCAL PLAYBACK — FINAL ENTRY',
+          text: 'JACKPOT! Biggest vein I\'ve ever— …wait.\n\nThe rock is moving. The rock is MOVING—\n\n[RECOVERED: claim beacon ($10,000). The vein is still here. So is whatever found him.]',
+        }, () => {
+          const pay = isNeighbor ? 15000 : 10000;
+          Player.money += pay;
+          Audio.play('sell');
+          this.toast(isNeighbor
+            ? `Black box recovered: +$${pay.toLocaleString()} — his last message rides with you now`
+            : `Claim salvaged: +$${pay.toLocaleString()}`);
+          this.resumeFromDialog();
+        });
+        break;
+      }
+    }
+
     // Upgrade-shop guide: chevrons to the outfitter until the menu is opened
     if (this.shopGuideActive && !Player.shopGuideDone) {
       this.shopGuideT -= dt;
@@ -2271,6 +2326,7 @@ const Game = {
       Audio.play('shatter');
       this.shake(0.6);
       Particles.burst(Player.x, Player.y, 24, { color: '#cfeefc', speed: 5, life: 0.8, size: 0.11, glow: true });
+      Story.quip('frozen');
     }
     this._prevFrost = Player.frost || 0;
 
@@ -2323,6 +2379,7 @@ const Game = {
 
     this.drawSky(ctx);
     this.drawTiles(ctx);
+    this.drawWrecks(ctx);
     this.drawBuildings(ctx);
     this.drawHellDecor(ctx);
     Boss.draw(ctx, this.cam);
@@ -4853,6 +4910,16 @@ const Game = {
     ctx.restore();
   },
 
+  drawWrecks(ctx) {
+    if (!World.wrecks) return;
+    const T = C.TILE;
+    for (const w of World.wrecks) {
+      const sx = (w.x - this.cam.x) * T, sy = (w.y - this.cam.y) * T;
+      if (sx < -T * 2 || sx > C.VIEW_W + T * 2 || sy < -T * 2 || sy > C.VIEW_H + T * 2) continue;
+      Sprites.drawWreck(ctx, sx, sy, this.time, !!Story.seen['wreck_' + w.key]);
+    }
+  },
+
   drawPopups(ctx) {
     if (!this.popups.length) return;
     ctx.save();
@@ -4968,9 +5035,28 @@ const Game = {
       fireball: 'Your contract has been terminated.',
     };
     ctx.fillText(causes[this.deathCause] || 'The Martian soil claims another digger.', C.VIEW_W / 2, C.VIEW_H * 0.44);
+    // The honest accounting: what this death actually costs
+    ctx.font = '14px Verdana';
+    ctx.fillStyle = '#9a958a';
+    const save = this.loadSaveData();
+    if (save && this.lastSaveAt != null) {
+      const mins = (performance.now() - this.lastSaveAt) / 60000;
+      const ago = mins < 1 ? 'moments ago' : mins < 90 ? `${Math.round(mins)} min ago` : `${(mins / 60).toFixed(1)} h ago`;
+      const unbanked = Math.max(0, Player.money - (this.lastSaveMoney || 0));
+      const cargoVal = Player.cargoValue();
+      ctx.fillText(`Last save: ${ago}`, C.VIEW_W / 2, C.VIEW_H * 0.49);
+      const losses = [];
+      if (unbanked > 0) losses.push(`$${unbanked.toLocaleString()} unbanked earnings`);
+      if (cargoVal > 0) losses.push(`$${cargoVal.toLocaleString()} of cargo`);
+      ctx.fillStyle = losses.length ? '#e8a06a' : '#9a958a';
+      ctx.fillText(losses.length ? `Lost with the pod: ${losses.join('  ·  ')}` : 'Nothing unbanked — the save has it all.',
+        C.VIEW_W / 2, C.VIEW_H * 0.523);
+    } else if (!save) {
+      ctx.fillText('No save on file — this run restarts from the surface.', C.VIEW_W / 2, C.VIEW_H * 0.49);
+    }
     ctx.font = 'bold 17px Verdana';
     ctx.fillStyle = '#7dffb0';
-    ctx.fillText(this.loadSaveData() ? 'ENTER — reload last save' : 'ENTER — start over', C.VIEW_W / 2, C.VIEW_H * 0.58);
+    ctx.fillText(save ? 'ENTER — reload last save' : 'ENTER — start over', C.VIEW_W / 2, C.VIEW_H * 0.58);
     ctx.restore();
   },
 
@@ -4989,12 +5075,17 @@ const Game = {
     const lines = [
       'The Zucker-Tron 9000 collapses in a shower of sparks and shareholder value.',
       'The missing miners are avenged, and Mars is free of its buried middle management.',
+    ];
+    if (Story.seen.wreck_w3422) {
+      lines.push('And #3422-2\'s last message goes home — his family gets his shares.');
+    }
+    lines.push(
       '',
       'Spoils of victory:',
       'Company shares, scrap chrome & hazard pay — $' + C.BOSS.victoryCash.toLocaleString(),
       '',
       'Final wealth: $' + Player.money.toLocaleString() + '        Score: ' + this.score.toLocaleString(),
-    ];
+    );
     lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.38 + i * 24));
     ctx.font = 'bold 17px Verdana';
     ctx.fillStyle = '#7dffb0';

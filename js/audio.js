@@ -401,6 +401,123 @@ const Audio = {
     this.tone(pitch, 0.07, 'square', vol || 0.16);
   },
 
+  // --- Hell's hold music: tinny corporate muzak through a telephone bandpass,
+  // playing while the CEO keeps you waiting. Battle track replaces it when the
+  // meeting starts. A PA voice checks in periodically.
+  holdNodes: null,
+  setHoldMusic(on) {
+    if (on === !!this.holdNodes) return;
+    if (!on) {
+      const h = this.holdNodes;
+      this.holdNodes = null;
+      try { clearInterval(h.timer); h.gain.disconnect(); } catch (e) {}
+      return;
+    }
+    if (!this.ensure() || this.muted) return;
+    // Everything routes through a narrow "cheap phone speaker" band
+    const phone = this.ctx.createBiquadFilter();
+    phone.type = 'bandpass';
+    phone.frequency.value = 1400;
+    phone.Q.value = 0.45;
+    const gain = this.ctx.createGain();
+    gain.gain.value = 0.34;
+    phone.connect(gain);
+    gain.connect(this.master);
+    // Smooth-jazz arpeggio in C, eighth notes, chord pad flipping every bar
+    const MELODY = [523, 659, 784, 880, 784, 659, 587, 659, 523, 659, 784, 988, 880, 784, 659, 587];
+    const CHORDS = [[131, 165, 196], [175, 220, 262]];
+    let step = 0;
+    const note = (f, dur, vol, type) => {
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = type || 'triangle';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(vol, this.ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+      o.connect(g); g.connect(phone);
+      o.start(); o.stop(this.ctx.currentTime + dur);
+    };
+    const timer = setInterval(() => {
+      if (this.muted || !this.holdNodes) return;
+      note(MELODY[step % 16], 0.5, 0.12);
+      if (step % 8 === 0) for (const f of CHORDS[(step >> 3) % 2]) note(f, 2.2, 0.05, 'sine');
+      if (step % 2 === 1) this.noise(0.03, 0.035, 5000, 0);   // brush tick
+      step++;
+      // The PA checks in roughly twice a minute
+      if (step % 96 === 48) {
+        try {
+          const synth = window.speechSynthesis;
+          const u = new SpeechSynthesisUtterance('Your termination is important to us. Please continue to hold.');
+          const pick = synth.getVoices().find(v => /zira|susan|female|hazel/i.test(v.name) && /en/i.test(v.lang));
+          if (pick) u.voice = pick;
+          u.pitch = 1.15;
+          u.rate = 1.0;
+          u.volume = Math.max(0, Math.min(1, this.sfxVol * 0.7));
+          synth.speak(u);
+        } catch (e) {}
+      }
+    }, 280);
+    this.holdNodes = { phone, gain, timer };
+  },
+
+  // --- Hull-critical heartbeat: a slow lub-dub under 20% hull, louder as it
+  // gets worse. level: 0 (off) .. 1 (nearly dead).
+  _heartTimer: null,
+  heartLevel: 0,
+  setHeartbeat(level) {
+    this.heartLevel = Math.max(0, Math.min(1, level));
+    if (this.heartLevel > 0 && !this._heartTimer && this.ensure() && !this.muted) {
+      const thump = () => {
+        if (this.muted || this.heartLevel <= 0) return;
+        const v = this.heartLevel;
+        this.tone(62, 0.15, 'sine', 0.24 * (0.4 + 0.6 * v), 40, 0);
+        this.tone(56, 0.12, 'sine', 0.16 * (0.4 + 0.6 * v), 38, 0.17);
+      };
+      thump();
+      this._heartTimer = setInterval(thump, 900);
+    } else if (this.heartLevel <= 0 && this._heartTimer) {
+      clearInterval(this._heartTimer);
+      this._heartTimer = null;
+    }
+  },
+
+  // --- Depth pressure: a nearly-subliminal low rumble bed that swells as the
+  // pod sinks, so the deep feels heavier than the surface. f: 0..1.
+  depthBed: null,
+  setDepthPressure(f) {
+    f = Math.max(0, Math.min(1, f));
+    if (f > 0.02 && !this.depthBed && this.ensure() && !this.muted) {
+      const len = this.ctx.sampleRate * 2;
+      const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      let last = 0;
+      for (let i = 0; i < len; i++) { last = last * 0.94 + (Math.random() * 2 - 1) * 0.06; d[i] = last * 4; }
+      const src = this.ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 110;
+      const g = this.ctx.createGain();
+      g.gain.value = 0;
+      src.connect(lp); lp.connect(g); g.connect(this.master);
+      src.start();
+      this.depthBed = { src, g };
+    }
+    if (this.depthBed) {
+      this.depthBed.g.gain.value = 0.055 * f;
+      if (f <= 0.02) {
+        try { this.depthBed.src.stop(); } catch (e) {}
+        this.depthBed = null;
+      }
+    }
+  },
+
+  // --- Jackpot sting for the big finds: an ascending money-bell arpeggio ---
+  jackpot() {
+    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.35, 'triangle', 0.13, null, i * 0.07));
+    this.tone(1568, 0.55, 'sine', 0.07, null, 0.3);
+    this.tone(2093, 0.4, 'sine', 0.05, null, 0.38);
+  },
+
   startDrill() {
     if (!this.ensure() || this.muted || this.drillNode) return;
     const osc = this.ctx.createOscillator();

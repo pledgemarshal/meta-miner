@@ -2871,6 +2871,69 @@ const Sprites = {
     ctx.restore();
   },
 
+  // A dead miner's pod, half-buried where its last run ended: scorched hull,
+  // cracked dome, thrown tread. The emergency beacon blinks until the black
+  // box is recovered.
+  drawWreck(ctx, sx, sy, t, looted) {
+    const T = C.TILE;
+    ctx.save();
+    ctx.translate(sx, sy + T * 0.18);
+    ctx.rotate(-0.16);
+    // Dust drift piled against the hull
+    ctx.fillStyle = 'rgba(122,78,48,0.9)';
+    ctx.beginPath(); ctx.ellipse(0, T * 0.3, T * 0.62, T * 0.16, 0, Math.PI, 0); ctx.fill();
+    // Thrown tread lying beside the pod
+    ctx.fillStyle = '#3a3d44';
+    this.rr(ctx, T * 0.42, T * 0.16, T * 0.42, T * 0.13, T * 0.06);
+    ctx.fill();
+    // Scorched hull: the familiar pod silhouette gone dark
+    const hull = ctx.createLinearGradient(0, -T * 0.36, 0, T * 0.26);
+    hull.addColorStop(0, '#7a5a28');
+    hull.addColorStop(1, '#4a3418');
+    ctx.fillStyle = hull;
+    this.rr(ctx, -T * 0.44, -T * 0.2, T * 0.88, T * 0.46, T * 0.12);
+    ctx.fill();
+    // Scorch streaks
+    ctx.fillStyle = 'rgba(20,14,10,0.55)';
+    this.rr(ctx, -T * 0.34, -T * 0.06, T * 0.3, T * 0.28, T * 0.06);
+    ctx.fill();
+    // Cracked dome, dark inside
+    ctx.fillStyle = '#1b2430';
+    ctx.beginPath(); ctx.arc(T * 0.02, -T * 0.2, T * 0.24, Math.PI, 0); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,180,205,0.5)';
+    ctx.lineWidth = Math.max(1, T * 0.02);
+    ctx.beginPath();
+    ctx.moveTo(-T * 0.1, -T * 0.32);
+    ctx.lineTo(T * 0.0, -T * 0.22);
+    ctx.lineTo(-T * 0.06, -T * 0.12);
+    ctx.moveTo(T * 0.0, -T * 0.22);
+    ctx.lineTo(T * 0.1, -T * 0.18);
+    ctx.stroke();
+    // Bent drill nose, dug into the dirt
+    ctx.fillStyle = '#6a7078';
+    ctx.save();
+    ctx.translate(-T * 0.5, T * 0.12);
+    ctx.rotate(0.55);
+    ctx.beginPath();
+    ctx.moveTo(0, -T * 0.09); ctx.lineTo(-T * 0.3, 0); ctx.lineTo(0, T * 0.09);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Emergency beacon: blinking until the black box is pulled
+    if (!looted) {
+      const on = Math.sin(t * 3.4) > 0.55;
+      ctx.fillStyle = on ? '#ff3a2a' : '#5a1f1a';
+      ctx.beginPath(); ctx.arc(T * 0.3, -T * 0.3, T * 0.045, 0, Math.PI * 2); ctx.fill();
+      if (on) {
+        const g = ctx.createRadialGradient(T * 0.3, -T * 0.3, T * 0.02, T * 0.3, -T * 0.3, T * 0.4);
+        g.addColorStop(0, 'rgba(255,60,40,0.35)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(T * 0.3, -T * 0.3, T * 0.4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
   // The chrome skull under the polymer face. `lit`: red LEDs on (they stutter
   // while booting mid-cinematic). `small`: form-1 head scale during the
   // face-off. The Caesar fringe is PAINTED ON the metal — it came standard.
