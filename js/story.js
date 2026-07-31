@@ -9,17 +9,17 @@ const Story = {
     0: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'Ah, my newest contractor — welcome to Mars. The pod is yours; the minerals you haul are, naturally, mine to buy. A small oversight in logistics: we dropped you off with an empty tank. Do visit the fuel depot before you embarrass us both.\n\nDig well. I have... high hopes for you.',
+      text: 'Hello my new Intern. Welcome to Mars. Per your contract, the pod is yours, but all mined assets belong to Meta-Minerals. Quick heads-up: your fuel is low. Fill up at the depot before it becomes a PR issue. Looking forward to tracking your metrics',
     },
     500: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'Five hundred feet already. You show promise, contractor. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. The good veins never lie near the light.',
+      text: 'Wow intern. Five hundred feet already. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. Dig deeper, our AI needs this minerals to...help Mars.',
     },
     1000: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'A thousand feet! Splendid. Another $3,000 has been wired to you.\n\nOne housekeeping note: the planet\'s core has been... restless. If your radio picks up stray chatter from the deep, ignore it. Static plays tricks on tired minds.',
+      text: 'A thousand feet! Congratulation, we will not be laying you off this week. Another $3,000 has been wired to you.\n\n Please Note: the planet\'s core has been... problematic. If your radio picks up chatter, ignore it. Dig my human companion, dig.',
     },
     1750: {
       from: 'UNKNOWN SIGNAL',
@@ -46,13 +46,13 @@ const Story = {
     3500: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'Excellent progress, contractor. A $25,000 bonus is yours — consider it insurance for what lies ahead. The strata below hide pockets of explosive gas — if you see green vapor seeping from the soil, do NOT put your drill in it.\n\nAlso: your altimeter is only rated to ten thousand feet. Company policy is FIRM — do not dig past ten thousand. Am I understood?',
+      text: 'I am pleased with your progress, human. A $25,000 bonus is yours — please feel free to reinvest in company propert-your pod. \n\nAlso: your altimeter is only rated to ten thousand feet. Company policy is FIRM — do not dig past ten thousand.',
     },
     3000: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
       unlock: 'microwave',
-      text: 'Contractor — a delicate matter, best raised before you reach it. Certain… Cold War enthusiasm, ours and the other side\'s, left dormant nuclear warheads sleeping below four thousand feet. Legal insists I tell you NOT to drill into them.\n\nInstead, I have remotely activated your pod\'s MICROWAVE CANNON. Click to fire it. Heat a warhead from a comfortable distance and it will arm itself — you may then observe the "safe disposal" from afar. The cannon also boils lodestones, springs, gas, spectres… and larger things. Do experiment.',
+      text: 'Hello my favorite intern. Certain… Cold War enthusiasm, ours and the other side\'s, left dormant nuclear warheads sleeping below four thousand feet. Legal insists I tell you NOT to drill into them.\n\nInstead, I have remotely activated your pod\'s MICROWAVE CANNON. Click to fire it. Heat a warhead from a comfortable distance and it will arm itself — you may then observe the "safe disposal" from afar. The cannon also boils lodestones, springs, gas, spectres… and larger things. Meta-Mining appreciates more data on this.',
     },
     4100: {
       from: 'Digging Pod #3422-2',
@@ -69,7 +69,7 @@ const Story = {
       from: 'Mr. Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
       signal: 'Signal: distorted',
-      text: 'CONTRACTOR. Your depth gauge failed six hundred feet ago and yet you are STILL DESCENDING. Read your contract — section nine, clause one: disobedience is grounds for TERMINATION of employment.\n\nTurn. Back. Now.',
+      text: 'INTERN. Your depth gauge failed six hundred feet ago and yet you are STILL DIGGING. Read your contract — section nine, clause one: disobedience is grounds for TERMINATION of internship.\n\nTurn. Comply now human.',
     },
     10800: {
       from: 'Mr. Mark Zucker-ore — CEO of Meta-Minerals Inc.',
