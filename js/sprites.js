@@ -1925,27 +1925,55 @@ const Sprites = {
       ctx.fillRect(rackX + T * 0.02, -T * 0.72, T * 0.07, T * 0.72);
       ctx.fillRect(rackX + T * 0.78, -T * 0.72, T * 0.07, T * 0.72);
       ctx.fillRect(rackX, -T * 0.8, T * 0.87, T * 0.09);
-      const bitCols = [['#d8dce2', '#8a9099'], ['#f4c542', '#c9932a'], ['#f0304e', '#a81f36']];
+      // Same anatomy as the pod's own bit — collar with bolts, curved fluted
+      // cone, specular edge — just re-colored per tier
+      const bitCols = [
+        ['#dde1e7', '#9ba0a8', '#53575d'],   // stock silver
+        ['#ffe9a8', '#f4c542', '#8a6a1a'],   // goldium
+        ['#ffb0be', '#f0304e', '#701325'],   // ruby
+      ];
       for (let i = 0; i < 3; i++) {
         const bx = rackX + T * (0.17 + i * 0.27);
-        const s = 0.72 + i * 0.24;
-        g = ctx.createLinearGradient(bx - T * 0.09 * s, 0, bx + T * 0.09 * s, 0);
-        g.addColorStop(0, bitCols[i][0]); g.addColorStop(1, bitCols[i][1]);
+        const s = 0.75 + i * 0.22;
+        const topY = -T * 0.71, len = T * 0.42 * s, hw = T * 0.1 * s;
+        // Hanging collar with bolts
+        ctx.fillStyle = '#3a3f46';
+        this.rr(ctx, bx - hw * 0.8, topY - T * 0.055, hw * 1.6, T * 0.07, T * 0.02);
+        ctx.fill();
+        ctx.fillStyle = '#15181c';
+        for (const bxo of [-0.45, 0.45]) {
+          ctx.beginPath(); ctx.arc(bx + hw * bxo, topY - T * 0.02, Math.max(1, T * 0.013), 0, P2); ctx.fill();
+        }
+        // Curved cone, tier-colored
+        g = ctx.createLinearGradient(bx - hw, 0, bx + hw, 0);
+        g.addColorStop(0, bitCols[i][0]); g.addColorStop(0.45, bitCols[i][1]); g.addColorStop(1, bitCols[i][2]);
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.moveTo(bx - T * 0.09 * s, -T * 0.71);
-        ctx.lineTo(bx + T * 0.09 * s, -T * 0.71);
-        ctx.lineTo(bx, -T * 0.71 + T * 0.44 * s);
+        ctx.moveTo(bx - hw, topY);
+        ctx.quadraticCurveTo(bx - hw * 0.4, topY + len * 0.55, bx, topY + len);
+        ctx.quadraticCurveTo(bx + hw * 0.4, topY + len * 0.55, bx + hw, topY);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = 'rgba(40,30,20,0.45)';
-        ctx.lineWidth = Math.max(1, T * 0.016);
-        for (let k = 1; k <= 2; k++) {
+        ctx.save();
+        ctx.clip();
+        // Helical flutes, at rest
+        ctx.strokeStyle = 'rgba(35,38,44,0.8)';
+        ctx.lineWidth = Math.max(1.2, T * 0.026);
+        for (let k = 0; k < 4; k++) {
+          const oy = topY + len * (0.12 + k * 0.22);
           ctx.beginPath();
-          ctx.moveTo(bx - T * 0.07 * s * (1 - k * 0.28), -T * 0.71 + T * 0.13 * s * k);
-          ctx.lineTo(bx + T * 0.07 * s * (1 - k * 0.28), -T * 0.71 + T * 0.13 * s * k);
+          ctx.moveTo(bx - hw, oy - len * 0.06);
+          ctx.quadraticCurveTo(bx, oy + len * 0.08, bx + hw, oy - len * 0.02);
           ctx.stroke();
         }
+        // Specular streak down the lit side
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = Math.max(1, T * 0.018);
+        ctx.beginPath();
+        ctx.moveTo(bx - hw * 0.65, topY + T * 0.02);
+        ctx.quadraticCurveTo(bx - hw * 0.3, topY + len * 0.55, bx - hw * 0.05, topY + len * 0.92);
+        ctx.stroke();
+        ctx.restore();
       }
       // Tool pegboard on the facade: wrench, hammer, screwdriver on hooks
       const pbX = w - T * 1.32, pbY = -H + T * 0.92, pbW = T * 1.08, pbH = T * 0.72;
