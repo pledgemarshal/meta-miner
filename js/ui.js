@@ -118,7 +118,7 @@ const UI = {
     if (spec.body) p.appendChild(spec.body);
     for (const r of (spec.rows || [])) {
       const row = document.createElement('div');
-      row.className = 'row';
+      row.className = 'row' + (r.pulse ? ' pulse' : '');
       const left = document.createElement('div');
       left.className = 'grow';
       if (r.name) {

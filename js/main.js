@@ -52,6 +52,10 @@ const Game = {
   oreGuideActive: false,
   oreGuidePath: null,
   oreGuideT: 0,
+  // Upgrade-shop guide: armed by the -700 ft transmission, retires on shop open
+  shopGuideActive: false,
+  shopGuidePath: null,
+  shopGuideT: 0,
   // Microwave click prompt: pulses after the cannon-unlock transmission
   mwTutActive: false,
   mwTutFade: 0,
@@ -250,6 +254,19 @@ const Game = {
   refineryDoorPos() {
     // Center door of the Mineral Processor
     return { x: C.BUILDINGS.processor.x + C.BUILDINGS.processor.w / 2, y: -0.9 };
+  },
+
+  shopDoorPos() {
+    // Center door of the upgrade shop
+    return { x: C.BUILDINGS.upgrades.x + C.BUILDINGS.upgrades.w / 2, y: -0.9 };
+  },
+
+  // The upgrade shop was opened — the -700 ft guide has done its job
+  onShopOpened() {
+    if (!this.shopGuideActive) return;
+    Player.shopGuideDone = true;
+    this.shopGuideActive = false;
+    this.shopGuidePath = null;
   },
 
   // The tank was topped up (pump, reserve tank, or new-tank upgrade) — the
@@ -488,6 +505,9 @@ const Game = {
     this.oreGuideActive = false;
     this.oreGuidePath = null;
     this.oreGuideT = 0;
+    this.shopGuideActive = false;
+    this.shopGuidePath = null;
+    this.shopGuideT = 0;
     this.mwTutActive = false;
     this.mwTutFade = 0;
   },
@@ -2208,6 +2228,15 @@ const Game = {
           this.oreGuidePath = this.buildGuidePath(this.refineryDoorPos());
           this.oreGuideT = 0.5;
         }
+      }
+    }
+
+    // Upgrade-shop guide: chevrons to the outfitter until the menu is opened
+    if (this.shopGuideActive && !Player.shopGuideDone) {
+      this.shopGuideT -= dt;
+      if (this.shopGuideT <= 0) {
+        this.shopGuidePath = this.buildGuidePath(this.shopDoorPos());
+        this.shopGuideT = 0.5;
       }
     }
 
@@ -4606,6 +4635,8 @@ const Game = {
     // trail at a time keeps the route readable (both keep updating underneath)
     if (this.oreGuideActive && this.oreGuidePath && this.oreGuidePath.length >= 2) {
       this.drawGuidePath(ctx, this.oreGuidePath, '125,224,255', 'ORE');
+    } else if (this.shopGuideActive && this.shopGuidePath && this.shopGuidePath.length >= 2) {
+      this.drawGuidePath(ctx, this.shopGuidePath, '150,255,140', 'SHOP');
     } else if (this.fuelGuideActive && this.fuelGuidePath && this.fuelGuidePath.length >= 2) {
       this.drawGuidePath(ctx, this.fuelGuidePath, '255,210,80', 'FUEL');
     }

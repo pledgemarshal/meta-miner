@@ -46,6 +46,8 @@ const Player = {
     this.oreGuideCount = 0;    // completed chevron trips to the refinery (guides for the first 3)
     this.hasRefueled = false;  // first-ever top-up ends the low-fuel mercy drain
     this.mwTutDone = false;    // microwave click prompt dismissed by firing once
+    this.shopGuideDone = false; // chevron trip to the upgrade shop completed
+    this.freeUpgrade = false;   // one upgrade on the company (-700 ft transmission)
   },
 
   // Mercy rule: until the first-ever top-up, a tank in the red drains at half
@@ -567,6 +569,8 @@ const Player = {
       oreGuideCount: this.oreGuideCount || 0,
       hasRefueled: this.hasRefueled || false,
       mwTutDone: this.mwTutDone || false,
+      shopGuideDone: this.shopGuideDone || false,
+      freeUpgrade: this.freeUpgrade || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -591,6 +595,8 @@ const Player = {
     this.hasRefueled = !!d.hasRefueled;
     // Older saves: anyone who already has the cannon has fired it
     this.mwTutDone = d.mwTutDone != null ? !!d.mwTutDone : !!d.hasMicrowave;
+    this.shopGuideDone = !!d.shopGuideDone;
+    this.freeUpgrade = !!d.freeUpgrade;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

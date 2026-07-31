@@ -111,7 +111,9 @@ const Shops = {
 
   upgradesMenu() {
     const P = Player;
+    Game.onShopOpened();   // retires the -700 ft chevron guide
     const rows = [];
+    const free = P.freeUpgrade;   // one on the company — any category
     for (const cat of Object.keys(C.UPGRADES)) {
       const u = C.UPGRADES[cat];
       const cur = P.tiers[cat];
@@ -124,16 +126,18 @@ const Shops = {
       rows.push({
         name: `${u.label}: ${next.name}`,
         detail: `${u.desc}  Now: ${u.tiers[cur].disp || (u.unit === '%' ? Math.round(u.tiers[cur].stat * 100) : u.tiers[cur].stat)} → ${statStr} ${u.unit}`,
+        pulse: free && cat === 'fuelTank',   // the CEO's suggestion, gently throbbing
         button: {
-          label: '$' + next.price.toLocaleString(),
-          disabled: P.money < next.price,
+          label: free ? 'FREE' : '$' + next.price.toLocaleString(),
+          disabled: !free && P.money < next.price,
           onClick: () => {
-            P.money -= next.price;
+            if (P.freeUpgrade) P.freeUpgrade = false;
+            else P.money -= next.price;
             P.tiers[cat]++;
             if (cat === 'fuelTank') { P.fuel = P.fuelCap(); P.hasRefueled = true; Game.onRefueled(); }  // new tank comes full
             if (cat === 'hull') P.hull = P.hullCap();           // new hull is pristine
             Audio.play('buy');
-            UI.toast(`${next.name} installed`);
+            UI.toast(free ? `${next.name} installed — on the company!` : `${next.name} installed`);
             this.upgradesMenu();
           },
         },

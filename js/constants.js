@@ -280,6 +280,7 @@ const C = {
   // --- Story: transmissions by depth (ft). Bonuses are one-time cash wires. ---
   TRANSMISSIONS: [
     { depth: 500,  bonus: 1000 },
+    { depth: 700 },    // upgrade-shop pitch + free first upgrade
     { depth: 1000, bonus: 3000 },
     { depth: 1750 },
     { depth: 2100 },

@@ -16,6 +16,12 @@ const Story = {
       portrait: 'natas',
       text: 'Wow intern. Five hundred feet already. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. Dig deeper, our AI needs this minerals to...help Mars.',
     },
+    700: {
+      from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
+      portrait: 'natas',
+      unlock: 'shopGuide',
+      text: 'Getting tougher to drill? Friction builds character, but character does not build SHAREHOLDER VALUE. Follow the arrows to the upgrade shop and improve your fuel tank, drill — whatever sparks efficiency. Your first upgrade is on the company; do not make it weird.',
+    },
     1000: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
@@ -136,6 +142,13 @@ const Story = {
         UI.toast('MICROWAVE CANNON online — hold CLICK to fire');
         Audio.play('repair');
         if (!Player.mwTutDone) Game.mwTutActive = true;   // pulse the click prompt
+      }
+      if (s.unlock === 'shopGuide') {
+        Player.freeUpgrade = true;   // one on the company
+        if (!Player.shopGuideDone) {
+          Game.shopGuideActive = true;
+          Game.shopGuideT = 0;
+        }
       }
       Game.resumeFromDialog();
     });
