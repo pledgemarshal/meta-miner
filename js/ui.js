@@ -694,14 +694,14 @@ const UI = {
     const top = C.VIEW_H * 0.2, bot = C.VIEW_H * 0.86;
     const yFor = ft => top + (bot - top) * (ft / C.DEPTH_MAX);
     ctx.save();
-    ctx.globalAlpha = alpha * 0.8;
+    ctx.globalAlpha = alpha * 0.95;
     // Spine
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = Math.max(1.5, 2 * U * 0.7);
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+    ctx.lineWidth = Math.max(2, 2 * U * 0.85);
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
-    // Ticks only for landmarks you've reached — and NO names except the layer
-    // the pod is in right now. The rest stay surprises.
-    ctx.font = `${Math.round(9.5 * U)}px Verdana`;
+    // Ticks for every landmark you've reached; names only at or ABOVE the pod
+    // (the layers behind you are old news — the ones below stay surprises)
+    ctx.font = `${Math.round(11 * U)}px Verdana`;
     ctx.textAlign = 'right';
     const depthNow = Player.depthFeet();
     let current = this.STRATA[0];
@@ -709,12 +709,14 @@ const UI = {
     for (const s of this.STRATA) {
       if (s.ft !== 0 && maxD < s.ft) break;   // unreached landmarks don't exist yet
       const y = yFor(s.ft);
-      ctx.strokeStyle = 'rgba(230,225,210,0.55)';
-      ctx.lineWidth = Math.max(1, U);
-      ctx.beginPath(); ctx.moveTo(x - 4 * U, y); ctx.lineTo(x + 3 * U * 0.6, y); ctx.stroke();
-      if (s === current) {
-        ctx.fillStyle = 'rgba(255,215,110,0.9)';
-        ctx.fillText(s.label, x - 7 * U, y);
+      ctx.strokeStyle = 'rgba(230,225,210,0.7)';
+      ctx.lineWidth = Math.max(1.2, U * 1.1);
+      ctx.beginPath(); ctx.moveTo(x - 5 * U, y); ctx.lineTo(x + 3 * U * 0.6, y); ctx.stroke();
+      if (s.ft <= current.ft) {
+        const here = s === current;
+        ctx.font = `${here ? 'bold ' : ''}${Math.round(11 * U)}px Verdana`;
+        ctx.fillStyle = here ? 'rgba(255,215,110,1)' : 'rgba(235,230,215,0.85)';
+        ctx.fillText(s.label, x - 8 * U, y);
       }
     }
     // The pod, where it currently hangs — twitchy below the altimeter's grave
