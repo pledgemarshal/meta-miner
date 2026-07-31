@@ -48,6 +48,10 @@ const Game = {
   fuelGuideActive: false,
   fuelGuidePath: null,
   fuelGuideT: 0,
+  // Refinery guide: same chevrons, kicks in after the first-ore transmission
+  oreGuideActive: false,
+  oreGuidePath: null,
+  oreGuideT: 0,
   empHolding: false,     // Q held down
   empCharge: 0,          // 0..1; fires at 1 on release
   empDoors: 0,           // bay door open fraction (visual)
@@ -232,16 +236,22 @@ const Game = {
     }
   },
 
-  // --- Fuel-depot guide: BFS home through the player's own tunnels, then a
-  // sky leg over to the pump. Recomputed twice a second so it tracks the pod.
+  // --- Surface guides: BFS home through the player's own tunnels, then a
+  // sky leg over to the target building. Recomputed twice a second so they
+  // track the pod. Used by the fuel-depot guide and the refinery guide.
   fuelPumpPos() {
     // The pump bollard sprite sits at the fuel building's right edge
     return { x: C.BUILDINGS.fuel.x + C.BUILDINGS.fuel.w - 0.27, y: -0.9 };
   },
 
-  buildFuelGuidePath() {
+  refineryDoorPos() {
+    // Center door of the Mineral Processor
+    return { x: C.BUILDINGS.processor.x + C.BUILDINGS.processor.w / 2, y: -0.9 };
+  },
+
+  buildGuidePath(target) {
     const W = C.WORLD_W;
-    const pump = this.fuelPumpPos();
+    const pump = target;
     const sx = Math.max(1, Math.min(W - 2, Math.floor(Player.x)));
     const sy = Math.max(0, Math.floor(Player.y));
     const key = (x, y) => y * W + x;
@@ -453,6 +463,9 @@ const Game = {
     this.fuelGuideActive = false;
     this.fuelGuidePath = null;
     this.fuelGuideT = 0;
+    this.oreGuideActive = false;
+    this.oreGuidePath = null;
+    this.oreGuideT = 0;
   },
 
   // --- Cooked worm meat: dropped by slain worms, eaten by driving over it.
@@ -2090,7 +2103,7 @@ const Game = {
       if (this.fuelGuideActive) {
         this.fuelGuideT -= dt;
         if (this.fuelGuideT <= 0) {
-          this.fuelGuidePath = this.buildFuelGuidePath();
+          this.fuelGuidePath = this.buildGuidePath(this.fuelPumpPos());
           this.fuelGuideT = 0.5;
         }
         const pump = this.fuelPumpPos();
@@ -2100,6 +2113,22 @@ const Game = {
           this.fuelGuidePath = null;
           this.toast('The fuel depot — top up here whenever the tank runs low!');
         }
+      }
+    }
+
+    // Refinery guide: armed by the first-ore transmission, retires at the door
+    if (this.oreGuideActive && !Player.oreGuideDone) {
+      this.oreGuideT -= dt;
+      if (this.oreGuideT <= 0) {
+        this.oreGuidePath = this.buildGuidePath(this.refineryDoorPos());
+        this.oreGuideT = 0.5;
+      }
+      const door = this.refineryDoorPos();
+      if (Math.hypot(Player.x - door.x, Player.y - door.y) < 2.2) {
+        Player.oreGuideDone = true;
+        this.oreGuideActive = false;
+        this.oreGuidePath = null;
+        this.toast('The refinery — sell your haul here, then top up next door!');
       }
     }
 
@@ -2264,7 +2293,7 @@ const Game = {
     this.drawRobotFx(ctx);
     this.drawGhost(ctx);
     this.drawTutorial(ctx);
-    this.drawFuelGuide(ctx);
+    this.drawGuides(ctx);
     this.drawPopups(ctx);
 
     // Hurt vignette
@@ -4403,10 +4432,18 @@ const Game = {
   },
 
   // --- Fuel-depot guide: marching chevrons along the route, beacon at the pump ---
-  drawFuelGuide(ctx) {
-    if (!this.fuelGuideActive || !this.fuelGuidePath || this.fuelGuidePath.length < 2) return;
+  drawGuides(ctx) {
+    // The refinery guide supersedes the fuel guide visually — one chevron
+    // trail at a time keeps the route readable (both keep updating underneath)
+    if (this.oreGuideActive && this.oreGuidePath && this.oreGuidePath.length >= 2) {
+      this.drawGuidePath(ctx, this.oreGuidePath, '125,224,255', 'ORE');
+    } else if (this.fuelGuideActive && this.fuelGuidePath && this.fuelGuidePath.length >= 2) {
+      this.drawGuidePath(ctx, this.fuelGuidePath, '255,210,80', 'FUEL');
+    }
+  },
+
+  drawGuidePath(ctx, pts, rgb, label) {
     const T = C.TILE;
-    const pts = this.fuelGuidePath;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     const spacing = 1.15;
@@ -4426,7 +4463,7 @@ const Game = {
         const sx = (wx - this.cam.x) * T, sy = (wy - this.cam.y) * T;
         if (sx < -T || sx > C.VIEW_W + T || sy < -T || sy > C.VIEW_H + T) continue;
         const pulse = 0.5 + 0.35 * Math.sin(this.time * 4 - (i + d) * 0.9);
-        ctx.strokeStyle = `rgba(255,210,80,${pulse})`;
+        ctx.strokeStyle = `rgba(${rgb},${pulse})`;
         ctx.lineWidth = Math.max(2, T * 0.07);
         ctx.lineCap = 'round';
         ctx.save();
@@ -4447,7 +4484,7 @@ const Game = {
     const by = (end.y - 0.75 - this.cam.y) * T + Math.sin(this.time * 5) * T * 0.12;
     if (bx > -T && bx < C.VIEW_W + T && by > -T * 2 && by < C.VIEW_H + T) {
       const a = 0.7 + 0.3 * Math.sin(this.time * 5);
-      ctx.fillStyle = `rgba(255,210,80,${a})`;
+      ctx.fillStyle = `rgba(${rgb},${a})`;
       ctx.beginPath();
       ctx.moveTo(bx, by);
       ctx.lineTo(bx - T * 0.17, by - T * 0.26);
@@ -4456,7 +4493,7 @@ const Game = {
       ctx.fill();
       ctx.font = `bold ${Math.round(T * 0.28)}px Verdana`;
       ctx.textAlign = 'center';
-      ctx.fillText('FUEL', bx, by - T * 0.42);
+      ctx.fillText(label, bx, by - T * 0.42);
     }
     ctx.restore();
   },

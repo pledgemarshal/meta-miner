@@ -43,6 +43,7 @@ const Player = {
     this.roboKills = 0;        // slain automatons; the 2nd halves EMP recharge time
     this.tutorialDone = false; // movement mini-tutorial completed (all 4 keys pressed)
     this.fuelGuideDone = false; // guided-arrows trip to the fuel depot completed
+    this.oreGuideDone = false;  // guided-arrows trip to the refinery completed
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -315,6 +316,7 @@ const Player = {
         Audio.pickup(kind.mineral.value);
         Game.popup(d.x + 0.5, d.y + 0.2, '+$' + kind.mineral.value.toLocaleString());
         Particles.sparks(d.x + 0.5, d.y + 0.5);
+        Story.firstOre();
       } else {
         // Full bay: the mineral is destroyed, as in the original
         Game.toast('Cargo bay full — mineral destroyed!');
@@ -546,6 +548,7 @@ const Player = {
       roboKills: this.roboKills || 0,
       tutorialDone: this.tutorialDone || false,
       fuelGuideDone: this.fuelGuideDone || false,
+      oreGuideDone: this.oreGuideDone || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -565,6 +568,7 @@ const Player = {
     this.roboKills = d.roboKills || 0;
     this.tutorialDone = !!d.tutorialDone;
     this.fuelGuideDone = !!d.fuelGuideDone;
+    this.oreGuideDone = !!d.oreGuideDone;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

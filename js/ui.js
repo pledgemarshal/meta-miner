@@ -502,9 +502,21 @@ const UI = {
     // Hull bar
     this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, P.hull / P.hullCap(), '#7dffb0',
       `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);
-    // Cargo bar
-    this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
-      `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+    // Cargo bar — pulses while the refinery guide chevrons are marching
+    if (Game.oreGuideActive) {
+      const throb = 1 + 0.16 * (0.5 + 0.5 * Math.sin(Game.time * 5));
+      const ccx = pad + barW + gap * 1.5 + (barW * 0.7) / 2, ccy = 10 * U + barH / 2;
+      ctx.save();
+      ctx.translate(ccx, ccy);
+      ctx.scale(throb, throb);
+      ctx.translate(-ccx, -ccy);
+      this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
+        `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+      ctx.restore();
+    } else {
+      this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
+        `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+    }
     // Cargo value: what the hold is worth at the processor right now
     if (P.cargo.length) {
       ctx.textAlign = 'left';

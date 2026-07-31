@@ -1744,7 +1744,57 @@ const Sprites = {
       ctx.quadraticCurveTo(w - T * 0.05, -T * 0.85, w - T * 0.12, -T * 0.32);
       ctx.stroke();
     } else if (key === 'processor') {
-      // Rooftop hopper + inclined conveyor with rollers
+      // --- REFINERY dressing: twin heat stacks, furnace hatch, live conveyor, ore piles ---
+      // Twin striped smokestacks rising from behind the roofline (left side)
+      for (const [scx, sw2, sh2] of [[T * 0.55, T * 0.36, T * 2.1], [T * 1.18, T * 0.3, T * 1.7]]) {
+        g = ctx.createLinearGradient(scx - sw2 / 2, 0, scx + sw2 / 2, 0);
+        g.addColorStop(0, '#877c60'); g.addColorStop(0.35, '#c4b68e'); g.addColorStop(0.65, '#c4b68e'); g.addColorStop(1, '#655c48');
+        ctx.fillStyle = g;
+        this.rr(ctx, scx - sw2 / 2, -H - sh2, sw2, sh2 - T * 0.24, sw2 * 0.16);
+        ctx.fill();
+        // Ring seams
+        ctx.fillStyle = 'rgba(55,46,32,0.4)';
+        for (let i = 1; i <= 3; i++) ctx.fillRect(scx - sw2 / 2, -H - sh2 * i / 3.6, sw2, Math.max(1, T * 0.04));
+        // Dark cap collar
+        ctx.fillStyle = '#3a3f47';
+        this.rr(ctx, scx - sw2 / 2 - T * 0.04, -H - sh2 - T * 0.1, sw2 + T * 0.08, T * 0.16, T * 0.04);
+        ctx.fill();
+        // Flickering heat glow at the mouth
+        const fl = 0.5 + 0.5 * Math.sin(t * 7 + scx);
+        g = ctx.createRadialGradient(scx, -H - sh2 - T * 0.08, T * 0.02, scx, -H - sh2 - T * 0.08, T * 0.3);
+        g.addColorStop(0, `rgba(255,150,60,${0.25 + 0.25 * fl})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(scx, -H - sh2 - T * 0.08, T * 0.3, 0, P2); ctx.fill();
+        // Smoke puffs drifting up and thinning out
+        for (let i = 0; i < 4; i++) {
+          const ph = (t * 0.16 + i / 4 + scx * 0.013) % 1;
+          const px = scx + Math.sin(t * 1.1 + i * 2.3 + scx) * T * (0.04 + 0.16 * ph);
+          const py = -H - sh2 - T * 0.16 - ph * T * 1.25;
+          ctx.fillStyle = `rgba(190,190,200,${0.3 * (1 - ph)})`;
+          ctx.beginPath(); ctx.arc(px, py, T * (0.07 + 0.15 * ph), 0, P2); ctx.fill();
+        }
+      }
+      // Furnace hatch on the facade: slatted grille over a breathing fire glow
+      const fhx = T * 0.34, fhy = -T * 0.72, fhw = T * 0.62, fhh = T * 0.5;
+      ctx.fillStyle = '#22252b';
+      this.rr(ctx, fhx - T * 0.05, fhy - T * 0.05, fhw + T * 0.1, fhh + T * 0.1, T * 0.06);
+      ctx.fill();
+      const breathe = 0.6 + 0.4 * Math.sin(t * 2.6);
+      g = ctx.createLinearGradient(0, fhy, 0, fhy + fhh);
+      g.addColorStop(0, `rgba(255,120,30,${0.55 + 0.3 * breathe})`);
+      g.addColorStop(1, `rgba(150,40,10,${0.8})`);
+      ctx.fillStyle = g;
+      this.rr(ctx, fhx, fhy, fhw, fhh, T * 0.04);
+      ctx.fill();
+      ctx.fillStyle = '#1a1c20';
+      for (let i = 1; i < 4; i++) ctx.fillRect(fhx, fhy + i * fhh / 4 - T * 0.02, fhw, T * 0.045);
+      g = ctx.createRadialGradient(fhx + fhw / 2, fhy + fhh / 2, T * 0.05, fhx + fhw / 2, fhy + fhh / 2, T * 0.55);
+      g.addColorStop(0, `rgba(255,140,50,${0.16 * breathe})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(fhx + fhw / 2, fhy + fhh / 2, T * 0.55, 0, P2); ctx.fill();
+      // Rooftop intake hopper
       ctx.fillStyle = '#3a4a58';
       ctx.beginPath();
       ctx.moveTo(w - T * 1.1, -H - T * 0.3);
@@ -1759,26 +1809,74 @@ const Sprites = {
       // Ore heap peeking out of the hopper
       ctx.fillStyle = '#8a6a3c';
       ctx.beginPath(); ctx.ellipse(w - T * 0.65, -H - T * 0.85, T * 0.2, T * 0.08, 0, Math.PI, 0); ctx.fill();
-      // Conveyor from the ground up to the hopper
+      // Inclined conveyor from the ground up to the hopper — running
       const cx0 = w + T * 0.55, cy0 = -T * 0.1, cx1 = w - T * 0.5, cy1 = -H - T * 0.78;
+      const clen = Math.hypot(cx1 - cx0, cy1 - cy0);
+      const ux = (cx1 - cx0) / clen, uy = (cy1 - cy0) / clen;   // unit along belt (up-slope)
+      const nx = uy, ny = -ux;                                  // unit normal (off-belt side)
       ctx.strokeStyle = '#23262b';
       ctx.lineWidth = Math.max(3, T * 0.11);
       ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx1, cy1); ctx.stroke();
       ctx.strokeStyle = '#4a5058';
       ctx.lineWidth = Math.max(1.5, T * 0.03);
       ctx.beginPath(); ctx.moveTo(cx0, cy0); ctx.lineTo(cx1, cy1); ctx.stroke();
-      // Rollers
-      ctx.fillStyle = '#5a616a';
+      // Belt motion: tread cleats marching toward the hopper
+      const beltSpd = T * 0.45;
+      const cleatGap = T * 0.24;
+      ctx.strokeStyle = 'rgba(150,160,175,0.55)';
+      ctx.lineWidth = Math.max(1, T * 0.022);
+      for (let d = (t * beltSpd) % cleatGap; d < clen; d += cleatGap) {
+        const px = cx0 + ux * d, py = cy0 + uy * d;
+        ctx.beginPath();
+        ctx.moveTo(px - nx * T * 0.05, py - ny * T * 0.05);
+        ctx.lineTo(px + nx * T * 0.05, py + ny * T * 0.05);
+        ctx.stroke();
+      }
+      // Ore chunks riding the belt into the hopper
+      for (let i = 0; i < 3; i++) {
+        const ph = ((t * beltSpd) / clen * 0.55 + i / 3) % 1;
+        const d = ph * (clen - T * 0.2);
+        const px = cx0 + ux * d + nx * T * 0.085, py = cy0 + uy * d + ny * T * 0.085;
+        ctx.fillStyle = '#8a6a3c';
+        ctx.beginPath();
+        ctx.moveTo(px - T * 0.07, py + T * 0.03);
+        ctx.lineTo(px - T * 0.03, py - T * 0.06);
+        ctx.lineTo(px + T * 0.055, py - T * 0.045);
+        ctx.lineTo(px + T * 0.07, py + T * 0.035);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,220,150,0.5)';
+        ctx.beginPath(); ctx.arc(px - T * 0.01, py - T * 0.025, T * 0.02, 0, P2); ctx.fill();
+      }
+      // Rollers with rotating spokes so the drive reads as live
       for (let i = 0; i < 4; i++) {
         const rt2 = i / 3;
+        const px = cx0 + (cx1 - cx0) * rt2, py = cy0 + (cy1 - cy0) * rt2;
+        const rr2 = T * 0.045;
+        ctx.fillStyle = '#5a616a';
+        ctx.beginPath(); ctx.arc(px, py, rr2, 0, P2); ctx.fill();
+        const ang = (t * beltSpd) / rr2;
+        ctx.strokeStyle = 'rgba(20,22,26,0.8)';
+        ctx.lineWidth = Math.max(1, T * 0.014);
         ctx.beginPath();
-        ctx.arc(cx0 + (cx1 - cx0) * rt2, cy0 + (cy1 - cy0) * rt2, T * 0.045, 0, P2);
-        ctx.fill();
+        ctx.moveTo(px - Math.cos(ang) * rr2, py - Math.sin(ang) * rr2);
+        ctx.lineTo(px + Math.cos(ang) * rr2, py + Math.sin(ang) * rr2);
+        ctx.stroke();
       }
-      // Support leg
+      // Support legs
       ctx.strokeStyle = '#2c313a';
       ctx.lineWidth = Math.max(2, T * 0.05);
       ctx.beginPath(); ctx.moveTo(w + T * 0.18, -T * 0.02); ctx.lineTo(w + T * 0.05, -H * 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w + T * 0.5, -T * 0.02); ctx.lineTo(w + T * 0.42, -T * 0.5); ctx.stroke();
+      // Ore piles waiting at the foot of the belt
+      for (const [pxc, prx, pry] of [[w + T * 0.85, T * 0.34, T * 0.24], [w + T * 1.38, T * 0.26, T * 0.18]]) {
+        g = ctx.createLinearGradient(pxc, -pry, pxc, 0);
+        g.addColorStop(0, '#b89a5c'); g.addColorStop(1, '#7a6238');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(pxc, 0, prx, pry, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = 'rgba(255,230,170,0.25)';
+        ctx.beginPath(); ctx.ellipse(pxc - prx * 0.25, -pry * 0.55, prx * 0.3, pry * 0.25, -0.4, 0, P2); ctx.fill();
+      }
     } else if (key === 'upgrades') {
       // Gear emblem on the facade
       const gx = w / 2, gy = -H + T * 0.52, gr = T * 0.2;

@@ -85,6 +85,27 @@ const Story = {
     },
   },
 
+  // Event beat: fires the moment the very first mineral lands in the cargo bay,
+  // then hands off to the ore-guide chevrons pointing at the refinery.
+  firstOre() {
+    if (this.seen.firstOre) return;
+    this.seen.firstOre = true;
+    const s = {
+      from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
+      portrait: 'natas',
+      text: 'Congratulations on finding your first ore intern! Now bring the precious ore back to the surface.\n\nGet Ore → Get Money → Fill Up Gas → Repeat.',
+    };
+    Audio.play('radio');
+    Game.pauseForDialog();
+    UI.transmission(s, () => {
+      Game.resumeFromDialog();
+      if (!Player.oreGuideDone) {
+        Game.oreGuideActive = true;
+        Game.oreGuideT = 0;
+      }
+    });
+  },
+
   check() {
     if (Game.state !== 'play' || UI.isOpen()) return;
     const depth = Player.depthFeet();
