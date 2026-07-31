@@ -454,7 +454,8 @@ const Boss = {
           this._thrown = true;
           const ox = this.x + this.facing * 0.35, oy = this.y - 2.9;
           const dx = P.x - ox, dy = P.y - oy;
-          const tf = Math.max(0.45, Math.min(1.1, Math.hypot(dx, dy) / 10));
+          // Half-speed lob: double the flight time, so it hangs high and slow
+          const tf = Math.max(0.9, Math.min(2.2, Math.hypot(dx, dy) / 5));
           const g2 = C.GRAVITY * 0.5;
           this.headsets.push({
             x: ox, y: oy,
