@@ -346,6 +346,7 @@ const Boss = {
       f.vy += C.GRAVITY * 0.6 * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
+      f.rot = (f.rot || 0) + (f.spin || 0) * dt;
       // Bounce on floor & walls
       if (f.y > this.arenaBottom() - 0.3) { f.y = this.arenaBottom() - 0.3; f.vy = -Math.abs(f.vy) * 0.85; }
       if (f.x < 1.5 || f.x > C.WORLD_W - 1.5) f.vx *= -1;
@@ -445,6 +446,7 @@ const Boss = {
           this.fireballs.push({
             x: this.x + this.facing * 0.8, y: this.y - 2.2,
             vx: this.facing * (5 + Math.random() * 2), vy: -3,
+            rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 2.5),
             life: 6,
           });
         }
@@ -595,17 +597,32 @@ const Boss = {
       ctx.restore();
     }
 
-    // Plasma orbs
+    // Thrown LIKES: thumbs-up badges wrapped in the same blue plasma glow
     for (const f of this.fireballs) {
-      const fx = (f.x - cam.x) * C.TILE, fy = (f.y - cam.y) * C.TILE;
+      const fx = (f.x - cam.x) * T, fy = (f.y - cam.y) * T;
       ctx.save();
+      // Plasma halo (additive, as before)
       ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(fx, fy, 2, fx, fy, C.TILE * 0.5);
+      const g = ctx.createRadialGradient(fx, fy, 2, fx, fy, T * 0.5);
       g.addColorStop(0, '#eef6ff');
       g.addColorStop(0.4, '#6aa8ff');
       g.addColorStop(1, 'rgba(30,80,255,0)');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(fx, fy, C.TILE * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(fx, fy, T * 0.5, 0, Math.PI * 2); ctx.fill();
+      // The like itself: a rounded blue badge, tumbling as it flies
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.translate(fx, fy);
+      ctx.rotate(f.rot || 0);
+      ctx.shadowColor = '#4a9eff';
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = 'rgba(56,120,240,0.95)';
+      Sprites.rr(ctx, -T * 0.17, -T * 0.17, T * 0.34, T * 0.34, T * 0.09);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `${Math.round(T * 0.24)}px Verdana`;
+      ctx.fillText('👍', 0, T * 0.02);
       ctx.restore();
     }
 
