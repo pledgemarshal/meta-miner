@@ -299,15 +299,90 @@ const UI = {
     ctx.translate(S / 2, S / 2);
     ctx.scale(S / 56, S / 56);   // face geometry is authored at 56px
     if (kind === 'natas') {
-      ctx.fillStyle = '#b03830';
-      ctx.beginPath(); ctx.arc(0, 4, 14, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#3a3038';
-      ctx.beginPath(); ctx.moveTo(-8, -8); ctx.quadraticCurveTo(-16, -20, -10, -24); ctx.quadraticCurveTo(-9, -14, -4, -10); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(8, -8); ctx.quadraticCurveTo(16, -20, 10, -24); ctx.quadraticCurveTo(9, -14, 4, -10); ctx.fill();
-      ctx.fillStyle = '#ffdf5e';
-      ctx.beginPath(); ctx.arc(-5, 2, 2, 0, Math.PI * 2); ctx.arc(5, 2, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#ffd23e'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(5, 2, 4.5, 0, Math.PI * 2); ctx.stroke();
+      // Mark Zucker-ore: the fringe, the stare, the eternal grey tee
+      // Shoulders in the crew-neck
+      ctx.fillStyle = '#5b6673';
+      ctx.beginPath();
+      ctx.moveTo(-17, 27);
+      ctx.quadraticCurveTo(-16, 14, -8, 12);
+      ctx.lineTo(8, 12);
+      ctx.quadraticCurveTo(16, 14, 17, 27);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#454e58';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(0, 10.5, 6, Math.PI * 0.12, Math.PI * 0.88); ctx.stroke();
+      // Neck
+      ctx.fillStyle = '#e2b48e';
+      ctx.fillRect(-4, 5, 8, 8);
+      // Ears
+      ctx.fillStyle = '#eac19a';
+      ctx.beginPath();
+      ctx.ellipse(-13, 0.5, 2.4, 3.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(13, 0.5, 2.4, 3.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Pale face, faintly squared jaw
+      ctx.beginPath();
+      ctx.moveTo(-12.5, -6);
+      ctx.quadraticCurveTo(-13.5, 8, -6, 12.5);
+      ctx.quadraticCurveTo(0, 14.8, 6, 12.5);
+      ctx.quadraticCurveTo(13.5, 8, 12.5, -6);
+      ctx.quadraticCurveTo(11.5, -15.5, 0, -15.5);
+      ctx.quadraticCurveTo(-11.5, -15.5, -12.5, -6);
+      ctx.closePath();
+      ctx.fill();
+      // The Caesar fringe: auburn cap, scalloped hem high on the forehead
+      ctx.fillStyle = '#8a5530';
+      ctx.beginPath();
+      ctx.moveTo(-13, -3.5);
+      ctx.quadraticCurveTo(-14.5, -16.5, 0, -17);
+      ctx.quadraticCurveTo(14.5, -16.5, 13, -3.5);
+      ctx.lineTo(11.6, -8);
+      for (let x = 9; x >= -11; x -= 4) {
+        ctx.quadraticCurveTo(x + 2, -6.6, x, -8.3);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Brows hoisted a touch too high
+      ctx.strokeStyle = '#6d4423';
+      ctx.lineWidth = 1.3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-8, -5.6); ctx.quadraticCurveTo(-5.2, -6.8, -2.4, -5.8);
+      ctx.moveTo(2.4, -5.8); ctx.quadraticCurveTo(5.2, -6.8, 8, -5.6);
+      ctx.stroke();
+      // The Stare: big whites, pale-blue irises, pinpoint pupils
+      ctx.fillStyle = '#f5f7f5';
+      ctx.beginPath();
+      ctx.ellipse(-5.2, -1.6, 3.4, 3.9, 0, 0, Math.PI * 2);
+      ctx.ellipse(5.2, -1.6, 3.4, 3.9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#9db8cc';
+      ctx.beginPath();
+      ctx.arc(-5.2, -1.3, 1.9, 0, Math.PI * 2);
+      ctx.arc(5.2, -1.3, 1.9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#191b20';
+      ctx.beginPath();
+      ctx.arc(-5.2, -1.3, 0.9, 0, Math.PI * 2);
+      ctx.arc(5.2, -1.3, 0.9, 0, Math.PI * 2);
+      ctx.fill();
+      // Catchlights — and one faint red LED glint. Probably nothing.
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath();
+      ctx.arc(-5.7, -1.9, 0.45, 0, Math.PI * 2);
+      ctx.arc(4.7, -1.9, 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,60,40,0.85)';
+      ctx.beginPath(); ctx.arc(5.7, -0.7, 0.4, 0, Math.PI * 2); ctx.fill();
+      // Small nose
+      ctx.strokeStyle = '#c99a72';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(0.2, 0); ctx.quadraticCurveTo(1.2, 2.6, -0.4, 3.4); ctx.stroke();
+      // The not-quite-smile: flat, with one practiced corner
+      ctx.strokeStyle = '#9c6255';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(-4.2, 7.4); ctx.quadraticCurveTo(1, 7.9, 4.4, 6.6); ctx.stroke();
     } else if (kind === 'miner') {
       ctx.fillStyle = '#c9955c';
       ctx.beginPath(); ctx.arc(0, 4, 13, 0, Math.PI * 2); ctx.fill();
