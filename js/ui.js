@@ -154,7 +154,11 @@ const UI = {
     this.activePanel = p;
     this.onClose = spec.onClose || null;
     this.fitPanel(p);
-    this.staticIn(p);
+    // Shops re-render on every purchase, so they skip the tune-in
+    if (!spec.noTune) {
+      p.classList.add('tune-in');
+      this.staticIn(p);
+    }
     return p;
   },
 
@@ -300,7 +304,7 @@ const UI = {
   transmission(t, onDone) {
     this.close();
     const p = document.createElement('div');
-    p.className = 'panel transmission';
+    p.className = 'panel transmission tune-in';
     const h = document.createElement('h2');
     h.textContent = 'Incoming Transmission';
     p.appendChild(h);
