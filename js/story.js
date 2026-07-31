@@ -130,8 +130,11 @@ const Story = {
     const s = this.script[depth];
     if (!s) return;
     Audio.play('radio');
+    // The intro comes with the CEO's actual voice
+    if (depth === 0) Audio.playVoice('audio/zuck_hello_intern.m4a');
     Game.pauseForDialog();
     UI.transmission(s, () => {
+      Audio.stopVoice();   // acknowledging cuts him off mid-sentence, as is right
       if (bonus) {
         Player.money += bonus;
         UI.toast(`Bonus wired: +$${bonus.toLocaleString()}`);

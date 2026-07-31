@@ -329,6 +329,25 @@ const Audio = {
     this.noise(0.12, 0.12, 2600, 1.7);                 // squelch tail
   },
 
+  // Recorded voice lines (m4a clips in audio/). One at a time; a new line
+  // cuts off the previous one, and closing the dialog stops it.
+  voice: null,
+  playVoice(src) {
+    this.stopVoice();
+    if (this.muted) return;
+    try {
+      // window.Audio: the game's own `Audio` object shadows the constructor
+      this.voice = new window.Audio(src);
+      this.voice.volume = Math.max(0, Math.min(1, this.sfxVol));
+      this.voice.play().catch(() => {});   // autoplay policy may veto; fail quiet
+    } catch (e) {}
+  },
+  stopVoice() {
+    if (!this.voice) return;
+    try { this.voice.pause(); } catch (e) {}
+    this.voice = null;
+  },
+
   // The CEO's battle chant: "AI. AI. AI. AI." — spelled out so the TTS bites
   // off each letter mechanically. A data-chirp soundwave carries it (and
   // stands alone wherever speechSynthesis is unavailable).
