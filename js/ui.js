@@ -484,9 +484,21 @@ const UI = {
     ctx.fillRect(0, 0, C.VIEW_W, stripH);
 
     const fuelFrac = P.fuel / P.fuelCap();
-    // Fuel bar — red at or below the warn threshold
-    this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
-      fuelFrac <= C.FUEL_WARN_FRAC ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
+    // Fuel bar — red at or below the warn threshold; pulses in size while the
+    // fuel-depot guide arrows are marching (until the pump refill retires them)
+    if (Game.fuelGuideActive) {
+      const throb = 1 + 0.16 * (0.5 + 0.5 * Math.sin(Game.time * 5));
+      ctx.save();
+      ctx.translate(pad + barW / 2, 10 * U + barH / 2);
+      ctx.scale(throb, throb);
+      ctx.translate(-(pad + barW / 2), -(10 * U + barH / 2));
+      this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
+        fuelFrac <= C.FUEL_WARN_FRAC ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
+      ctx.restore();
+    } else {
+      this.bar(ctx, pad, 10 * U, barW, barH, fuelFrac,
+        fuelFrac <= C.FUEL_WARN_FRAC ? '#ff4530' : '#ffb347', `FUEL ${P.fuel.toFixed(1)} L`);
+    }
     // Hull bar
     this.bar(ctx, pad, 10 * U + barH + gap * 0.6, barW, barH, P.hull / P.hullCap(), '#7dffb0',
       `HULL ${Math.ceil(P.hull)}/${P.hullCap()}`);
