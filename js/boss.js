@@ -276,29 +276,29 @@ const Boss = {
         this.attack = 'chant';
         this.attackT = 0;
         this.aiChantT = 15;
-        this.chantWave = { x: this.x + this.facing * 0.35, y: this.y - 2.55, dir: this.facing, age: 0, hit: false };
+        // Aimed at the pod's position at the moment he opens his mouth
+        const ox = this.x + this.facing * 0.35, oy = this.y - 2.55;
+        const ang = Math.atan2(Player.y - oy, Player.x - ox);
+        this.chantWave = { x: ox, y: oy, ux: Math.cos(ang), uy: Math.sin(ang), ang, dir: this.facing, age: 0, hit: false };
         Audio.chantAI();
       }
     }
 
-    // The travelling soundwave: "AI" lettering that hits like a thrown
-    // headset. The hitbox tracks the FRONT LETTER exactly — its drawn size
-    // and its slight rise with distance — so what you see is what hits you.
-    // Duck under it or fly over it.
+    // The travelling soundwave: "AI" lettering fired along the aim line.
+    // The hitbox is the FRONT LETTER — its drawn size plus the pod's radius —
+    // so what you see is what hits you. Sidestep the line to dodge.
     if (this.chantWave) {
       const wv = this.chantWave;
       wv.age += dt;
       const travelled = 6.5 * wv.age;
-      const front = wv.x + wv.dir * travelled;
-      // Mirror of the draw math: letter center rises 0.05 tiles per tile
-      // travelled; letter font grows 0.2 + 0.062/tile (half of it + pod half)
-      const letterY = wv.y - travelled * 0.05;
-      const halfH = 0.45 + (0.2 + travelled * 0.062) / 2;
-      if (!wv.hit && !P.dead && Math.abs(P.x - front) < 0.7 && Math.abs(P.y - letterY) < halfH) {
+      const fx = wv.x + wv.ux * travelled;
+      const fy = wv.y + wv.uy * travelled;
+      const hitR = 0.5 + (0.2 + travelled * 0.062) / 2;
+      if (!wv.hit && !P.dead && Math.hypot(P.x - fx, P.y - fy) < hitR) {
         wv.hit = true;
         P.damage(C.BOSS.headsetDmg, 'chant');
-        P.vx += wv.dir * 12;
-        P.vy -= 4;
+        P.vx += wv.ux * 12;
+        P.vy += wv.uy * 6 - 3;
       }
       if (wv.age > 2.3) this.chantWave = null;
     }
@@ -555,32 +555,35 @@ const Boss = {
       Sprites.drawVrHeadset(ctx, (hs.x - cam.x) * T, (hs.y - cam.y) * T, hs.rot, 1);
     }
 
-    // The chant soundwave: "AI" lettering rolling out of his mouth, each
-    // glyph bigger than the last, sound-blue with a white-hot leading edge
+    // The chant soundwave: "AI" lettering rolling out of his mouth along the
+    // aim line, each glyph bigger than the last, sound-blue with a white-hot
+    // leading edge
     if (this.chantWave) {
       const wv = this.chantWave;
       const ox = (wv.x - cam.x) * T, oy = (wv.y - cam.y) * T;
       const travelled = 6.5 * wv.age;
       const fade = Math.min(1, (2.3 - wv.age) / 0.3);
+      const nx = -wv.uy, ny = wv.ux;   // perpendicular, for the wobble
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = fade;
-      // Ripple arcs at the mouth while he's still shouting
+      // Ripple arcs at the mouth while he's still shouting, opening toward the aim
       if (this.attack === 'chant') {
         ctx.strokeStyle = 'rgba(125,184,255,0.5)';
         ctx.lineWidth = 2.5;
         for (let r = 0; r < 3; r++) {
           const rr2 = T * (0.25 + r * 0.2 + ((wv.age * 2.4) % 0.2));
           ctx.beginPath();
-          ctx.arc(ox, oy, rr2, wv.dir > 0 ? -0.7 : Math.PI - 0.7, wv.dir > 0 ? 0.7 : Math.PI + 0.7);
+          ctx.arc(ox, oy, rr2, wv.ang - 0.7, wv.ang + 0.7);
           ctx.stroke();
         }
       }
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (let d = 0.7; d < travelled && d < 15; d += 1.15) {
-        const lx = ox + wv.dir * d * T;
-        const ly = oy - d * 0.05 * T + Math.sin(this.animTime * 16 + d * 2.1) * T * 0.05;
+        const wob = Math.sin(this.animTime * 16 + d * 2.1) * T * 0.05;
+        const lx = ox + wv.ux * d * T + nx * wob;
+        const ly = oy + wv.uy * d * T + ny * wob;
         const atFront = travelled - d < 1.15;
         ctx.font = `bold ${Math.round(T * (0.2 + d * 0.062))}px Verdana`;
         ctx.shadowColor = '#4a9eff';
