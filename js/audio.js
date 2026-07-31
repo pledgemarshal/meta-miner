@@ -331,16 +331,39 @@ const Audio = {
 
   // Recorded voice lines (m4a clips in audio/). One at a time; a new line
   // cuts off the previous one, and closing the dialog stops it.
+  // startAt: seconds to skip into the clip. Clips are fetched into blob URLs
+  // (cached per source) so they're fully buffered and seekable BEFORE play —
+  // seeking a streaming element too early gets silently clamped back to 0.
   voice: null,
-  playVoice(src) {
+  _voiceUrls: {},
+  playVoice(src, startAt) {
     this.stopVoice();
     if (this.muted) return;
-    try {
-      // window.Audio: the game's own `Audio` object shadows the constructor
-      this.voice = new window.Audio(src);
-      this.voice.volume = Math.max(0, Math.min(1, this.sfxVol));
-      this.voice.play().catch(() => {});   // autoplay policy may veto; fail quiet
-    } catch (e) {}
+    const token = this._voiceToken = (this._voiceToken || 0) + 1;
+    const start = url => {
+      if (token !== this._voiceToken) return;   // a newer line superseded us mid-fetch
+      try {
+        // window.Audio: the game's own `Audio` object shadows the constructor
+        const v = this.voice = new window.Audio(url);
+        v.volume = Math.max(0, Math.min(1, this.sfxVol));
+        const seek = () => {
+          try {
+            if (startAt > 0 && v.currentTime < startAt && v.seekable.length && v.seekable.end(0) > startAt) {
+              v.currentTime = startAt;
+            }
+          } catch (e) {}
+        };
+        v.addEventListener('loadedmetadata', () => { seek(); v.play().then(seek).catch(() => {}); });
+        v.load();
+      } catch (e) {}
+    };
+    if (this._voiceUrls[src]) start(this._voiceUrls[src]);
+    else {
+      fetch(src)
+        .then(r => r.blob())
+        .then(b => { this._voiceUrls[src] = URL.createObjectURL(b); start(this._voiceUrls[src]); })
+        .catch(() => {});
+    }
   },
   stopVoice() {
     if (!this.voice) return;

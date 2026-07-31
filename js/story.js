@@ -130,8 +130,8 @@ const Story = {
     const s = this.script[depth];
     if (!s) return;
     Audio.play('radio');
-    // The intro comes with the CEO's actual voice
-    if (depth === 0) Audio.playVoice('audio/zuck_hello_intern.m4a');
+    // The intro comes with the CEO's actual voice (first second trimmed)
+    if (depth === 0) Audio.playVoice('audio/zuck_hello_intern.m4a', 1);
     Game.pauseForDialog();
     UI.transmission(s, () => {
       Audio.stopVoice();   // acknowledging cuts him off mid-sentence, as is right
