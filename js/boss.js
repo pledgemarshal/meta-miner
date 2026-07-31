@@ -281,16 +281,20 @@ const Boss = {
       }
     }
 
-    // The travelling soundwave: a wall of "AI" lettering that hits like a
-    // thrown headset. Fly over or under it.
+    // The travelling soundwave: "AI" lettering that hits like a thrown
+    // headset. The hitbox tracks the FRONT LETTER exactly — its drawn size
+    // and its slight rise with distance — so what you see is what hits you.
+    // Duck under it or fly over it.
     if (this.chantWave) {
       const wv = this.chantWave;
       wv.age += dt;
-      const front = wv.x + wv.dir * 6.5 * wv.age;
-      // The wall of sound reaches all the way down to the carpet — the dodge
-      // is flying OVER it, not hugging the floor
-      const wdy = P.y - wv.y;
-      if (!wv.hit && !P.dead && Math.abs(P.x - front) < 0.7 && wdy > -1.6 && wdy < 2.3) {
+      const travelled = 6.5 * wv.age;
+      const front = wv.x + wv.dir * travelled;
+      // Mirror of the draw math: letter center rises 0.05 tiles per tile
+      // travelled; letter font grows 0.2 + 0.062/tile (half of it + pod half)
+      const letterY = wv.y - travelled * 0.05;
+      const halfH = 0.45 + (0.2 + travelled * 0.062) / 2;
+      if (!wv.hit && !P.dead && Math.abs(P.x - front) < 0.7 && Math.abs(P.y - letterY) < halfH) {
         wv.hit = true;
         P.damage(C.BOSS.headsetDmg, 'chant');
         P.vx += wv.dir * 12;
