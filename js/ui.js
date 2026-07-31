@@ -699,8 +699,9 @@ const UI = {
     ctx.strokeStyle = 'rgba(255,255,255,0.45)';
     ctx.lineWidth = Math.max(2, 2 * U * 0.85);
     ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
-    // Ticks for every landmark you've reached; names only at or ABOVE the pod
-    // (the layers behind you are old news — the ones below stay surprises)
+    // Every landmark this save has ever reached keeps its name — climbing back
+    // up hides nothing. Only landmarks the run has never touched stay unseen.
+    // The layer the pod is in RIGHT NOW reads bold gold.
     ctx.font = `${Math.round(11 * U)}px Verdana`;
     ctx.textAlign = 'right';
     const depthNow = Player.depthFeet();
@@ -712,12 +713,10 @@ const UI = {
       ctx.strokeStyle = 'rgba(230,225,210,0.7)';
       ctx.lineWidth = Math.max(1.2, U * 1.1);
       ctx.beginPath(); ctx.moveTo(x - 5 * U, y); ctx.lineTo(x + 3 * U * 0.6, y); ctx.stroke();
-      if (s.ft <= current.ft) {
-        const here = s === current;
-        ctx.font = `${here ? 'bold ' : ''}${Math.round(11 * U)}px Verdana`;
-        ctx.fillStyle = here ? 'rgba(255,215,110,1)' : 'rgba(235,230,215,0.85)';
-        ctx.fillText(s.label, x - 8 * U, y);
-      }
+      const here = s === current;
+      ctx.font = `${here ? 'bold ' : ''}${Math.round(11 * U)}px Verdana`;
+      ctx.fillStyle = here ? 'rgba(255,215,110,1)' : 'rgba(235,230,215,0.85)';
+      ctx.fillText(s.label, x - 8 * U, y);
     }
     // The pod, where it currently hangs — twitchy below the altimeter's grave
     const depth = Math.max(0, Math.min(C.DEPTH_MAX, Player.depthFeet()));
