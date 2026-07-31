@@ -249,6 +249,25 @@ const Game = {
     return { x: C.BUILDINGS.processor.x + C.BUILDINGS.processor.w / 2, y: -0.9 };
   },
 
+  // The tank was topped up (pump, reserve tank, or new-tank upgrade) — the
+  // active depot guide has done its job
+  onRefueled() {
+    if (!this.fuelGuideActive) return;
+    Player.fuelGuideCount++;
+    this.fuelGuideActive = false;
+    this.fuelGuidePath = null;
+    if (Player.fuelGuideCount === 1) this.toast('Topped up — the depot has you covered whenever the tank runs low!');
+  },
+
+  // The cargo hold was sold off — the active refinery guide has done its job
+  onCargoSold() {
+    if (!this.oreGuideActive) return;
+    Player.oreGuideCount++;
+    this.oreGuideActive = false;
+    this.oreGuidePath = null;
+    if (Player.oreGuideCount === 1) this.toast('First haul refined — keep the ore coming!');
+  },
+
   buildGuidePath(target) {
     const W = C.WORLD_W;
     const pump = target;
@@ -2092,43 +2111,43 @@ const Game = {
     const tutTarget = this.tutActive && !Player.tutorialDone ? 1 : 0;
     this.tutFade += (tutTarget - this.tutFade) * Math.min(1, dt * 4);
 
-    // Fuel-depot guide: kicks in the first time the pod is 4 tiles under,
-    // breadcrumbs it home, and retires the moment the pump is reached
-    if (!Player.fuelGuideDone) {
-      if (!this.fuelGuideActive && Math.floor(Player.y) >= 4 && !Player.dead) {
+    // Fuel-depot guide: trip 1 arms the first time the pod digs 4 tiles under;
+    // trips 2-3 re-arm when the tank next drops into the red (see the warn
+    // crossing below). The chevrons stay up until the player ACTUALLY refuels
+    // (onRefueled); death cancels them without spending a trip.
+    if (Player.fuelGuideCount < 3) {
+      if (!this.fuelGuideActive && Player.fuelGuideCount === 0 && Math.floor(Player.y) >= 4 && !Player.dead) {
         this.fuelGuideActive = true;
         this.fuelGuideT = 0;
         this.toast('Low on fuel? Follow the arrows back to the depot!');
       }
-      if (this.fuelGuideActive) {
+    }
+    if (this.fuelGuideActive) {
+      if (Player.dead) {
+        this.fuelGuideActive = false;
+        this.fuelGuidePath = null;
+      } else {
         this.fuelGuideT -= dt;
         if (this.fuelGuideT <= 0) {
           this.fuelGuidePath = this.buildGuidePath(this.fuelPumpPos());
           this.fuelGuideT = 0.5;
         }
-        const pump = this.fuelPumpPos();
-        if (Math.hypot(Player.x - pump.x, Player.y - pump.y) < 2.2) {
-          Player.fuelGuideDone = true;
-          this.fuelGuideActive = false;
-          this.fuelGuidePath = null;
-          this.toast('The fuel depot — top up here whenever the tank runs low!');
-        }
       }
     }
 
-    // Refinery guide: armed by the first-ore transmission, retires at the door
-    if (this.oreGuideActive && !Player.oreGuideDone) {
-      this.oreGuideT -= dt;
-      if (this.oreGuideT <= 0) {
-        this.oreGuidePath = this.buildGuidePath(this.refineryDoorPos());
-        this.oreGuideT = 0.5;
-      }
-      const door = this.refineryDoorPos();
-      if (Math.hypot(Player.x - door.x, Player.y - door.y) < 2.2) {
-        Player.oreGuideDone = true;
+    // Refinery guide: armed by the first-ore transmission and by a full bay
+    // for the first few hauls. Stays up until the cargo is actually sold
+    // (onCargoSold); death dumps the cargo and cancels it.
+    if (this.oreGuideActive) {
+      if (Player.dead) {
         this.oreGuideActive = false;
         this.oreGuidePath = null;
-        this.toast('The refinery — sell your haul here, then top up next door!');
+      } else {
+        this.oreGuideT -= dt;
+        if (this.oreGuideT <= 0) {
+          this.oreGuidePath = this.buildGuidePath(this.refineryDoorPos());
+          this.oreGuideT = 0.5;
+        }
       }
     }
 
@@ -2138,6 +2157,12 @@ const Game = {
     if (fuelFrac <= C.FUEL_WARN_FRAC && this._prevFuelFrac > C.FUEL_WARN_FRAC && !Player.dead) {
       this.fuelWarnT = 3.5;
       Audio.play('denied');
+      // Low-fuel scares 2 and 3 re-arm the depot chevrons (trip 1 is depth-armed)
+      if (Player.fuelGuideCount > 0 && Player.fuelGuideCount < 3 && !this.fuelGuideActive) {
+        this.fuelGuideActive = true;
+        this.fuelGuideT = 0;
+        this.toast('Fuel is low — follow the arrows to the depot!');
+      }
     }
     this._prevFuelFrac = fuelFrac;
 

@@ -32,6 +32,8 @@ const Shops = {
       if (P.money < cost) { UI.toast('Not enough money'); Audio.play('denied'); return; }
       P.money -= cost;
       P.fuel += liters;
+      P.hasRefueled = true;
+      Game.onRefueled();
       Audio.play('refuel');
       this.fuelMenu();   // refresh
     };
@@ -77,6 +79,7 @@ const Shops = {
           P.money += total;
           Game.score += total * 5;
           P.cargo = [];
+          Game.onCargoSold();
           Audio.play('sell');
           UI.toast(`Sold for $${total.toLocaleString()}`);
           this.processorMenu();
@@ -127,7 +130,7 @@ const Shops = {
           onClick: () => {
             P.money -= next.price;
             P.tiers[cat]++;
-            if (cat === 'fuelTank') P.fuel = P.fuelCap();       // new tank comes full
+            if (cat === 'fuelTank') { P.fuel = P.fuelCap(); P.hasRefueled = true; Game.onRefueled(); }  // new tank comes full
             if (cat === 'hull') P.hull = P.hullCap();           // new hull is pristine
             Audio.play('buy');
             UI.toast(`${next.name} installed`);

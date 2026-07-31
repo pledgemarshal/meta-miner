@@ -42,8 +42,15 @@ const Player = {
     this.empCharges = C.EMP.charges;   // stored EMP uses; refill over time
     this.roboKills = 0;        // slain automatons; the 2nd halves EMP recharge time
     this.tutorialDone = false; // movement mini-tutorial completed (all 4 keys pressed)
-    this.fuelGuideDone = false; // guided-arrows trip to the fuel depot completed
-    this.oreGuideDone = false;  // guided-arrows trip to the refinery completed
+    this.fuelGuideCount = 0;   // completed chevron trips to the fuel depot (guides for the first 3)
+    this.oreGuideCount = 0;    // completed chevron trips to the refinery (guides for the first 3)
+    this.hasRefueled = false;  // first-ever top-up ends the low-fuel mercy drain
+  },
+
+  // Mercy rule: until the first-ever top-up, a tank in the red drains at half
+  // rate, so a rookie fumbling for the depot doesn't flame out on the way
+  fuelDrainMult() {
+    return (!this.hasRefueled && this.fuel <= this.fuelCap() * C.FUEL_WARN_FRAC) ? 0.5 : 1;
   },
 
   // --- Derived stats from upgrade tiers ---
@@ -190,7 +197,7 @@ const Player = {
       Audio.setTreads(0);
       const d = this.drilling;
       d.progress += dt / d.time;
-      this.fuel = Math.max(0, this.fuel - C.FUEL_DRILL_PER_SEC * dt);
+      this.fuel = Math.max(0, this.fuel - C.FUEL_DRILL_PER_SEC * this.fuelDrainMult() * dt);
       if (this.fuel <= 0) { this.die('fuel'); return; }
       const tx = d.x + 0.5, ty = d.y + 0.5 + (1 - this.h) / 2 - 0.06;
       const ease = Math.min(1, d.progress);
@@ -214,7 +221,7 @@ const Player = {
 
     if (thrustUp && this.fuel > 0) {
       this.vy -= C.THRUST * eng * dt;
-      this.fuel = Math.max(0, this.fuel - C.FUEL_THRUST_PER_SEC * dt);
+      this.fuel = Math.max(0, this.fuel - C.FUEL_THRUST_PER_SEC * this.fuelDrainMult() * dt);
       Particles.spawn({
         x: this.x + (Math.random() - 0.5) * 0.3, y: this.y + this.h / 2,
         vx: (Math.random() - 0.5) * 1.5, vy: 3 + Math.random() * 2,
@@ -229,7 +236,7 @@ const Player = {
 
     // Fuel burns only while maneuvering (no idle drain); an empty tank mid-move still explodes
     if ((input.left || input.right) && this.fuel > 0) {
-      this.fuel = Math.max(0, this.fuel - C.FUEL_IDLE_PER_SEC * dt);
+      this.fuel = Math.max(0, this.fuel - C.FUEL_IDLE_PER_SEC * this.fuelDrainMult() * dt);
     }
     if (this.fuel <= 0 && (thrustUp || input.left || input.right)) { this.die('fuel'); return; }
 
@@ -317,6 +324,12 @@ const Player = {
         Game.popup(d.x + 0.5, d.y + 0.2, '+$' + kind.mineral.value.toLocaleString());
         Particles.sparks(d.x + 0.5, d.y + 0.5);
         Story.firstOre();
+        // A full bay re-arms the refinery chevrons for the first few hauls
+        if (this.cargo.length >= this.cargoCap() && this.oreGuideCount < 3 && !Game.oreGuideActive) {
+          Game.oreGuideActive = true;
+          Game.oreGuideT = 0;
+          Game.toast('Cargo bay full — follow the arrows to the refinery!');
+        }
       } else {
         // Full bay: the mineral is destroyed, as in the original
         Game.toast('Cargo bay full — mineral destroyed!');
@@ -490,6 +503,8 @@ const Player = {
         if (this.fuel >= this.fuelCap()) { Game.toast('Fuel already full'); return false; }
         this.items[key]--;
         this.fuel = Math.min(this.fuelCap(), this.fuel + 25);
+        this.hasRefueled = true;
+        Game.onRefueled();
         Audio.play('refuel');
         Game.toast('Reserve fuel: +25 L');
         return true;
@@ -547,8 +562,9 @@ const Player = {
       empCharges: this.empCharges != null ? this.empCharges : C.EMP.charges,
       roboKills: this.roboKills || 0,
       tutorialDone: this.tutorialDone || false,
-      fuelGuideDone: this.fuelGuideDone || false,
-      oreGuideDone: this.oreGuideDone || false,
+      fuelGuideCount: this.fuelGuideCount || 0,
+      oreGuideCount: this.oreGuideCount || 0,
+      hasRefueled: this.hasRefueled || false,
       items: Object.assign({}, this.items),
       tiers: Object.assign({}, this.tiers),
     };
@@ -567,8 +583,10 @@ const Player = {
     this.empCharges = d.empCharges != null ? d.empCharges : C.EMP.charges;
     this.roboKills = d.roboKills || 0;
     this.tutorialDone = !!d.tutorialDone;
-    this.fuelGuideDone = !!d.fuelGuideDone;
-    this.oreGuideDone = !!d.oreGuideDone;
+    // Older saves stored booleans — one completed trip maps to count 1
+    this.fuelGuideCount = d.fuelGuideCount != null ? d.fuelGuideCount : (d.fuelGuideDone ? 1 : 0);
+    this.oreGuideCount = d.oreGuideCount != null ? d.oreGuideCount : (d.oreGuideDone ? 1 : 0);
+    this.hasRefueled = !!d.hasRefueled;
     Object.assign(this.items, d.items);
     Object.assign(this.tiers, d.tiers);
   },

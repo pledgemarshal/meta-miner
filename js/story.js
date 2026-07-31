@@ -99,7 +99,7 @@ const Story = {
     Game.pauseForDialog();
     UI.transmission(s, () => {
       Game.resumeFromDialog();
-      if (!Player.oreGuideDone) {
+      if (Player.oreGuideCount === 0) {
         Game.oreGuideActive = true;
         Game.oreGuideT = 0;
       }
