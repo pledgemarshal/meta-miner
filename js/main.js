@@ -2295,6 +2295,7 @@ const Game = {
     this.drawSky(ctx);
     this.drawTiles(ctx);
     this.drawBuildings(ctx);
+    this.drawHellDecor(ctx);
     Boss.draw(ctx, this.cam);
     Particles.draw(ctx, this.cam);
     if (!Player.dead) {
@@ -2532,6 +2533,12 @@ const Game = {
         // bros, forever coding. Each tile clips its quarter of the shared cell.
         if (id === 2 && (y >= C.WORLD_H - 2 || (y >= C.GROUND_BOTTOM_ROW - 1 && y <= C.GROUND_BOTTOM_ROW))) {
           const cellX = Math.floor(x / 2) * 2;
+          // The cell straddling the Hell-gap shaft would render as half a
+          // room — draw those tiles as plain dirt so the throat reads clean
+          if (y <= C.GROUND_BOTTOM_ROW && cellX <= C.HELL_GAP_X && C.HELL_GAP_X <= cellX + 1) {
+            drawSoil(sx, sy, v);
+            continue;
+          }
           const cellY = y >= C.WORLD_H - 2 ? C.WORLD_H - 2 : C.GROUND_BOTTOM_ROW - 1;
           ctx.save();
           ctx.beginPath();
@@ -4656,6 +4663,161 @@ const Game = {
       ctx.font = `bold ${Math.round(T * 0.28)}px Verdana`;
       ctx.textAlign = 'center';
       ctx.fillText(label, bx, by - T * 0.42);
+    }
+    ctx.restore();
+  },
+
+  // --- Hell's hallway dressing: the long corporate walk to the corner office.
+  // Gold-framed motivational canvases, wall sconces, an Employee of the Month
+  // shrine, a water cooler, dead ficuses, and a red carpet for the last leg. ---
+  drawHellDecor(ctx) {
+    const T = C.TILE;
+    const cam = this.cam;
+    const floorRow = C.WORLD_H - 2;               // top of Hell's bedrock
+    // Skip unless the hallway band is actually on screen
+    if ((C.GROUND_BOTTOM_ROW - cam.y) * T > C.VIEW_H || (floorRow - cam.y) * T < 0) return;
+    const fy = (floorRow - cam.y) * T;            // floor line in screen px
+    const sx = wx => (wx - cam.x) * T;
+    const onScreen = (wx, halfW) => sx(wx) > -halfW * T && sx(wx) < C.VIEW_W + halfW * T;
+    ctx.save();
+    ctx.textAlign = 'center';
+
+    // Red carpet runner up to the desk, gold-trimmed
+    ctx.fillStyle = '#5a1420';
+    ctx.fillRect(sx(3.4), fy - T * 0.1, (10.2 - 3.4) * T, T * 0.1);
+    ctx.fillStyle = '#c9a227';
+    ctx.fillRect(sx(3.4), fy - T * 0.12, (10.2 - 3.4) * T, T * 0.025);
+    ctx.fillRect(sx(3.4), fy - T * 0.02, (10.2 - 3.4) * T, T * 0.02);
+
+    // Velvet rope where the carpet begins
+    if (onScreen(10.8, 2)) {
+      for (const px of [10.2, 11.6]) {
+        ctx.fillStyle = '#8a6f1f';
+        ctx.fillRect(sx(px) - T * 0.035, fy - T * 0.72, T * 0.07, T * 0.72);
+        ctx.beginPath(); ctx.arc(sx(px), fy - T * 0.74, T * 0.07, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.strokeStyle = '#7a1830';
+      ctx.lineWidth = T * 0.055;
+      ctx.beginPath();
+      ctx.moveTo(sx(10.2), fy - T * 0.68);
+      ctx.quadraticCurveTo(sx(10.9), fy - T * 0.42, sx(11.6), fy - T * 0.68);
+      ctx.stroke();
+    }
+
+    // Gold-framed corporate canvases
+    const paint = (wx, wy, w, h, lines, big) => {
+      if (!onScreen(wx, w)) return;
+      const x0 = sx(wx) - w * T / 2, y0 = (wy - cam.y) * T;
+      let g = ctx.createLinearGradient(x0, y0, x0, y0 + h * T);
+      g.addColorStop(0, '#c9a227'); g.addColorStop(1, '#8a6f1f');
+      ctx.fillStyle = g;
+      Sprites.rr(ctx, x0, y0, w * T, h * T, T * 0.06);
+      ctx.fill();
+      ctx.fillStyle = '#b8ab8a';
+      ctx.fillRect(x0 + T * 0.08, y0 + T * 0.08, w * T - T * 0.16, h * T - T * 0.16);
+      ctx.fillStyle = 'rgba(40,20,10,0.25)';
+      ctx.fillRect(x0 + T * 0.08, y0 + T * 0.08, w * T - T * 0.16, T * 0.06);
+      ctx.fillStyle = '#3a3026';
+      lines.forEach((l, i) => {
+        ctx.font = `${i === big ? 'bold ' : ''}${Math.round(T * (i === big ? 0.2 : 0.15))}px Verdana`;
+        ctx.fillText(l, sx(wx), y0 + h * T * (0.42 + i * 0.34));
+      });
+    };
+    const wallY = C.GROUND_BOTTOM_ROW + 2.4;      // hanging height on the back wall
+    paint(24.5, wallY, 1.8, 1.15, ['We Love Our', 'FAMILY'], 1);
+    paint(20.5, wallY, 1.8, 1.15, ['MOVE FAST', 'BREAK ROCKS'], 1);
+    paint(16.5, wallY, 1.9, 1.15, ['PRIVACY IS A', 'TEAM SPORT'], 1);
+    paint(13, wallY, 1.8, 1.15, ['THE GRIND IS', 'THE REWARD'], 1);
+
+    // Employee of the Month — it's him. It's always him.
+    if (onScreen(8.6, 1.4)) {
+      const x0 = sx(8.6) - T * 1.15, y0 = (wallY - cam.y) * T - T * 0.1;
+      let g = ctx.createLinearGradient(x0, y0, x0, y0 + T * 1.3);
+      g.addColorStop(0, '#c9a227'); g.addColorStop(1, '#8a6f1f');
+      ctx.fillStyle = g;
+      Sprites.rr(ctx, x0, y0, T * 2.3, T * 1.3, T * 0.06);
+      ctx.fill();
+      ctx.fillStyle = '#2c2418';
+      ctx.fillRect(x0 + T * 0.07, y0 + T * 0.07, T * 2.16, T * 1.16);
+      ctx.fillStyle = '#c9a227';
+      ctx.font = `bold ${Math.round(T * 0.14)}px Verdana`;
+      ctx.fillText('EMPLOYEE OF THE MONTH', sx(8.6), y0 + T * 0.28);
+      for (let i = 0; i < 3; i++) {
+        const px = sx(8.6) + (i - 1) * T * 0.66;
+        const py = y0 + T * 0.78;
+        ctx.fillStyle = '#b8ab8a';
+        ctx.fillRect(px - T * 0.26, py - T * 0.26, T * 0.52, T * 0.56);
+        ctx.fillStyle = '#e8c9a8';
+        ctx.beginPath(); ctx.arc(px, py + T * 0.04, T * 0.17, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#4a3626';
+        ctx.beginPath(); ctx.arc(px, py + T * 0.02, T * 0.17, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+        ctx.fillRect(px - T * 0.17, py - T * 0.08, T * 0.34, T * 0.05);
+        ctx.fillStyle = '#2c3a52';
+        ctx.beginPath(); ctx.arc(px - T * 0.06, py + T * 0.05, T * 0.02, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(px + T * 0.06, py + T * 0.05, T * 0.02, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // Executive floor sign by the entrance
+    if (onScreen(26.9, 1.3)) {
+      const x0 = sx(26.9) - T * 1.05, y0 = (wallY - cam.y) * T + T * 0.2;
+      ctx.fillStyle = '#16181d';
+      Sprites.rr(ctx, x0, y0, T * 2.1, T * 0.5, T * 0.06);
+      ctx.fill();
+      ctx.strokeStyle = '#c9a227';
+      ctx.lineWidth = Math.max(1, T * 0.02);
+      Sprites.rr(ctx, x0, y0, T * 2.1, T * 0.5, T * 0.06);
+      ctx.stroke();
+      ctx.fillStyle = '#c9a227';
+      ctx.font = `bold ${Math.round(T * 0.17)}px Verdana`;
+      ctx.fillText('← EXECUTIVE FLOOR', sx(26.9), y0 + T * 0.33);
+    }
+
+    // Wall sconces with a warm flicker between the art
+    for (const px of [11.9, 14.8, 18.5, 22.5, 25.8]) {
+      if (!onScreen(px, 1)) continue;
+      const y0 = (wallY - cam.y) * T + T * 0.15;
+      ctx.fillStyle = '#3a3f47';
+      Sprites.rr(ctx, sx(px) - T * 0.06, y0, T * 0.12, T * 0.3, T * 0.04);
+      ctx.fill();
+      const fl = 0.75 + 0.25 * Math.sin(this.time * 9 + px * 3.1);
+      ctx.fillStyle = `rgba(255,190,90,${0.85 * fl})`;
+      ctx.beginPath(); ctx.arc(sx(px), y0 - T * 0.05, T * 0.07, 0, Math.PI * 2); ctx.fill();
+      const g = ctx.createRadialGradient(sx(px), y0 - T * 0.05, T * 0.02, sx(px), y0 - T * 0.05, T * 0.85);
+      g.addColorStop(0, `rgba(255,170,70,${0.16 * fl})`);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sx(px), y0 - T * 0.05, T * 0.85, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Water cooler (nobody refills it) and long-dead ficuses
+    if (onScreen(19.4, 0.6)) {
+      ctx.fillStyle = '#d8d3c8';
+      Sprites.rr(ctx, sx(19.4) - T * 0.17, fy - T * 0.72, T * 0.34, T * 0.72, T * 0.05);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(125,184,232,0.75)';
+      Sprites.rr(ctx, sx(19.4) - T * 0.13, fy - T * 1.02, T * 0.26, T * 0.32, T * 0.07);
+      ctx.fill();
+      ctx.fillStyle = '#16181d';
+      ctx.fillRect(sx(19.4) - T * 0.08, fy - T * 0.55, T * 0.16, T * 0.08);
+    }
+    for (const px of [6.6, 23.4]) {
+      if (!onScreen(px, 0.6)) continue;
+      ctx.fillStyle = '#8a4b2f';
+      ctx.beginPath();
+      ctx.moveTo(sx(px) - T * 0.18, fy - T * 0.34);
+      ctx.lineTo(sx(px) + T * 0.18, fy - T * 0.34);
+      ctx.lineTo(sx(px) + T * 0.12, fy);
+      ctx.lineTo(sx(px) - T * 0.12, fy);
+      ctx.fill();
+      ctx.strokeStyle = '#4a3a26';
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      for (const [dx2, dy2] of [[-0.12, -0.75], [0, -0.85], [0.13, -0.7]]) {
+        ctx.beginPath();
+        ctx.moveTo(sx(px), fy - T * 0.34);
+        ctx.quadraticCurveTo(sx(px) + dx2 * T, fy - dy2 * -1 * T, sx(px) + dx2 * T * 1.8, fy + dy2 * T + T * 0.28);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   },
