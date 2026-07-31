@@ -349,6 +349,14 @@ const UI = {
     // Cargo bar
     this.bar(ctx, pad + barW + gap * 1.5, 10 * U, barW * 0.7, barH, P.cargo.length / P.cargoCap(), '#7de0ff',
       `CARGO ${P.cargo.length}/${P.cargoCap()}`);
+    // Cargo value: what the hold is worth at the processor right now
+    if (P.cargo.length) {
+      ctx.textAlign = 'left';
+      ctx.font = `bold ${Math.round(12 * U)}px Verdana`;
+      ctx.fillStyle = '#7de0ff';
+      ctx.fillText('$' + P.cargoValue().toLocaleString(),
+        pad + barW + gap * 1.5 + barW * 0.7 + 8 * U, 10 * U + barH / 2);
+    }
     // EMP capacitor pips: three charge bars, the next one filling as it
     // recharges (only once the automaton head is installed)
     let hudRow = 2;
