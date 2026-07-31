@@ -1256,15 +1256,27 @@ const Sprites = {
           }
         }
       }
-      // The sliding door panels (drawn last so they cover the cavity edges)
+      // The sliding door panels (drawn last so they cover the cavity edges).
+      // Each carries its slice of the hull's red accent stripe, so the paint
+      // job reads continuous when closed — and splits with the doors.
       const slide = open * bw * 0.5;
-      ctx.fillStyle = '#b87d20';
-      ctx.strokeStyle = 'rgba(50,28,4,0.7)';
       ctx.lineWidth = Math.max(1, T * 0.018);
-      this.rr(ctx, bx - slide, by, bw / 2, bh, T * 0.02);
-      ctx.fill(); ctx.stroke();
-      this.rr(ctx, bx + bw / 2 + slide, by, bw / 2, bh, T * 0.02);
-      ctx.fill(); ctx.stroke();
+      for (const dx of [bx - slide, bx + bw / 2 + slide]) {
+        ctx.fillStyle = '#b87d20';
+        ctx.strokeStyle = 'rgba(50,28,4,0.7)';
+        this.rr(ctx, dx, by, bw / 2, bh, T * 0.02);
+        ctx.fill();
+        ctx.save();
+        this.rr(ctx, dx, by, bw / 2, bh, T * 0.02);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(150,42,30,0.9)';
+        ctx.fillRect(dx, T * 0.03, bw / 2, T * 0.085);
+        ctx.fillStyle = 'rgba(255,255,255,0.15)';
+        ctx.fillRect(dx, T * 0.03, bw / 2, T * 0.025);
+        ctx.restore();
+        this.rr(ctx, dx, by, bw / 2, bh, T * 0.02);
+        ctx.stroke();
+      }
     }
 
     // Rear exhaust stack (glows while thrusting)

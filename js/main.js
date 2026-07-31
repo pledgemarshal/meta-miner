@@ -1859,7 +1859,7 @@ const Game = {
     UI.transmission({
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'Why are you destroying my... ugh...I mean...ugh...wow! Why are there servers down here? Are you okay? Looks like that machine is doing something? Try holding [Q].',
+      text: 'Are you okay? Looks like that machine is doing something? Try holding [Q].',
     }, () => {
       Player.hasEmpHead = true;
       Player.empCharges = C.EMP.charges;

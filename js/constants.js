@@ -135,7 +135,7 @@ const C = {
   // Below maxFt the permafrost keeps going as frozen dirt down to deepMaxFt:
   // fewer ice blocks (deepFreq), but the same cold cast — cold enough that
   // something down there uses it for cooling…
-  ICE: { minFt: 6000, maxFt: 7600, freq: 160, drillMult: 0.7, frostPerBlock: 20, meltSecs: 3,
+  ICE: { minFt: 6000, maxFt: 7600, freq: 160, drillMult: 0.7, frostPerBlock: 40, meltSecs: 3,
          deepMaxFt: 9000, deepFreq: 55 },
 
   // --- AI server rooms, buried in the deep permafrost (-7,700 to -8,950 ft)
