@@ -14,7 +14,7 @@ const Story = {
     500: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',
       portrait: 'natas',
-      text: 'Wow intern. Five hundred feet already. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. Dig deeper, our AI needs this minerals to...help Mars.',
+      text: 'Wow intern. Five hundred feet already. I\'ve wired a $1,000 performance bonus to your account.\n\nDeeper. Dig deeper, our AI needs these minerals to...help Mars.',
     },
     700: {
       from: 'Mark Zucker-ore — CEO of Meta-Minerals Inc.',

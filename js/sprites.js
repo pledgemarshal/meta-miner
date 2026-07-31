@@ -1918,6 +1918,92 @@ const Sprites = {
       crate(w + T * 0.12, 0, T * 0.42);
       crate(w + T * 0.6, 0, T * 0.34);
       crate(w + T * 0.3, -T * 0.42, T * 0.36);
+      // Drill-bit display rack outside the door — tiers on show like garage
+      // tires: silver, goldium, ruby, point-down and ready to bolt on
+      const rackX = -T * 0.98;
+      ctx.fillStyle = '#4a3a26';
+      ctx.fillRect(rackX + T * 0.02, -T * 0.72, T * 0.07, T * 0.72);
+      ctx.fillRect(rackX + T * 0.78, -T * 0.72, T * 0.07, T * 0.72);
+      ctx.fillRect(rackX, -T * 0.8, T * 0.87, T * 0.09);
+      const bitCols = [['#d8dce2', '#8a9099'], ['#f4c542', '#c9932a'], ['#f0304e', '#a81f36']];
+      for (let i = 0; i < 3; i++) {
+        const bx = rackX + T * (0.17 + i * 0.27);
+        const s = 0.72 + i * 0.24;
+        g = ctx.createLinearGradient(bx - T * 0.09 * s, 0, bx + T * 0.09 * s, 0);
+        g.addColorStop(0, bitCols[i][0]); g.addColorStop(1, bitCols[i][1]);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(bx - T * 0.09 * s, -T * 0.71);
+        ctx.lineTo(bx + T * 0.09 * s, -T * 0.71);
+        ctx.lineTo(bx, -T * 0.71 + T * 0.44 * s);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(40,30,20,0.45)';
+        ctx.lineWidth = Math.max(1, T * 0.016);
+        for (let k = 1; k <= 2; k++) {
+          ctx.beginPath();
+          ctx.moveTo(bx - T * 0.07 * s * (1 - k * 0.28), -T * 0.71 + T * 0.13 * s * k);
+          ctx.lineTo(bx + T * 0.07 * s * (1 - k * 0.28), -T * 0.71 + T * 0.13 * s * k);
+          ctx.stroke();
+        }
+      }
+      // Tool pegboard on the facade: wrench, hammer, screwdriver on hooks
+      const pbX = w - T * 1.32, pbY = -H + T * 0.92, pbW = T * 1.08, pbH = T * 0.72;
+      ctx.fillStyle = '#39301e';
+      this.rr(ctx, pbX, pbY, pbW, pbH, T * 0.04);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20,14,8,0.6)';
+      ctx.lineWidth = Math.max(1, T * 0.018);
+      this.rr(ctx, pbX, pbY, pbW, pbH, T * 0.04);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      for (let px2 = 1; px2 < 5; px2++) {
+        for (let py2 = 1; py2 < 4; py2++) {
+          ctx.beginPath();
+          ctx.arc(pbX + px2 * pbW / 5, pbY + py2 * pbH / 4, Math.max(1, T * 0.012), 0, P2);
+          ctx.fill();
+        }
+      }
+      // Wrench: open jaw + shaft, hung diagonally
+      ctx.strokeStyle = '#c8ccd4';
+      ctx.lineWidth = Math.max(2, T * 0.045);
+      ctx.beginPath();
+      ctx.moveTo(pbX + T * 0.14, pbY + T * 0.14);
+      ctx.lineTo(pbX + T * 0.3, pbY + T * 0.56);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1.5, T * 0.03);
+      ctx.beginPath(); ctx.arc(pbX + T * 0.12, pbY + T * 0.11, T * 0.055, Math.PI * 0.2, Math.PI * 1.6); ctx.stroke();
+      // Hammer: vertical handle, heavy head
+      ctx.fillStyle = '#8a6a42';
+      ctx.fillRect(pbX + T * 0.5, pbY + T * 0.18, T * 0.055, T * 0.44);
+      ctx.fillStyle = '#c8ccd4';
+      this.rr(ctx, pbX + T * 0.42, pbY + T * 0.1, T * 0.22, T * 0.12, T * 0.03);
+      ctx.fill();
+      // Screwdriver: amber handle, thin shaft
+      ctx.fillStyle = this.hexA(p.accent, 0.9);
+      this.rr(ctx, pbX + T * 0.82, pbY + T * 0.1, T * 0.07, T * 0.2, T * 0.03);
+      ctx.fill();
+      ctx.strokeStyle = '#c8ccd4';
+      ctx.lineWidth = Math.max(1.5, T * 0.025);
+      ctx.beginPath();
+      ctx.moveTo(pbX + T * 0.855, pbY + T * 0.3);
+      ctx.lineTo(pbX + T * 0.855, pbY + T * 0.58);
+      ctx.stroke();
+      // Oil drum by the door with a leaning wrench
+      ctx.fillStyle = '#4a4f57';
+      this.rr(ctx, T * 0.34, -T * 0.6, T * 0.42, T * 0.6, T * 0.04);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
+      ctx.fillRect(T * 0.34, -T * 0.5, T * 0.42, T * 0.06);
+      ctx.fillRect(T * 0.34, -T * 0.24, T * 0.42, T * 0.06);
+      ctx.fillStyle = 'rgba(15,12,8,0.55)';
+      ctx.beginPath(); ctx.ellipse(T * 0.55, -T * 0.6, T * 0.19, T * 0.045, 0, 0, P2); ctx.fill();
+      ctx.strokeStyle = '#9aa0a8';
+      ctx.lineWidth = Math.max(2, T * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(T * 0.82, -T * 0.02);
+      ctx.lineTo(T * 0.98, -T * 0.5);
+      ctx.stroke();
     } else if (key === 'items') {
       // Striped awning over the door
       const ax = w / 2 - T * 0.62, aw = T * 1.24;
