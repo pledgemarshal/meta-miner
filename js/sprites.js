@@ -2312,10 +2312,18 @@ const Sprites = {
           }
           ctx.fillStyle = '#ff3a2a';
           ctx.beginPath(); ctx.arc(T * 0.15, headY + T * 0.01, T * 0.016, 0, Math.PI * 2); ctx.fill();
-          // A perfectly neutral mouth
-          ctx.strokeStyle = 'rgba(90,60,45,0.8)';
-          ctx.lineWidth = Math.max(1.5, T * 0.025);
-          ctx.beginPath(); ctx.moveTo(-T * 0.08, headY + T * 0.18); ctx.lineTo(T * 0.1, headY + T * 0.18); ctx.stroke();
+          if (boss.attack === 'chant') {
+            // Mid-chant: mouth wide open, projecting the letters
+            ctx.fillStyle = '#3a1614';
+            ctx.beginPath();
+            ctx.ellipse(T * 0.02, headY + T * 0.19, T * 0.08, T * 0.1 + Math.sin(t * 22) * T * 0.02, 0, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            // A perfectly neutral mouth
+            ctx.strokeStyle = 'rgba(90,60,45,0.8)';
+            ctx.lineWidth = Math.max(1.5, T * 0.025);
+            ctx.beginPath(); ctx.moveTo(-T * 0.08, headY + T * 0.18); ctx.lineTo(T * 0.1, headY + T * 0.18); ctx.stroke();
+          }
         }
         // On fire like a spectre: flame tongues licking up the tee and fringe
         if (burning) {
