@@ -3011,9 +3011,10 @@ const Sprites = {
     // Deep rock darkens with the soil bands so the wall sits in its stratum
     const shadeT = Math.min(1, band / Math.max(1, this.BANDS - 1));
     const lerp = (a, b, u) => Math.round(a + (b - a) * u);
-    const base = `rgb(${lerp(96, 60, shadeT)},${lerp(97, 61, shadeT)},${lerp(104, 67, shadeT)})`;
-    const dark = `rgb(${lerp(44, 26, shadeT)},${lerp(46, 28, shadeT)},${lerp(52, 33, shadeT)})`;
-    const lite = `rgb(${lerp(132, 84, shadeT)},${lerp(134, 86, shadeT)},${lerp(142, 93, shadeT)})`;
+    // Martian bedrock: grey-brown, warmer than concrete so it sits in the soil
+    const base = `rgb(${lerp(104, 64, shadeT)},${lerp(92, 56, shadeT)},${lerp(82, 50, shadeT)})`;
+    const dark = `rgb(${lerp(50, 29, shadeT)},${lerp(42, 24, shadeT)},${lerp(37, 21, shadeT)})`;
+    const lite = `rgb(${lerp(146, 92, shadeT)},${lerp(130, 82, shadeT)},${lerp(116, 73, shadeT)})`;
     // Smooth world-space wobble — same input gives the same result in every
     // tile, so a feature crossing a boundary lines up exactly
     const wob = (v, f, a) => Math.sin(v * f) * a + Math.sin(v * f * 2.37 + 1.7) * a * 0.45;
@@ -3029,58 +3030,83 @@ const Sprites = {
     ctx.fillStyle = g;
     ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
 
-    // Interlocking rock slabs. Rows are indexed by WORLD position and stagger
-    // by row, so the masonry runs continuously down the whole map — a slab
-    // straddling a tile seam is drawn identically by both tiles.
+    // Sedimentary bedrock: uneven strata laid down over geological time. Layer
+    // boundaries live at WORLD y positions with hashed thicknesses, so the
+    // banding runs continuously down the map and never repeats.
     const hashF = (a, b) => {
       let h = ((a * 374761393) ^ (b * 668265263)) >>> 0;
       h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
       return ((h >>> 8) & 65535) / 65535;
     };
-    const rowH = 0.42;
-    const r0 = Math.floor((wy - 0.5) / rowH), r1 = Math.floor((wy + 1.5) / rowH);
-    for (let r = r0; r <= r1; r++) {
-      const yTop = r * rowH;
-      // Each row starts at its own offset, so vertical joints never line up
-      let bx = wx - 0.6 + hashF(r, 7) * 0.55;
-      for (let i = 0; i < 6 && bx < wx + 1.2; i++) {
-        const bw = 0.34 + hashF(r, i * 31 + 3) * 0.42;
-        const jitter = (hashF(r, i * 17 + 11) - 0.5) * 0.035;
-        const px = sx + (bx - wx) * T, py = sy + (yTop - wy) * T + jitter * T;
-        const pw = bw * T, ph = rowH * T;
-        // Slab body — each one a slightly different shade of the same rock
-        const tone = 0.82 + hashF(r, i * 53 + 5) * 0.36;
-        const sg = ctx.createLinearGradient(px, py, px, py + ph);
-        sg.addColorStop(0, `rgba(255,255,255,${0.1 * tone})`);
-        sg.addColorStop(0.5, 'rgba(0,0,0,0)');
-        sg.addColorStop(1, `rgba(0,0,0,${0.2 * tone})`);
-        ctx.fillStyle = sg;
-        this.rr(ctx, px + T * 0.012, py + T * 0.012, pw - T * 0.024, ph - T * 0.024, T * 0.035);
-        ctx.fill();
-        // Recessed joint around the slab
-        ctx.strokeStyle = 'rgba(0,0,0,0.42)';
-        ctx.lineWidth = Math.max(1.5, T * 0.035);
-        this.rr(ctx, px + T * 0.012, py + T * 0.012, pw - T * 0.024, ph - T * 0.024, T * 0.035);
-        ctx.stroke();
-        // Lit top edge, so the slabs catch the cavern light
-        ctx.strokeStyle = 'rgba(255,255,255,0.13)';
-        ctx.lineWidth = Math.max(1, T * 0.018);
-        ctx.beginPath();
-        ctx.moveTo(px + T * 0.05, py + T * 0.022);
-        ctx.lineTo(px + pw - T * 0.05, py + T * 0.022);
-        ctx.stroke();
-        // Hairline fracture across the odd slab
-        if (hashF(r, i * 71 + 13) > 0.72) {
-          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-          ctx.lineWidth = Math.max(1, T * 0.016);
-          ctx.beginPath();
-          ctx.moveTo(px + pw * 0.28, py + ph * 0.15);
-          ctx.lineTo(px + pw * 0.46, py + ph * 0.55);
-          ctx.lineTo(px + pw * 0.36, py + ph * 0.88);
-          ctx.stroke();
-        }
-        bx += bw;
+    const layerH = 0.46;
+    // World y of the k-th bedding plane — jittered so no two layers match
+    const planeY = k => k * layerH + (hashF(k, 91) - 0.5) * layerH * 0.62;
+    const k0 = Math.floor((wy - 1) / layerH), k1 = Math.floor((wy + 2) / layerH);
+    for (let k = k0; k <= k1; k++) {
+      const yTop = planeY(k), yBot = planeY(k + 1);
+      if (yBot < wy - 0.4 || yTop > wy + 1.4) continue;
+      // Each stratum settled a slightly different mineral mix
+      const tone = hashF(k, 17);
+      const warm = hashF(k, 41) > 0.7;   // the odd iron-stained band
+      // Wavy bedding planes — the wave is a function of world x, so the
+      // undulation is identical in every tile the layer passes through
+      const edge = (yw, phase) => px2 => {
+        const worldX = wx + px2 / T;
+        return sy + (yw - wy) * T + wob(worldX * 2.1 + phase, 1.9, T * 0.045);
+      };
+      const topAt = edge(yTop, k * 3.7), botAt = edge(yBot, (k + 1) * 3.7);
+      ctx.beginPath();
+      ctx.moveTo(sx - 2, topAt(-2));
+      for (let px2 = -2; px2 <= T + 4; px2 += 5) ctx.lineTo(sx + px2, topAt(px2));
+      for (let px2 = T + 4; px2 >= -2; px2 -= 5) ctx.lineTo(sx + px2, botAt(px2));
+      ctx.closePath();
+      ctx.fillStyle = warm
+        ? `rgba(${lerp(120, 88, shadeT)},${lerp(96, 68, shadeT)},${lerp(78, 55, shadeT)},0.5)`
+        : `rgba(255,255,255,${0.03 + tone * 0.09})`;
+      ctx.fill();
+      // The bedding plane itself: a compressed dark seam with a pale underside
+      ctx.beginPath();
+      for (let px2 = -2; px2 <= T + 4; px2 += 5) {
+        const yy = topAt(px2);
+        if (px2 <= -2) ctx.moveTo(sx + px2, yy); else ctx.lineTo(sx + px2, yy);
       }
+      ctx.strokeStyle = `rgba(0,0,0,${0.22 + tone * 0.2})`;
+      ctx.lineWidth = Math.max(1, T * (0.018 + tone * 0.022));
+      ctx.stroke();
+      ctx.save();
+      ctx.translate(0, T * 0.022);
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = Math.max(1, T * 0.014);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Irregular fractures cutting ACROSS the bedding, as real rock does —
+    // jagged rather than wavy, and they ignore the layer grid entirely
+    for (const seed of [0.3, 0.74]) {
+      ctx.strokeStyle = `rgba(0,0,0,${seed > 0.5 ? 0.24 : 0.32})`;
+      ctx.lineWidth = Math.max(1, T * (seed > 0.5 ? 0.018 : 0.026));
+      ctx.beginPath();
+      for (let py = -3; py <= T + 3; py += 6) {
+        const worldY = wy + py / T;
+        const seg = Math.floor(worldY * 3.1);
+        const off = 0.5 + (hashF(seg, seed * 100 | 0) - 0.5) * 0.34 + seed * 0.3 - 0.15;
+        const xx = sx + Math.max(0.1, Math.min(0.9, off)) * T;
+        if (py <= -3) ctx.moveTo(xx, sy + py); else ctx.lineTo(xx, sy + py);
+      }
+      ctx.stroke();
+    }
+
+    // Mottling: soft blotches of denser rock, hashed per world cell
+    for (let m = 0; m < 4; m++) {
+      const hx = hashF(Math.floor(wy * 2), m * 13 + 3);
+      const hy = hashF(Math.floor(wy * 2), m * 29 + 7);
+      const hr = T * (0.07 + hashF(Math.floor(wy * 2), m * 51 + 5) * 0.13);
+      const bg = ctx.createRadialGradient(sx + hx * T, sy + hy * T, 1, sx + hx * T, sy + hy * T, hr);
+      bg.addColorStop(0, m % 2 ? 'rgba(0,0,0,0.14)' : 'rgba(255,255,255,0.07)');
+      bg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(sx + hx * T, sy + hy * T, hr, 0, Math.PI * 2); ctx.fill();
     }
 
     // Ragged inner edge: the face bulges into the cavern by a world-y amount,
