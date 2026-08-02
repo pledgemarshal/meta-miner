@@ -321,14 +321,16 @@ const Audio = {
   // Chrome's cancel() is ASYNC — speaking immediately after it races the
   // still-running utterance, which is how the hold-music PA used to talk over
   // the boss chant and the automaton callout. Cancel, then speak next tick.
+  // Returns true if the line was actually queued, false if it was suppressed —
+  // callers that must land their line (e.g. the arrival PA) can retry.
   speakLine(text, opts) {
-    if (this.muted) return;
+    if (this.muted) return false;
     const o = opts || {};
     const prio = o.priority || 2;
     try {
       const synth = window.speechSynthesis;
       // Ambient chatter never interrupts, and never starts on top of anything
-      if (prio < 2 && (synth.speaking || synth.pending || (this._speakPrio || 0) >= 2)) return;
+      if (prio < 2 && (synth.speaking || synth.pending || (this._speakPrio || 0) >= 2)) return false;
       const fire = () => {
         const lines = o.echo ? [[o.volume, o.rate], [o.volume * 0.35, o.rate + 0.1]] : [[o.volume, o.rate]];
         for (const [vol, rate] of lines) {
@@ -350,7 +352,8 @@ const Audio = {
         this._speakPrio = prio;
         fire();
       }
-    } catch (e) {}
+      return true;
+    } catch (e) { return false; }
   },
   stopSpeech() {
     try { window.speechSynthesis.cancel(); } catch (e) {}
@@ -476,12 +479,14 @@ const Audio = {
       if (step % 8 === 0) for (const f of CHORDS[(step >> 3) % 2]) note(f, 2.2, 0.05, 'sine');
       if (step % 2 === 1) this.noise(0.03, 0.035, 5000, 0);   // brush tick
       step++;
-      // The PA checks in roughly twice a minute — lowest priority, so it
-      // yields to the boss chant and the automaton callout rather than
-      // talking over them
-      if (step % 96 === 48) {
-        this.speakLine('Your termination is important to us. Please continue to hold.',
-          { voice: 'female', pitch: 1.15, rate: 1.0, volume: this.sfxVol * 0.7, priority: 1 });
+      // The PA greets you ONCE on arrival, then never repeats. Lowest
+      // priority, so it yields to the boss chant and the automaton callout —
+      // if it gets suppressed it simply retries on a later tick.
+      if (step >= 1 && !this.holdNodes.paSaid) {
+        if (this.speakLine('Your termination is important to us. Please continue to hold.',
+              { voice: 'female', pitch: 1.15, rate: 1.0, volume: this.sfxVol * 0.7, priority: 1 })) {
+          this.holdNodes.paSaid = true;
+        }
       }
     }, 280);
     this.holdNodes = { phone, gain, timer };

@@ -5067,7 +5067,7 @@ const Game = {
     ctx.fillStyle = '#ffd97a';
     ctx.fillText('THE CEO IS DEFEATED', C.VIEW_W / 2, C.VIEW_H * 0.26);
     ctx.shadowBlur = 0;
-    ctx.font = '15px Verdana';
+    ctx.font = '20px Verdana';
     ctx.fillStyle = '#d8d3c8';
     const lines = [
       'The Zucker-Tron 9000 collapses in a shower of sparks and shareholder value.',
@@ -5083,10 +5083,17 @@ const Game = {
       '',
       'Final wealth: $' + Player.money.toLocaleString() + '        Score: ' + this.score.toLocaleString(),
     );
-    lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.38 + i * 24));
-    ctx.font = 'bold 17px Verdana';
+    // Shrink to fit if the longest line would run off a narrow window
+    let vf = 20;
+    const widest = Math.max(...lines.map(l => ctx.measureText(l).width));
+    if (widest > C.VIEW_W * 0.9) {
+      vf = Math.floor(20 * (C.VIEW_W * 0.9) / widest);
+      ctx.font = `${vf}px Verdana`;
+    }
+    lines.forEach((l, i) => ctx.fillText(l, C.VIEW_W / 2, C.VIEW_H * 0.38 + i * (vf * 1.6)));
+    ctx.font = 'bold 19px Verdana';
     ctx.fillStyle = '#7dffb0';
-    ctx.fillText('ENTER — save & return to title', C.VIEW_W / 2, C.VIEW_H * 0.82);
+    ctx.fillText('ENTER — save & return to title', C.VIEW_W / 2, C.VIEW_H * 0.86);
     ctx.restore();
   },
 };
