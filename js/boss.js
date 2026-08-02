@@ -343,7 +343,7 @@ const Boss = {
     for (let i = this.fireballs.length - 1; i >= 0; i--) {
       const f = this.fireballs[i];
       f.life -= dt;
-      f.vy += C.GRAVITY * 0.6 * dt;
+      f.vy += C.GRAVITY * 0.15 * dt;
       f.x += f.vx * dt;
       f.y += f.vy * dt;
       f.rot = (f.rot || 0) + (f.spin || 0) * dt;
@@ -443,11 +443,13 @@ const Boss = {
       case 'fireball': {
         if (this.attackT > 0.5 && !this._fired) {
           this._fired = true;
+          // Half speed, and gravity quartered to match — same arc, twice the
+          // hang time, so the likes are readable in flight
           this.fireballs.push({
             x: this.x + this.facing * 0.8, y: this.y - 2.2,
-            vx: this.facing * (5 + Math.random() * 2), vy: -3,
-            rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * (2 + Math.random() * 2.5),
-            life: 6,
+            vx: this.facing * (2.5 + Math.random()), vy: -1.5,
+            rot: 0, spin: (Math.random() < 0.5 ? -1 : 1) * (1 + Math.random() * 1.25),
+            life: 12,
           });
         }
         if (this.attackT > 0.9) { this._fired = false; this.endAttack(2.2 + Math.random() * 1.2); }
@@ -603,26 +605,26 @@ const Boss = {
       ctx.save();
       // Plasma halo (additive, as before)
       ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(fx, fy, 2, fx, fy, T * 0.5);
+      const g = ctx.createRadialGradient(fx, fy, 2, fx, fy, T * 0.9);
       g.addColorStop(0, '#eef6ff');
       g.addColorStop(0.4, '#6aa8ff');
       g.addColorStop(1, 'rgba(30,80,255,0)');
       ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(fx, fy, T * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(fx, fy, T * 0.9, 0, Math.PI * 2); ctx.fill();
       // The like itself: a rounded blue badge, tumbling as it flies
       ctx.globalCompositeOperation = 'source-over';
       ctx.translate(fx, fy);
       ctx.rotate(f.rot || 0);
       ctx.shadowColor = '#4a9eff';
-      ctx.shadowBlur = 18;
+      ctx.shadowBlur = 24;
       ctx.fillStyle = 'rgba(56,120,240,0.95)';
-      Sprites.rr(ctx, -T * 0.17, -T * 0.17, T * 0.34, T * 0.34, T * 0.09);
+      Sprites.rr(ctx, -T * 0.34, -T * 0.34, T * 0.68, T * 0.68, T * 0.18);
       ctx.fill();
       ctx.shadowBlur = 0;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = `${Math.round(T * 0.24)}px Verdana`;
-      ctx.fillText('👍', 0, T * 0.02);
+      ctx.font = `${Math.round(T * 0.48)}px Verdana`;
+      ctx.fillText('👍', 0, T * 0.04);
       ctx.restore();
     }
 

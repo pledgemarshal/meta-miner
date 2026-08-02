@@ -299,27 +299,69 @@ const Audio = {
   // Robotic voice line: deepest male voice, pitch floored, chopped into a
   // staccato machine cadence with a quieter echo repeat — over a WebAudio
   // cyber bed of data chirps, sub-bass drone and beating metallic tones
-  say(text) {
+  // --- One speech channel, so the three voices never fight. ---
+  // Voices are resolved once and cached; the male and female picks are
+  // independent, so a missing voice never falls through to the other gender.
+  _voiceCache: null,
+  voiceFor(kind) {
+    try {
+      if (!this._voiceCache) {
+        const v = window.speechSynthesis.getVoices();
+        if (!v.length) return null;   // not loaded yet — don't cache a miss
+        const en = v.filter(x => /en/i.test(x.lang));
+        this._voiceCache = {
+          male: en.find(x => /david|mark|george|male/i.test(x.name)) || en[0] || null,
+          female: en.find(x => /zira|susan|hazel|female/i.test(x.name)) || null,
+        };
+      }
+      return this._voiceCache[kind] || null;
+    } catch (e) { return null; }
+  },
+  // priority: 2 = gameplay VO (interrupts anything), 1 = ambient PA (yields).
+  // Chrome's cancel() is ASYNC — speaking immediately after it races the
+  // still-running utterance, which is how the hold-music PA used to talk over
+  // the boss chant and the automaton callout. Cancel, then speak next tick.
+  speakLine(text, opts) {
     if (this.muted) return;
+    const o = opts || {};
+    const prio = o.priority || 2;
     try {
       const synth = window.speechSynthesis;
-      const voices = synth.getVoices();
-      const pick = voices.find(v => /david|mark|male/i.test(v.name) && /en/i.test(v.lang))
-        || voices.find(v => /en/i.test(v.lang));
-      // Full stops between words force hard mechanical pauses
-      const stacc = text.trim().split(/\s+/).join('. ') + '.';
-      synth.cancel();
-      const speak = (vol, rate) => {
-        const u = new SpeechSynthesisUtterance(stacc);
-        if (pick) u.voice = pick;
-        u.pitch = 0;
-        u.rate = rate;
-        u.volume = Math.max(0, Math.min(1, vol));
-        synth.speak(u);
+      // Ambient chatter never interrupts, and never starts on top of anything
+      if (prio < 2 && (synth.speaking || synth.pending || (this._speakPrio || 0) >= 2)) return;
+      const fire = () => {
+        const lines = o.echo ? [[o.volume, o.rate], [o.volume * 0.35, o.rate + 0.1]] : [[o.volume, o.rate]];
+        for (const [vol, rate] of lines) {
+          const u = new SpeechSynthesisUtterance(text);
+          const v = this.voiceFor(o.voice || 'male');
+          if (v) u.voice = v;
+          u.pitch = o.pitch != null ? o.pitch : 0;
+          u.rate = rate != null ? rate : 1;
+          u.volume = Math.max(0, Math.min(1, vol != null ? vol : this.sfxVol));
+          u.onend = u.onerror = () => { if (this._speakPrio === prio) this._speakPrio = 0; };
+          synth.speak(u);
+        }
       };
-      speak(this.sfxVol, 0.8);           // the announcement
-      speak(this.sfxVol * 0.35, 0.9);    // queued echo, like a PA bouncing off rock
+      if (prio >= 2) {
+        this._speakPrio = prio;
+        synth.cancel();
+        setTimeout(fire, 60);   // let the cancel actually land
+      } else {
+        this._speakPrio = prio;
+        fire();
+      }
     } catch (e) {}
+  },
+  stopSpeech() {
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+    this._speakPrio = 0;
+  },
+
+  say(text) {
+    if (this.muted) return;
+    // Full stops between words force hard mechanical pauses
+    const stacc = text.trim().split(/\s+/).join('. ') + '.';
+    this.speakLine(stacc, { voice: 'male', pitch: 0, rate: 0.8, volume: this.sfxVol, echo: true, priority: 2 });
     // The machine underneath the words
     [2600, 1900, 1300].forEach((f, i) => this.tone(f, 0.05, 'square', 0.11, null, i * 0.07));  // boot-up data chirps
     this.noise(0.18, 0.2, 3800, 0.2);                  // vox static crackle
@@ -376,19 +418,8 @@ const Audio = {
   // stands alone wherever speechSynthesis is unavailable).
   chantAI() {
     if (this.muted) return;
-    try {
-      const synth = window.speechSynthesis;
-      const voices = synth.getVoices();
-      const pick = voices.find(v => /david|mark|male/i.test(v.name) && /en/i.test(v.lang))
-        || voices.find(v => /en/i.test(v.lang));
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance('A. I. A. I. A. I. A. I.');
-      if (pick) u.voice = pick;
-      u.pitch = 0;
-      u.rate = 1.2;
-      u.volume = Math.max(0, Math.min(1, this.sfxVol));
-      synth.speak(u);
-    } catch (e) {}
+    this.speakLine('A. I. A. I. A. I. A. I.',
+      { voice: 'male', pitch: 0, rate: 1.2, volume: this.sfxVol, priority: 2 });
     // The soundwave underneath: two-note data pairs, one per "AI"
     [0, 1, 2, 3].forEach(i => {
       this.tone(1560, 0.05, 'square', 0.09, null, i * 0.22);
@@ -411,6 +442,8 @@ const Audio = {
       const h = this.holdNodes;
       this.holdNodes = null;
       try { clearInterval(h.timer); h.gain.disconnect(); } catch (e) {}
+      // Kill any PA line still in the air, so it can't run into the fight
+      if ((this._speakPrio || 0) === 1) this.stopSpeech();
       return;
     }
     if (!this.ensure() || this.muted) return;
@@ -443,18 +476,12 @@ const Audio = {
       if (step % 8 === 0) for (const f of CHORDS[(step >> 3) % 2]) note(f, 2.2, 0.05, 'sine');
       if (step % 2 === 1) this.noise(0.03, 0.035, 5000, 0);   // brush tick
       step++;
-      // The PA checks in roughly twice a minute
+      // The PA checks in roughly twice a minute — lowest priority, so it
+      // yields to the boss chant and the automaton callout rather than
+      // talking over them
       if (step % 96 === 48) {
-        try {
-          const synth = window.speechSynthesis;
-          const u = new SpeechSynthesisUtterance('Your termination is important to us. Please continue to hold.');
-          const pick = synth.getVoices().find(v => /zira|susan|female|hazel/i.test(v.name) && /en/i.test(v.lang));
-          if (pick) u.voice = pick;
-          u.pitch = 1.15;
-          u.rate = 1.0;
-          u.volume = Math.max(0, Math.min(1, this.sfxVol * 0.7));
-          synth.speak(u);
-        } catch (e) {}
+        this.speakLine('Your termination is important to us. Please continue to hold.',
+          { voice: 'female', pitch: 1.15, rate: 1.0, volume: this.sfxVol * 0.7, priority: 1 });
       }
     }, 280);
     this.holdNodes = { phone, gain, timer };
