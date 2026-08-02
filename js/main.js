@@ -2631,6 +2631,16 @@ const Game = {
           ctx.restore();
           continue;
         }
+        // The impassable side walls render as one continuous cliff face —
+        // stacking the same boulder down the whole map read as a tiled pattern
+        if (id === 2 && (x === 0 || x === C.WORLD_W - 1)) {
+          Sprites.drawCliffFace(ctx, sx, sy, x, y, band, x === 0 ? -1 : 1);
+          if (icyA > 0) {
+            ctx.fillStyle = `rgba(150,205,255,${icyA})`;
+            ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+          }
+          continue;
+        }
         if (id === 1) { drawSoil(sx, sy, v); }
         else if (id === 2) { tex = Sprites.stone[band]; ftex = Sprites.frozenStone[band]; }
         else if (id === 3) tex = Sprites.lavaBase;

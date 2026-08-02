@@ -3001,6 +3001,124 @@ const Sprites = {
     ctx.restore();
   },
 
+  // --- The impassable side walls, drawn as ONE continuous cliff face rather
+  // than a stack of identical boulders. Every feature is a function of WORLD
+  // position, so strata, cracks and the ragged inner edge flow across tile
+  // seams without repeating. `side`: -1 = left wall (face opens right),
+  // +1 = right wall. ---
+  drawCliffFace(ctx, sx, sy, wx, wy, band, side) {
+    const T = C.TILE;
+    // Deep rock darkens with the soil bands so the wall sits in its stratum
+    const shadeT = Math.min(1, band / Math.max(1, this.BANDS - 1));
+    const lerp = (a, b, u) => Math.round(a + (b - a) * u);
+    const base = `rgb(${lerp(96, 60, shadeT)},${lerp(97, 61, shadeT)},${lerp(104, 67, shadeT)})`;
+    const dark = `rgb(${lerp(44, 26, shadeT)},${lerp(46, 28, shadeT)},${lerp(52, 33, shadeT)})`;
+    const lite = `rgb(${lerp(132, 84, shadeT)},${lerp(134, 86, shadeT)},${lerp(142, 93, shadeT)})`;
+    // Smooth world-space wobble — same input gives the same result in every
+    // tile, so a feature crossing a boundary lines up exactly
+    const wob = (v, f, a) => Math.sin(v * f) * a + Math.sin(v * f * 2.37 + 1.7) * a * 0.45;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(sx, sy, T + 0.5, T + 0.5);
+    ctx.clip();
+    // Base rock, lit from the cavern side
+    const g = ctx.createLinearGradient(sx, 0, sx + T, 0);
+    if (side < 0) { g.addColorStop(0, dark); g.addColorStop(0.75, base); g.addColorStop(1, lite); }
+    else { g.addColorStop(0, lite); g.addColorStop(0.25, base); g.addColorStop(1, dark); }
+    ctx.fillStyle = g;
+    ctx.fillRect(sx, sy, T + 0.5, T + 0.5);
+
+    // Interlocking rock slabs. Rows are indexed by WORLD position and stagger
+    // by row, so the masonry runs continuously down the whole map — a slab
+    // straddling a tile seam is drawn identically by both tiles.
+    const hashF = (a, b) => {
+      let h = ((a * 374761393) ^ (b * 668265263)) >>> 0;
+      h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
+      return ((h >>> 8) & 65535) / 65535;
+    };
+    const rowH = 0.42;
+    const r0 = Math.floor((wy - 0.5) / rowH), r1 = Math.floor((wy + 1.5) / rowH);
+    for (let r = r0; r <= r1; r++) {
+      const yTop = r * rowH;
+      // Each row starts at its own offset, so vertical joints never line up
+      let bx = wx - 0.6 + hashF(r, 7) * 0.55;
+      for (let i = 0; i < 6 && bx < wx + 1.2; i++) {
+        const bw = 0.34 + hashF(r, i * 31 + 3) * 0.42;
+        const jitter = (hashF(r, i * 17 + 11) - 0.5) * 0.035;
+        const px = sx + (bx - wx) * T, py = sy + (yTop - wy) * T + jitter * T;
+        const pw = bw * T, ph = rowH * T;
+        // Slab body — each one a slightly different shade of the same rock
+        const tone = 0.82 + hashF(r, i * 53 + 5) * 0.36;
+        const sg = ctx.createLinearGradient(px, py, px, py + ph);
+        sg.addColorStop(0, `rgba(255,255,255,${0.1 * tone})`);
+        sg.addColorStop(0.5, 'rgba(0,0,0,0)');
+        sg.addColorStop(1, `rgba(0,0,0,${0.2 * tone})`);
+        ctx.fillStyle = sg;
+        this.rr(ctx, px + T * 0.012, py + T * 0.012, pw - T * 0.024, ph - T * 0.024, T * 0.035);
+        ctx.fill();
+        // Recessed joint around the slab
+        ctx.strokeStyle = 'rgba(0,0,0,0.42)';
+        ctx.lineWidth = Math.max(1.5, T * 0.035);
+        this.rr(ctx, px + T * 0.012, py + T * 0.012, pw - T * 0.024, ph - T * 0.024, T * 0.035);
+        ctx.stroke();
+        // Lit top edge, so the slabs catch the cavern light
+        ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+        ctx.lineWidth = Math.max(1, T * 0.018);
+        ctx.beginPath();
+        ctx.moveTo(px + T * 0.05, py + T * 0.022);
+        ctx.lineTo(px + pw - T * 0.05, py + T * 0.022);
+        ctx.stroke();
+        // Hairline fracture across the odd slab
+        if (hashF(r, i * 71 + 13) > 0.72) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+          ctx.lineWidth = Math.max(1, T * 0.016);
+          ctx.beginPath();
+          ctx.moveTo(px + pw * 0.28, py + ph * 0.15);
+          ctx.lineTo(px + pw * 0.46, py + ph * 0.55);
+          ctx.lineTo(px + pw * 0.36, py + ph * 0.88);
+          ctx.stroke();
+        }
+        bx += bw;
+      }
+    }
+
+    // Ragged inner edge: the face bulges into the cavern by a world-y amount,
+    // so the silhouette never repeats down the column
+    const edgeAt = worldY => 0.1 + 0.085 * (1 + Math.sin(worldY * 1.9) * 0.6 + Math.sin(worldY * 0.63 + 2.1) * 0.4);
+    ctx.beginPath();
+    if (side < 0) {
+      ctx.moveTo(sx + T + 1, sy - 1);
+      for (let py = -1; py <= T + 1; py += 3) {
+        ctx.lineTo(sx + T - edgeAt(wy + py / T) * T, sy + py);
+      }
+      ctx.lineTo(sx + T + 1, sy + T + 1);
+    } else {
+      ctx.moveTo(sx - 1, sy - 1);
+      for (let py = -1; py <= T + 1; py += 3) {
+        ctx.lineTo(sx + edgeAt(wy + py / T) * T, sy + py);
+      }
+      ctx.lineTo(sx - 1, sy + T + 1);
+    }
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0,0,0,0.34)';   // shadowed lip where the face turns away
+    ctx.fill();
+
+    // Embedded pebbles, hashed per world cell so they never tile
+    for (let k = 0; k < 3; k++) {
+      let h = ((Math.floor(wy) * 73856093) ^ (k * 19349663) ^ (wx * 83492791)) >>> 0;
+      h = ((h ^ (h >> 13)) * 1274126177) >>> 0;
+      const px = ((h & 255) / 255) * 0.7 + (side < 0 ? 0.05 : 0.25);
+      const py = (((h >> 8) & 255) / 255);
+      const pr = T * (0.018 + ((h >> 16) & 15) / 15 * 0.022);
+      ctx.fillStyle = ((h >> 20) & 1) ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.arc(sx + px * T, sy + py * T, pr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+
   // A dead miner's pod, half-buried where its last run ended: scorched hull,
   // cracked dome, thrown tread. The emergency beacon blinks until the black
   // box is recovered.
