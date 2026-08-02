@@ -3001,6 +3001,242 @@ const Sprites = {
     ctx.restore();
   },
 
+  // --- Upgrade-shop hardware portraits. One animated icon per category,
+  // tinted by the tier you'd be buying, drawn into a square of side S. ---
+  UPGRADE_TINTS: {
+    drill:    ['#d8dce2', '#c9d2dd', '#f4c542', '#2ee66b', '#f0304e', '#aef4ff', '#37d8c0'],
+    hull:     ['#8a9099', '#b0623a', '#c98946', '#c9d2dd', '#dfe8ef', '#7de07d', '#7de0ff'],
+    engine:   ['#8a9099', '#ffb347', '#ff9a3c', '#ff7a2f', '#ff5540', '#ff3a2a', '#ffd23e'],
+    fuelTank: ['#8a9099', '#ffb347', '#ffc862', '#ffd76e', '#ffe08a', '#fff0b8', '#7de0ff'],
+    radiator: ['#8a9099', '#9ad8ff', '#7de0ff', '#5ac8ff', '#3ab0ff', '#8fd8ff', '#cfeefc'],
+    cargo:    ['#8a9099', '#b89a5c', '#c9a870', '#d8bc84', '#e8cf98', '#f4dfb0', '#7de0ff'],
+  },
+  drawUpgradeIcon(ctx, key, tier, S, t, hover) {
+    const tints = this.UPGRADE_TINTS[key] || this.UPGRADE_TINTS.hull;
+    const col = tints[Math.min(tier, tints.length - 1)];
+    const P2 = Math.PI * 2;
+    const c = S / 2;
+    ctx.save();
+    ctx.translate(c, c);
+    if (hover) ctx.scale(1.08, 1.08);
+    // Housing plate every icon sits on
+    let g = ctx.createLinearGradient(0, -c, 0, c);
+    g.addColorStop(0, 'rgba(255,255,255,0.09)');
+    g.addColorStop(1, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = g;
+    this.rr(ctx, -c * 0.92, -c * 0.92, c * 1.84, c * 1.84, c * 0.24);
+    ctx.fill();
+    ctx.strokeStyle = hover ? this.hexA(col, 0.85) : 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = hover ? 2.5 : 1.5;
+    this.rr(ctx, -c * 0.92, -c * 0.92, c * 1.84, c * 1.84, c * 0.24);
+    ctx.stroke();
+    // Backlight so the part reads against the panel
+    g = ctx.createRadialGradient(0, 0, 2, 0, 0, c);
+    g.addColorStop(0, this.hexA(col, hover ? 0.28 : 0.16));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, c, 0, P2); ctx.fill();
+    const U = S / 132;   // art was laid out at 132px
+
+    if (key === 'drill') {
+      // Spinning cone bit — flutes scroll, sparks fly at the tip
+      ctx.rotate(-Math.PI / 2);
+      const len = 46 * U, hw = 20 * U;
+      g = ctx.createLinearGradient(-hw, 0, hw, 0);
+      g.addColorStop(0, '#fff'); g.addColorStop(0.45, col); g.addColorStop(1, this.shade(col, -0.5));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(-hw, -len * 0.5);
+      ctx.quadraticCurveTo(-hw * 0.4, len * 0.1, 0, len * 0.55);
+      ctx.quadraticCurveTo(hw * 0.4, len * 0.1, hw, -len * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.save(); ctx.clip();
+      ctx.strokeStyle = 'rgba(20,22,26,0.75)';
+      ctx.lineWidth = 3.4 * U;
+      for (let i = 0; i < 5; i++) {
+        const o = ((t * 1.6 + i / 5) % 1) * len * 1.1 - len * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(-hw, o);
+        ctx.quadraticCurveTo(0, o + len * 0.14, hw, o - len * 0.04);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Collar
+      ctx.fillStyle = '#3a3f46';
+      this.rr(ctx, -hw * 1.15, -len * 0.62, hw * 2.3, len * 0.2, 4 * U);
+      ctx.fill();
+      // Tip sparks
+      for (let i = 0; i < 3; i++) {
+        const a = t * 7 + i * 2.1;
+        const r = (Math.sin(a) * 0.5 + 0.5) * 16 * U;
+        ctx.fillStyle = `rgba(255,220,150,${0.8 - r / (20 * U)})`;
+        ctx.beginPath();
+        ctx.arc(Math.cos(a * 1.7) * r * 0.6, len * 0.6 + r * 0.5, 2.2 * U, 0, P2);
+        ctx.fill();
+      }
+    } else if (key === 'hull') {
+      // Armour plate with rivets and a shine that sweeps across
+      g = ctx.createLinearGradient(0, -40 * U, 0, 44 * U);
+      g.addColorStop(0, this.shade(col, 0.35));
+      g.addColorStop(1, this.shade(col, -0.45));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(0, -44 * U);
+      ctx.lineTo(38 * U, -26 * U);
+      ctx.lineTo(38 * U, 18 * U);
+      ctx.quadraticCurveTo(0, 50 * U, -38 * U, 18 * U);
+      ctx.lineTo(-38 * U, -26 * U);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(10,12,16,0.6)';
+      ctx.lineWidth = 2.5 * U;
+      ctx.stroke();
+      ctx.save(); ctx.clip();
+      // Sweeping specular bar
+      const sw = ((t * 0.45) % 1.6 - 0.3) * 90 * U;
+      g = ctx.createLinearGradient(sw - 16 * U, 0, sw + 16 * U, 0);
+      g.addColorStop(0, 'rgba(255,255,255,0)');
+      g.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(-50 * U, -50 * U, 100 * U, 100 * U);
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      for (const [rx, ry] of [[-26, -18], [26, -18], [-26, 8], [26, 8], [0, -30]]) {
+        ctx.beginPath(); ctx.arc(rx * U, ry * U, 3 * U, 0, P2); ctx.fill();
+      }
+    } else if (key === 'engine') {
+      // Piston pumping in a block, with exhaust flame
+      ctx.fillStyle = '#3a3f46';
+      this.rr(ctx, -34 * U, -16 * U, 68 * U, 46 * U, 6 * U);
+      ctx.fill();
+      const stroke = Math.sin(t * 6) * 9 * U;
+      ctx.fillStyle = '#8b9097';
+      ctx.fillRect(-9 * U, -44 * U + stroke, 18 * U, 32 * U);
+      ctx.fillStyle = '#d5d9de';
+      ctx.fillRect(-6 * U, -42 * U + stroke, 5 * U, 28 * U);
+      ctx.fillStyle = this.shade(col, 0.1);
+      this.rr(ctx, -20 * U, -50 * U + stroke, 40 * U, 12 * U, 4 * U);
+      ctx.fill();
+      // Cylinder fins
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 2 * U;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-34 * U, (-6 + i * 12) * U);
+        ctx.lineTo(34 * U, (-6 + i * 12) * U);
+        ctx.stroke();
+      }
+      // Exhaust flame, flickering
+      const fl = 0.6 + 0.4 * Math.sin(t * 22);
+      g = ctx.createRadialGradient(0, 40 * U, 2, 0, 44 * U, 22 * U * fl);
+      g.addColorStop(0, this.hexA(col, 0.95));
+      g.addColorStop(0.5, 'rgba(255,140,50,0.5)');
+      g.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(0, 42 * U, 14 * U * fl, 22 * U * fl, 0, 0, P2); ctx.fill();
+    } else if (key === 'fuelTank') {
+      // Cylinder with sloshing fuel and a bobbing gauge needle
+      ctx.fillStyle = '#2c2f36';
+      this.rr(ctx, -30 * U, -42 * U, 60 * U, 84 * U, 12 * U);
+      ctx.fill();
+      ctx.save();
+      this.rr(ctx, -26 * U, -38 * U, 52 * U, 76 * U, 9 * U);
+      ctx.clip();
+      const lvl = 8 * U + Math.sin(t * 1.6) * 3 * U;
+      g = ctx.createLinearGradient(0, lvl, 0, 40 * U);
+      g.addColorStop(0, col);
+      g.addColorStop(1, this.shade(col, -0.5));
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(-30 * U, lvl);
+      for (let x = -30; x <= 30; x += 6) {
+        ctx.lineTo(x * U, lvl + Math.sin(t * 3 + x * 0.11) * 2.6 * U);
+      }
+      ctx.lineTo(30 * U, 42 * U); ctx.lineTo(-30 * U, 42 * U);
+      ctx.closePath(); ctx.fill();
+      // Rising bubbles
+      for (let i = 0; i < 3; i++) {
+        const by = 38 * U - ((t * 22 * U + i * 30 * U) % (34 * U));
+        ctx.fillStyle = 'rgba(255,255,255,0.28)';
+        ctx.beginPath(); ctx.arc((-14 + i * 13) * U, by, 2.6 * U, 0, P2); ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 2 * U;
+      this.rr(ctx, -26 * U, -38 * U, 52 * U, 76 * U, 9 * U);
+      ctx.stroke();
+      // Bands
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(-30 * U, -14 * U, 60 * U, 4 * U);
+      ctx.fillRect(-30 * U, 14 * U, 60 * U, 4 * U);
+    } else if (key === 'radiator') {
+      // Finned radiator shedding heat shimmer
+      ctx.fillStyle = '#31353c';
+      this.rr(ctx, -36 * U, -30 * U, 72 * U, 58 * U, 6 * U);
+      ctx.fill();
+      for (let i = 0; i < 6; i++) {
+        const fx = (-30 + i * 12) * U;
+        g = ctx.createLinearGradient(fx, 0, fx + 8 * U, 0);
+        g.addColorStop(0, this.shade(col, 0.2));
+        g.addColorStop(1, this.shade(col, -0.4));
+        ctx.fillStyle = g;
+        this.rr(ctx, fx, -25 * U, 8 * U, 48 * U, 2 * U);
+        ctx.fill();
+      }
+      // Heat rising off the fins
+      ctx.strokeStyle = 'rgba(255,150,80,0.5)';
+      ctx.lineWidth = 2.2 * U;
+      for (let i = 0; i < 4; i++) {
+        const hx = (-24 + i * 16) * U;
+        const ph = (t * 0.8 + i * 0.25) % 1;
+        ctx.globalAlpha = 1 - ph;
+        ctx.beginPath();
+        for (let s = 0; s <= 3; s++) {
+          const yy = -32 * U - ph * 22 * U - s * 5 * U;
+          const xx = hx + Math.sin(t * 5 + s * 1.3 + i) * 4 * U;
+          if (s === 0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+        }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else if (key === 'cargo') {
+      // Bay crate with ore stacking up inside
+      ctx.fillStyle = '#3a2f22';
+      this.rr(ctx, -38 * U, -22 * U, 76 * U, 60 * U, 5 * U);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+      ctx.lineWidth = 2 * U;
+      this.rr(ctx, -38 * U, -22 * U, 76 * U, 60 * U, 5 * U);
+      ctx.stroke();
+      ctx.save();
+      this.rr(ctx, -36 * U, -20 * U, 72 * U, 56 * U, 4 * U);
+      ctx.clip();
+      // Ore chunks settling in
+      for (let i = 0; i < 7; i++) {
+        const drop = ((t * 0.5 + i * 0.14) % 1);
+        const rest = Math.min(1, drop * 3);
+        const ox = (-26 + (i % 4) * 17) * U + (i > 3 ? 8 * U : 0);
+        const oy = (30 - Math.floor(i / 4) * 15) * U - (1 - rest) * 50 * U;
+        ctx.fillStyle = i % 3 === 0 ? col : this.shade(col, -0.25);
+        ctx.beginPath();
+        ctx.moveTo(ox - 8 * U, oy + 4 * U);
+        ctx.lineTo(ox - 3 * U, oy - 7 * U);
+        ctx.lineTo(ox + 7 * U, oy - 5 * U);
+        ctx.lineTo(ox + 8 * U, oy + 5 * U);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath(); ctx.arc(ox - 1 * U, oy - 2 * U, 1.8 * U, 0, P2); ctx.fill();
+      }
+      ctx.restore();
+      // Bay lip
+      ctx.fillStyle = '#2c241a';
+      ctx.fillRect(-38 * U, -22 * U, 76 * U, 7 * U);
+    }
+    ctx.restore();
+  },
+
   // --- The impassable side walls, drawn as ONE continuous cliff face rather
   // than a stack of identical boulders. Every feature is a function of WORLD
   // position, so strata, cracks and the ragged inner edge flow across tile

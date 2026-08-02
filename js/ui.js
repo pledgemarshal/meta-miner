@@ -119,6 +119,25 @@ const UI = {
     for (const r of (spec.rows || [])) {
       const row = document.createElement('div');
       row.className = 'row' + (r.pulse ? ' pulse' : '');
+      // Animated hardware portrait (upgrade shop). Self-driving: the loop
+      // stops the moment the canvas leaves the DOM, so panels can't leak it.
+      if (r.icon) {
+        const cv = document.createElement('canvas');
+        cv.className = 'rowIcon';
+        cv.width = 132; cv.height = 132;
+        const ictx = cv.getContext('2d');
+        const t0 = performance.now();
+        let live = false;   // the panel isn't in the document yet on frame 0
+        const tick = () => {
+          if (cv.isConnected) live = true;
+          else if (live) return;   // was mounted, now gone — stop the loop
+          ictx.clearRect(0, 0, cv.width, cv.height);
+          r.icon(ictx, cv.width, (performance.now() - t0) / 1000, cv.matches(':hover'));
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        row.appendChild(cv);
+      }
       const left = document.createElement('div');
       left.className = 'grow';
       if (r.name) {
@@ -132,6 +151,20 @@ const UI = {
         d.className = 'detail';
         d.textContent = r.detail;
         left.appendChild(d);
+      }
+      // Tier ladder: one pip per tier, filled up to what's installed, with
+      // the next one outlined so the upgrade path is legible at a glance
+      if (r.pips) {
+        const pr = document.createElement('div');
+        pr.className = 'pips';
+        for (let i = 0; i < r.pips.total; i++) {
+          const pip = document.createElement('i');
+          if (i < r.pips.filled) pip.className = 'on';
+          else if (i === r.pips.filled) pip.className = 'next';
+          if (i < r.pips.filled || i === r.pips.filled) pip.style.setProperty('--c', r.pips.color);
+          pr.appendChild(pip);
+        }
+        left.appendChild(pr);
       }
       row.appendChild(left);
       if (r.right) {

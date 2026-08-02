@@ -118,14 +118,22 @@ const Shops = {
       const u = C.UPGRADES[cat];
       const cur = P.tiers[cat];
       const next = u.tiers[cur + 1];
+      const tint = Sprites.UPGRADE_TINTS[cat] || Sprites.UPGRADE_TINTS.hull;
       if (!next) {
-        rows.push({ name: `${u.label}: ${u.tiers[cur].name}`, detail: u.desc, right: 'MAX', rightCls: 'owned' });
+        rows.push({
+          name: `${u.label}: ${u.tiers[cur].name}`, detail: u.desc, right: 'MAX', rightCls: 'owned',
+          icon: (ic, S, t, hov) => Sprites.drawUpgradeIcon(ic, cat, cur, S, t, hov),
+          pips: { filled: u.tiers.length, total: u.tiers.length, color: tint[Math.min(cur, tint.length - 1)] },
+        });
         continue;
       }
       const statStr = next.disp || (u.unit === '%' ? Math.round(next.stat * 100) : next.stat);
       rows.push({
         name: `${u.label}: ${next.name}`,
         detail: `${u.desc}  Now: ${u.tiers[cur].disp || (u.unit === '%' ? Math.round(u.tiers[cur].stat * 100) : u.tiers[cur].stat)} → ${statStr} ${u.unit}`,
+        // The portrait shows the part you'd be BUYING, not the one installed
+        icon: (ic, S, t, hov) => Sprites.drawUpgradeIcon(ic, cat, cur + 1, S, t, hov),
+        pips: { filled: cur + 1, total: u.tiers.length, color: tint[Math.min(cur + 1, tint.length - 1)] },
         pulse: free && cat === 'fuelTank',   // the CEO's suggestion, gently throbbing
         button: {
           label: free ? 'FREE' : '$' + next.price.toLocaleString(),
