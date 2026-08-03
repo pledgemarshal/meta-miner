@@ -166,6 +166,7 @@ const Shops = {
       return {
         name: `${it.name}  (own ${P.items[key]})`,
         detail: `${it.desc} — hotkey ${it.key}`,
+        icon: (ic, S, t, hov) => Sprites.drawItemIcon(ic, key, S, t, hov),
         button: {
           label: '$' + it.price.toLocaleString(),
           disabled: P.money < it.price,
@@ -194,6 +195,7 @@ const Shops = {
     rows.push({
       name: 'Hull repair service',
       detail: `$${C.REPAIR_COST_PER_HP} per hull point — damage: ${missing} HP`,
+      icon: (ic, S, t, hov) => Sprites.drawItemIcon(ic, 'repair', S, t, hov),
       button: { label: `Repair all — $${fullCost.toLocaleString()}`, disabled: missing <= 0 || P.money < fullCost, onClick: () => repair(fullCost) },
     });
     UI.panel({

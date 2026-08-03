@@ -3237,6 +3237,316 @@ const Sprites = {
     ctx.restore();
   },
 
+  // --- Emendation Station portraits: one animated icon per consumable. ---
+  ITEM_TINTS: {
+    fuelTank: '#ffb347', nanobots: '#7dffb0', dynamite: '#ff5540',
+    plastic: '#ffd23e', teleporter: '#c9a2ff', transmitter: '#7de0ff',
+    repair: '#9ad8ff',
+  },
+  drawItemIcon(ctx, key, S, t, hover) {
+    const col = this.ITEM_TINTS[key] || '#c9a2ff';
+    const P2 = Math.PI * 2;
+    const c = S / 2, U = S / 132;
+    ctx.save();
+    ctx.translate(c, c);
+    if (hover) ctx.scale(1.08, 1.08);
+    // Shelf plate, matching the upgrade shop's housing
+    let g = ctx.createLinearGradient(0, -c, 0, c);
+    g.addColorStop(0, 'rgba(255,255,255,0.09)');
+    g.addColorStop(1, 'rgba(0,0,0,0.25)');
+    ctx.fillStyle = g;
+    this.rr(ctx, -c * 0.92, -c * 0.92, c * 1.84, c * 1.84, c * 0.24);
+    ctx.fill();
+    ctx.strokeStyle = hover ? this.hexA(col, 0.85) : 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = hover ? 2.5 : 1.5;
+    this.rr(ctx, -c * 0.92, -c * 0.92, c * 1.84, c * 1.84, c * 0.24);
+    ctx.stroke();
+    g = ctx.createRadialGradient(0, 0, 2, 0, 0, c);
+    g.addColorStop(0, this.hexA(col, hover ? 0.28 : 0.16));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, c, 0, P2); ctx.fill();
+
+    if (key === 'fuelTank') {
+      // Jerry can, glugging — spout, X-brace, fuel sloshing behind a gauge slit
+      ctx.fillStyle = '#b8442c';
+      this.rr(ctx, -26 * U, -30 * U, 52 * U, 62 * U, 6 * U);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20,10,6,0.5)';
+      ctx.lineWidth = 2.4 * U;
+      this.rr(ctx, -26 * U, -30 * U, 52 * U, 62 * U, 6 * U);
+      ctx.stroke();
+      // Pressed X brace
+      ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = 3.5 * U;
+      ctx.beginPath();
+      ctx.moveTo(-18 * U, -22 * U); ctx.lineTo(18 * U, 24 * U);
+      ctx.moveTo(18 * U, -22 * U); ctx.lineTo(-18 * U, 24 * U);
+      ctx.stroke();
+      // Gauge slit with sloshing fuel
+      ctx.save();
+      this.rr(ctx, -8 * U, -14 * U, 16 * U, 40 * U, 3 * U);
+      ctx.clip();
+      ctx.fillStyle = '#16181d';
+      ctx.fillRect(-8 * U, -14 * U, 16 * U, 40 * U);
+      const lvl = 2 * U + Math.sin(t * 2.2) * 3 * U;
+      ctx.fillStyle = col;
+      ctx.fillRect(-8 * U, lvl, 16 * U, 40 * U);
+      ctx.restore();
+      // Spout + cap
+      ctx.fillStyle = '#8a2f1e';
+      this.rr(ctx, 16 * U, -42 * U, 16 * U, 14 * U, 3 * U);
+      ctx.fill();
+      ctx.fillStyle = '#3a3f46';
+      this.rr(ctx, -14 * U, -38 * U, 20 * U, 10 * U, 3 * U);
+      ctx.fill();
+      // Drip from the spout
+      const dp = (t * 0.9) % 1;
+      ctx.fillStyle = this.hexA(col, 1 - dp);
+      ctx.beginPath(); ctx.ellipse(24 * U, -26 * U + dp * 30 * U, 2.6 * U, 4 * U, 0, 0, P2); ctx.fill();
+    } else if (key === 'nanobots') {
+      // Vial of nanobots swarming around a mending hull plate
+      ctx.fillStyle = '#2c3a44';
+      this.rr(ctx, -20 * U, -34 * U, 40 * U, 68 * U, 12 * U);
+      ctx.fill();
+      ctx.save();
+      this.rr(ctx, -16 * U, -30 * U, 32 * U, 60 * U, 9 * U);
+      ctx.clip();
+      g = ctx.createLinearGradient(0, -30 * U, 0, 30 * U);
+      g.addColorStop(0, this.hexA(col, 0.35));
+      g.addColorStop(1, this.hexA(col, 0.9));
+      ctx.fillStyle = g;
+      ctx.fillRect(-16 * U, -30 * U, 32 * U, 60 * U);
+      // Swarming motes
+      for (let i = 0; i < 9; i++) {
+        const a = t * (1.4 + i * 0.15) + i * 1.7;
+        const rx = Math.sin(a) * 11 * U, ry = Math.cos(a * 0.8 + i) * 24 * U;
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath(); ctx.arc(rx, ry, 1.8 * U, 0, P2); ctx.fill();
+      }
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2 * U;
+      this.rr(ctx, -16 * U, -30 * U, 32 * U, 60 * U, 9 * U);
+      ctx.stroke();
+      // Cap
+      ctx.fillStyle = '#5a636e';
+      this.rr(ctx, -13 * U, -42 * U, 26 * U, 12 * U, 3 * U);
+      ctx.fill();
+      // Pulsing glow through the glass
+      const pu = 0.5 + 0.5 * Math.sin(t * 3.4);
+      g = ctx.createRadialGradient(0, 0, 2, 0, 0, 34 * U);
+      g.addColorStop(0, this.hexA(col, 0.3 * pu));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, 34 * U, 0, P2); ctx.fill();
+    } else if (key === 'dynamite') {
+      // Bundle of sticks with a live, sparking fuse
+      for (const [dx, rot] of [[-14, -0.12], [0, 0], [14, 0.12]]) {
+        ctx.save();
+        ctx.translate(dx * U, 0);
+        ctx.rotate(rot);
+        g = ctx.createLinearGradient(-9 * U, 0, 9 * U, 0);
+        g.addColorStop(0, '#8a2f1e'); g.addColorStop(0.5, col); g.addColorStop(1, '#7a2618');
+        ctx.fillStyle = g;
+        this.rr(ctx, -9 * U, -26 * U, 18 * U, 54 * U, 3 * U);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,240,200,0.25)';
+        ctx.fillRect(-9 * U, -12 * U, 18 * U, 5 * U);
+        ctx.fillRect(-9 * U, 10 * U, 18 * U, 5 * U);
+        ctx.restore();
+      }
+      // Binding
+      ctx.fillStyle = '#4a3a26';
+      ctx.fillRect(-26 * U, -4 * U, 52 * U, 9 * U);
+      // Fuse with a travelling spark
+      ctx.strokeStyle = '#c8b48a';
+      ctx.lineWidth = 2.6 * U;
+      ctx.beginPath();
+      ctx.moveTo(0, -26 * U);
+      ctx.quadraticCurveTo(14 * U, -40 * U, 6 * U, -50 * U);
+      ctx.stroke();
+      const fx = 6 * U + Math.sin(t * 9) * 2 * U, fy = -50 * U;
+      const fl = 0.6 + 0.4 * Math.sin(t * 26);
+      g = ctx.createRadialGradient(fx, fy, 1, fx, fy, 12 * U * fl);
+      g.addColorStop(0, '#fff6d0');
+      g.addColorStop(0.4, '#ffb347');
+      g.addColorStop(1, 'rgba(255,80,20,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(fx, fy, 12 * U * fl, 0, P2); ctx.fill();
+      // Flying sparks
+      for (let i = 0; i < 4; i++) {
+        const a = t * 6 + i * 1.6;
+        const r = ((t * 40 * U + i * 14 * U) % (22 * U));
+        ctx.fillStyle = `rgba(255,200,110,${1 - r / (22 * U)})`;
+        ctx.beginPath();
+        ctx.arc(fx + Math.cos(a) * r, fy + Math.sin(a) * r * 0.7, 1.8 * U, 0, P2);
+        ctx.fill();
+      }
+    } else if (key === 'plastic') {
+      // C4 brick with a wired detonator, LED blinking
+      g = ctx.createLinearGradient(0, -22 * U, 0, 26 * U);
+      g.addColorStop(0, '#e8dfae'); g.addColorStop(1, '#b4a878');
+      ctx.fillStyle = g;
+      this.rr(ctx, -34 * U, -22 * U, 68 * U, 48 * U, 5 * U);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(60,50,26,0.5)';
+      ctx.lineWidth = 2.2 * U;
+      this.rr(ctx, -34 * U, -22 * U, 68 * U, 48 * U, 5 * U);
+      ctx.stroke();
+      // Hazard band
+      ctx.save();
+      this.rr(ctx, -34 * U, -6 * U, 68 * U, 14 * U, 2 * U);
+      ctx.clip();
+      for (let i = -4; i < 10; i++) {
+        ctx.fillStyle = i % 2 ? col : '#2c2c30';
+        ctx.beginPath();
+        ctx.moveTo((-34 + i * 10) * U, 8 * U);
+        ctx.lineTo((-28 + i * 10) * U, 8 * U);
+        ctx.lineTo((-20 + i * 10) * U, -6 * U);
+        ctx.lineTo((-26 + i * 10) * U, -6 * U);
+        ctx.fill();
+      }
+      ctx.restore();
+      // Detonator box + wires
+      ctx.fillStyle = '#2c2f36';
+      this.rr(ctx, 6 * U, -40 * U, 26 * U, 18 * U, 3 * U);
+      ctx.fill();
+      const on = Math.sin(t * 5) > 0;
+      ctx.fillStyle = on ? '#ff3a2a' : '#5a1f1a';
+      ctx.beginPath(); ctx.arc(19 * U, -31 * U, 3.4 * U, 0, P2); ctx.fill();
+      if (on) {
+        g = ctx.createRadialGradient(19 * U, -31 * U, 1, 19 * U, -31 * U, 12 * U);
+        g.addColorStop(0, 'rgba(255,60,40,0.5)');
+        g.addColorStop(1, 'rgba(255,60,40,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(19 * U, -31 * U, 12 * U, 0, P2); ctx.fill();
+      }
+      ctx.strokeStyle = '#c9302c';
+      ctx.lineWidth = 2.4 * U;
+      ctx.beginPath();
+      ctx.moveTo(10 * U, -22 * U);
+      ctx.quadraticCurveTo(-4 * U, -30 * U, -12 * U, -22 * U);
+      ctx.stroke();
+      ctx.strokeStyle = '#3a6ec9';
+      ctx.beginPath();
+      ctx.moveTo(16 * U, -22 * U);
+      ctx.quadraticCurveTo(4 * U, -34 * U, -2 * U, -22 * U);
+      ctx.stroke();
+    } else if (key === 'teleporter') {
+      // Spinning quantum vortex with orbiting particles
+      ctx.save();
+      ctx.rotate(t * 1.1);
+      for (let arm = 0; arm < 3; arm++) {
+        ctx.rotate(P2 / 3);
+        ctx.strokeStyle = this.hexA(col, 0.75);
+        ctx.lineWidth = 4.5 * U;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let s = 0; s <= 22; s++) {
+          const a = s * 0.28, r = s * 1.9 * U;
+          const x = Math.cos(a) * r, y = Math.sin(a) * r;
+          if (s === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Bright core
+      const pu = 0.65 + 0.35 * Math.sin(t * 4.5);
+      g = ctx.createRadialGradient(0, 0, 1, 0, 0, 20 * U * pu);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.35, col);
+      g.addColorStop(1, 'rgba(120,60,220,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(0, 0, 20 * U * pu, 0, P2); ctx.fill();
+      // Particles spiralling in
+      for (let i = 0; i < 6; i++) {
+        const ph = ((t * 0.7 + i / 6) % 1);
+        const r = (1 - ph) * 44 * U;
+        const a = ph * 7 + i * 1.05;
+        ctx.fillStyle = `rgba(255,255,255,${ph * 0.9})`;
+        ctx.beginPath(); ctx.arc(Math.cos(a) * r, Math.sin(a) * r, 2.2 * U, 0, P2); ctx.fill();
+      }
+    } else if (key === 'transmitter') {
+      // Dish antenna firing rings of signal
+      ctx.strokeStyle = '#5a636e';
+      ctx.lineWidth = 4 * U;
+      ctx.beginPath(); ctx.moveTo(0, 34 * U); ctx.lineTo(0, 4 * U); ctx.stroke();
+      ctx.fillStyle = '#3a3f46';
+      this.rr(ctx, -14 * U, 32 * U, 28 * U, 8 * U, 3 * U);
+      ctx.fill();
+      ctx.save();
+      ctx.rotate(-0.5);
+      // Dish
+      g = ctx.createLinearGradient(-24 * U, 0, 24 * U, 0);
+      g.addColorStop(0, '#e8ecf2'); g.addColorStop(1, '#8b9097');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.ellipse(0, 0, 26 * U, 15 * U, 0, Math.PI, 0); ctx.fill();
+      ctx.strokeStyle = 'rgba(30,34,40,0.5)';
+      ctx.lineWidth = 2 * U;
+      ctx.stroke();
+      // Feed horn
+      ctx.fillStyle = '#c8ccd4';
+      ctx.fillRect(-2 * U, -18 * U, 4 * U, 18 * U);
+      ctx.beginPath(); ctx.arc(0, -19 * U, 3.5 * U, 0, P2); ctx.fill();
+      // Expanding signal rings
+      for (let i = 0; i < 3; i++) {
+        const ph = ((t * 0.8 + i / 3) % 1);
+        ctx.strokeStyle = this.hexA(col, (1 - ph) * 0.9);
+        ctx.lineWidth = 2.6 * U;
+        ctx.beginPath();
+        ctx.arc(0, -19 * U, (6 + ph * 34) * U, -Math.PI * 0.85, -Math.PI * 0.15);
+        ctx.stroke();
+      }
+      ctx.restore();
+    } else if (key === 'repair') {
+      // Spanner turning over a dented hull plate, with weld sparks
+      g = ctx.createLinearGradient(0, -22 * U, 0, 26 * U);
+      g.addColorStop(0, '#9aa2ac'); g.addColorStop(1, '#5a636e');
+      ctx.fillStyle = g;
+      this.rr(ctx, -32 * U, -22 * U, 64 * U, 48 * U, 6 * U);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(20,24,30,0.55)';
+      ctx.lineWidth = 2.2 * U;
+      this.rr(ctx, -32 * U, -22 * U, 64 * U, 48 * U, 6 * U);
+      ctx.stroke();
+      // The dent being mended — closes and reopens
+      const mend = 0.5 + 0.5 * Math.sin(t * 1.6);
+      ctx.strokeStyle = `rgba(20,24,30,${0.6 * (1 - mend)})`;
+      ctx.lineWidth = 3 * U;
+      ctx.beginPath();
+      ctx.moveTo(-16 * U, 10 * U);
+      ctx.lineTo(-4 * U, -6 * U);
+      ctx.lineTo(6 * U, 6 * U);
+      ctx.stroke();
+      // Weld glow at the seam
+      const wx = -4 * U, wy = -6 * U;
+      g = ctx.createRadialGradient(wx, wy, 1, wx, wy, 16 * U * mend);
+      g.addColorStop(0, this.hexA(col, 0.95));
+      g.addColorStop(1, 'rgba(120,200,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(wx, wy, 16 * U * mend, 0, P2); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        const a = t * 8 + i * 1.7;
+        const r = ((t * 34 * U + i * 12 * U) % (18 * U));
+        ctx.fillStyle = `rgba(200,240,255,${(1 - r / (18 * U)) * mend})`;
+        ctx.beginPath(); ctx.arc(wx + Math.cos(a) * r, wy + Math.sin(a) * r, 1.7 * U, 0, P2); ctx.fill();
+      }
+      // Spanner, slowly turning
+      ctx.save();
+      ctx.translate(18 * U, -26 * U);
+      ctx.rotate(Math.sin(t * 1.6) * 0.5 - 0.4);
+      ctx.strokeStyle = '#c8ccd4';
+      ctx.lineWidth = 6 * U;
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20 * U, 22 * U); ctx.stroke();
+      ctx.lineWidth = 4 * U;
+      ctx.beginPath(); ctx.arc(-2 * U, -3 * U, 7 * U, Math.PI * 0.15, Math.PI * 1.55); ctx.stroke();
+      ctx.restore();
+    }
+    ctx.restore();
+  },
+
   // --- The impassable side walls, drawn as ONE continuous cliff face rather
   // than a stack of identical boulders. Every feature is a function of WORLD
   // position, so strata, cracks and the ragged inner edge flow across tile
